@@ -1,101 +1,145 @@
-import Image from "next/image";
+import Link from 'next/link'
+import { Package, ArrowRight, Zap, Phone } from 'lucide-react'
 
-export default function Home() {
+export default function LandingPage() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-white">
+      {/* Nav */}
+      <nav className="border-b border-gray-100">
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-2 font-bold text-blue-600 text-lg">
+            <Package size={22} />
+            Контрейл
+          </div>
+          <div className="flex items-center gap-3">
+            <Link href="/auth/login" className="text-sm text-gray-600 hover:text-gray-900">
+              Войти
+            </Link>
+            <Link
+              href="/auth/register"
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              Регистрация
+            </Link>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+      </nav>
+
+      {/* Hero */}
+      <section className="max-w-5xl mx-auto px-4 py-16 sm:py-24">
+        <div className="max-w-2xl">
+          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 leading-tight mb-6">
+            Биржа контейнерных перевозок в реальном времени
+          </h1>
+          <p className="text-xl text-gray-500 mb-8">
+            Разместите заявку за 30 секунд — перевозчики увидят её сразу и свяжутся с вами напрямую.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link
+              href="/auth/register"
+              className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold text-base hover:bg-blue-700 transition-colors"
+            >
+              Начать бесплатно
+              <ArrowRight size={18} />
+            </Link>
+            <Link
+              href="/auth/login"
+              className="flex items-center justify-center px-6 py-3 rounded-xl border border-gray-300 text-gray-700 font-semibold text-base hover:bg-gray-50 transition-colors"
+            >
+              Войти в систему
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="bg-gray-50 py-16">
+        <div className="max-w-5xl mx-auto px-4">
+          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">Как это работает</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center mx-auto mb-4">
+                <Zap size={28} className="text-blue-600" />
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-2">1. Размещаете заявку</h3>
+              <p className="text-gray-500 text-sm">Укажите маршрут, тип контейнера и дату — займёт 30 секунд</p>
+            </div>
+            <div className="text-center">
+              <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center mx-auto mb-4">
+                <Package size={28} className="text-blue-600" />
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-2">2. Перевозчики видят и откликаются</h3>
+              <p className="text-gray-500 text-sm">Лента обновляется в реальном времени — перевозчики находят загрузки мгновенно</p>
+            </div>
+            <div className="text-center">
+              <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center mx-auto mb-4">
+                <Phone size={28} className="text-blue-600" />
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-2">3. Договариваетесь напрямую</h3>
+              <p className="text-gray-500 text-sm">Контакты открываются сразу — звоните, договаривайтесь, везите</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="max-w-5xl mx-auto px-4 py-16">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+          <div className="p-6 rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <h3 className="text-xl font-semibold text-gray-900 mb-3">Для грузовладельцев</h3>
+            <ul className="space-y-2 text-gray-600 text-sm">
+              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Заявка размещается за 30 секунд</li>
+              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Видите всех откликнувшихся с контактами</li>
+              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Управляете активными и архивными заявками</li>
+              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Срочные заявки выделяются в ленте</li>
+            </ul>
+            <Link
+              href="/auth/register"
+              className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              Разместить заявку <ArrowRight size={14} />
+            </Link>
+          </div>
+
+          <div className="p-6 rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <h3 className="text-xl font-semibold text-gray-900 mb-3">Для перевозчиков</h3>
+            <ul className="space-y-2 text-gray-600 text-sm">
+              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Живая лента заявок без перезагрузки</li>
+              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Фильтры по маршруту и типу контейнера</li>
+              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Телефон клиента сразу после отклика</li>
+              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> История всех ваших откликов</li>
+            </ul>
+            <Link
+              href="/auth/register"
+              className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              Найти загрузку <ArrowRight size={14} />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="bg-blue-600 py-16">
+        <div className="max-w-5xl mx-auto px-4 text-center">
+          <h2 className="text-3xl font-bold text-white mb-4">Готовы начать?</h2>
+          <p className="text-blue-100 mb-8">Регистрация бесплатна. Никаких скрытых платежей.</p>
+          <Link
+            href="/auth/register"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-blue-600 font-bold text-base hover:bg-blue-50 transition-colors"
+          >
+            Зарегистрироваться бесплатно
+            <ArrowRight size={18} />
+          </Link>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-100 py-8">
+        <div className="max-w-5xl mx-auto px-4 text-center text-sm text-gray-400">
+          © 2026 Контрейл. Биржа контейнерных перевозок.
+        </div>
       </footer>
     </div>
-  );
+  )
 }
