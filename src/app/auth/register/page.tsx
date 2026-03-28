@@ -44,21 +44,8 @@ export default function RegisterPage() {
       return
     }
 
-    // Upsert: триггер уже мог создать запись, поэтому используем upsert
-    const { error: profileError } = await supabase.from('users').upsert({
-      id: data.user.id,
-      role,
-      name,
-      phone: normalizedPhone,
-      city,
-    }, { onConflict: 'id' })
-
-    if (profileError && profileError.code !== '42501') {
-      // 42501 = insufficient_privilege (RLS), игнорируем — триггер уже создал запись
-      toast.error('Ошибка создания профиля')
-      setLoading(false)
-      return
-    }
+    // Профиль создаётся триггером handle_new_user() на стороне Supabase.
+    // Никакого дополнительного запроса в users не нужно.
 
     toast.success('Аккаунт создан!')
     router.push(role === 'carrier' ? '/feed' : '/dashboard')
