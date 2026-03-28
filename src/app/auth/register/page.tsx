@@ -30,22 +30,31 @@ export default function RegisterPage() {
 
     const supabase = createClient()
 
-    const { data, error } = await supabase.auth.signUp({ email, password })
+    const normalizedPhone = normalizePhone(phone)
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { role, name, phone: normalizedPhone, city },
+      },
+    })
     if (error || !data.user) {
       toast.error(error?.message || 'Ошибка регистрации')
       setLoading(false)
       return
     }
 
-    const { error: profileError } = await supabase.from('users').insert({
+    // Upsert: триггер уже мог создать запись, поэтому используем upsert
+    const { error: profileError } = await supabase.from('users').upsert({
       id: data.user.id,
       role,
       name,
-      phone: normalizePhone(phone),
+      phone: normalizedPhone,
       city,
-    })
+    }, { onConflict: 'id' })
 
-    if (profileError) {
+    if (profileError && profileError.code !== '42501') {
+      // 42501 = insufficient_privilege (RLS), игнорируем — триггер уже создал запись
       toast.error('Ошибка создания профиля')
       setLoading(false)
       return
