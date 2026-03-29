@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRight, Clock, AlertCircle, MessageSquare, Timer, Zap } from 'lucide-react'
+import { ArrowRight, Clock, AlertCircle, MessageSquare, Timer, Zap, TrendingDown, TrendingUp } from 'lucide-react'
 import { Order } from '@/types/database'
 import { formatDate, formatPrice, formatDateTime } from '@/lib/utils'
 import { CONTAINER_TYPES } from '@/lib/cities'
@@ -13,6 +13,7 @@ interface OrderCardProps {
   showResponses?: boolean
   actions?: React.ReactNode
   extra?: React.ReactNode
+  bidData?: { best_amount: number | null; participant_count: number; bid_count: number } | null
 }
 
 function ExpiryCountdown({ expiresAt, t }: { expiresAt: string; t: { expiresIn: string; days: string; hours: string; minutes: string } }) {
@@ -54,22 +55,33 @@ function VatBadge({ vatType, t }: { vatType: string; t: { vatNone: string; vatVa
   )
 }
 
-export function OrderCard({ order, showResponses, actions, extra }: OrderCardProps) {
+export function OrderCard({ order, showResponses, actions, extra, bidData }: OrderCardProps) {
   const { t } = useLanguage()
   const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label || order.container_type
   const statusLabel = t.status[order.status as keyof typeof t.status] ?? order.status
+  const isAuctionFormat = order.format === 'reduction' || order.format === 'auction'
 
   return (
     <div className={cn(
       'bg-white rounded-2xl border shadow-sm p-4 sm:p-5 transition-shadow hover:shadow-md',
-      order.is_urgent ? 'border-red-200' : 'border-gray-100'
+      order.format === 'urgent' ? 'border-red-200' : isAuctionFormat ? 'border-amber-200' : 'border-gray-100'
     )}>
       {/* Шапка */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2 flex-wrap">
-          {order.is_urgent && (
+          {order.format === 'urgent' && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
               <AlertCircle size={11} /> СРОЧНО
+            </span>
+          )}
+          {order.format === 'reduction' && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
+              <TrendingDown size={11} /> {t.order.formatReduction}
+            </span>
+          )}
+          {order.format === 'auction' && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">
+              <TrendingUp size={11} /> {t.order.formatAuction}
             </span>
           )}
           <span className="text-xs text-gray-400">{formatDateTime(order.created_at)}</span>
@@ -140,6 +152,23 @@ export function OrderCard({ order, showResponses, actions, extra }: OrderCardPro
       {order.notes && (
         <div className="mb-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-100 text-xs text-amber-800">
           ⚠️ {order.notes}
+        </div>
+      )}
+
+      {/* Данные торгов */}
+      {isAuctionFormat && bidData !== undefined && (
+        <div className="mb-3 flex flex-wrap gap-3 text-sm px-3 py-2 rounded-lg bg-amber-50 border border-amber-100">
+          <span className="text-gray-600">
+            {t.auctions.bestBid}:{' '}
+            <strong className="text-gray-900">
+              {bidData?.best_amount ? `${bidData.best_amount.toLocaleString('ru-RU')} ₽` : `${order.auction_start_price?.toLocaleString('ru-RU')} ₽ (старт)`}
+            </strong>
+          </span>
+          {bidData && (
+            <span className="text-gray-500">
+              {bidData.participant_count} {t.auctions.participants} · {bidData.bid_count} {t.auctions.bidCount}
+            </span>
+          )}
         </div>
       )}
 

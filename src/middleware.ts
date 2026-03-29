@@ -78,6 +78,7 @@ export async function middleware(request: NextRequest) {
   if (
     pathname === '/stats' ||
     pathname === '/profile' ||
+    pathname.startsWith('/auctions') ||
     isChatRoute || isTruckDetail || isOrderDetail
   ) {
     return supabaseResponse

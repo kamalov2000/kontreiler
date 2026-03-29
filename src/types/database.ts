@@ -1,6 +1,7 @@
 export type UserRole = 'client' | 'carrier'
 export type ContainerType = '20ft' | '40ft' | '40HC' | '45ft' | '20REF' | '40REF' | '20TC' | '40TC'
 export type VatType = 'none' | 'vat20' | 'vat0'
+export type OrderFormat = 'regular' | 'urgent' | 'reduction' | 'auction'
 export type OrderStatus = 'active' | 'matched' | 'in_transit' | 'delivered' | 'closed' | 'cancelled' | 'expired'
 
 export interface User {
@@ -15,10 +16,23 @@ export interface User {
   created_at: string
 }
 
+export interface Bid {
+  id: string
+  order_id: string
+  carrier_id: string
+  amount: number
+  created_at: string
+  carrier?: User
+}
+
 export interface Order {
   id: string
   client_id: string
   accepted_carrier_id?: string | null
+  format: OrderFormat
+  auction_start_price: number | null
+  auction_end_time: string | null
+  auction_winner_id: string | null
   from_city: string
   via_city: string | null
   to_city: string
@@ -65,6 +79,7 @@ export type NotificationType =
   | 'order_delivered' | 'trip_done'
   | 'order_cancelled'
   | 'review_request'
+  | 'auction_won' | 'auction_ended'
 
 export interface Notification {
   id: string

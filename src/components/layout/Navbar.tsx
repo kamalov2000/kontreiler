@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Package, LogOut, User, Menu, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
@@ -18,6 +18,18 @@ export function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [auctionCount, setAuctionCount] = useState(0)
+
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
+    supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .in('format', ['reduction', 'auction'])
+      .eq('status', 'active')
+      .then(({ count }) => setAuctionCount(count ?? 0))
+  }, [user])
 
   const isClient = user?.role === 'client'
   const isCarrier = user?.role === 'carrier'
@@ -27,11 +39,13 @@ export function Navbar() {
         { href: '/dashboard', label: t.nav.myOrders },
         { href: '/orders/new', label: t.nav.newOrder },
         { href: '/trucks', label: t.nav.findTruck },
+        { href: '/auctions', label: t.nav.auctions, badge: auctionCount || undefined },
         { href: '/stats', label: t.nav.stats },
       ]
     : isCarrier
     ? [
         { href: '/feed', label: t.nav.feed },
+        { href: '/auctions', label: t.nav.auctions, badge: auctionCount || undefined },
         { href: '/my-responses', label: t.nav.myResponses },
         { href: '/my-trucks', label: t.nav.myTrucks },
         { href: '/stats', label: t.nav.stats },
@@ -62,13 +76,18 @@ export function Navbar() {
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  'px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                  pathname === link.href
+                  'relative px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  pathname === link.href || pathname.startsWith(link.href + '/')
                     ? 'bg-blue-50 text-blue-700'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 )}
               >
                 {link.label}
+                {link.badge ? (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                    {link.badge}
+                  </span>
+                ) : null}
               </Link>
             ))}
           </div>
@@ -120,13 +139,18 @@ export function Navbar() {
               href={link.href}
               onClick={() => setMenuOpen(false)}
               className={cn(
-                'block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                pathname === link.href
+                'relative flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                pathname === link.href || pathname.startsWith(link.href + '/')
                   ? 'bg-blue-50 text-blue-700'
                   : 'text-gray-600 hover:bg-gray-50'
               )}
             >
               {link.label}
+              {link.badge ? (
+                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {link.badge}
+                </span>
+              ) : null}
             </Link>
           ))}
           <Link

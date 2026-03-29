@@ -63,6 +63,9 @@ function FeedContent() {
       .order('is_urgent', { ascending: false })
       .order('created_at', { ascending: false })
 
+    // Исключаем торги (редукцион/аукцион) — они на странице /auctions
+    query = query.not('format', 'in', '(reduction,auction)')
+
     if (fromFilter) query = query.ilike('from_city', `%${fromFilter}%`)
     if (toFilter) query = query.ilike('to_city', `%${toFilter}%`)
     if (typeFilter) query = query.eq('container_type', typeFilter)

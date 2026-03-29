@@ -12,7 +12,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES } from '@/lib/cities'
-import { ContainerType, VatType } from '@/types/database'
+import { ContainerType, VatType, OrderFormat } from '@/types/database'
 import { toast } from 'sonner'
 
 type ValidityOption = '1' | '3' | '7' | '14' | 'custom'
@@ -54,8 +54,13 @@ function NewOrderForm() {
   const [weightGross, setWeightGross] = useState('')
   const [weightNet, setWeightNet] = useState('')
 
-  // Flags
-  const [isUrgent, setIsUrgent] = useState(params.get('urgent') === '1')
+  // Format (replaces is_urgent checkbox)
+  const [format, setFormat] = useState<OrderFormat>(
+    params.get('urgent') === '1' ? 'urgent' : 'regular'
+  )
+  const [auctionStartPrice, setAuctionStartPrice] = useState('')
+  const [auctionEndTime, setAuctionEndTime] = useState('')
+
   const [requiresGenset, setRequiresGenset] = useState(false)
   const [notes, setNotes] = useState(params.get('notes') || '')
 
@@ -64,6 +69,7 @@ function NewOrderForm() {
 
   const isDuplicate = params.has('from')
   const isRefContainer = REF_CONTAINER_TYPES.has(containerType)
+  const isAuctionFormat = format === 'reduction' || format === 'auction'
 
   function handleContainerChange(v: ContainerType) {
     setContainerType(v)
@@ -95,8 +101,10 @@ function NewOrderForm() {
     if (!viaCity)  e.viaCity  = t.order.errorPoint2
     if (!toCity)   e.toCity   = t.order.errorPoint3
     if (!readyDate) e.readyDate = t.order.errorDate
-    if (!isNegotiable && !price) e.price = t.order.errorRate
+    if (!isAuctionFormat && !isNegotiable && !price) e.price = t.order.errorRate
     if (validity === 'custom' && !customExpiryDate) e.customExpiry = t.order.errorValidity
+    if (isAuctionFormat && !auctionStartPrice) e.auctionStartPrice = t.order.errorStartPrice
+    if (isAuctionFormat && !auctionEndTime) e.auctionEndTime = t.order.errorEndTime
     return e
   }
 
@@ -110,6 +118,7 @@ function NewOrderForm() {
     const supabase = createClient()
     const { error } = await supabase.from('orders').insert({
       client_id: user.id,
+      format,
       from_city: fromCity,
       from_city_address: fromCityAddress.trim() || null,
       via_city: viaCity,
@@ -119,14 +128,16 @@ function NewOrderForm() {
       container_type: containerType,
       ready_date: readyDate,
       expires_at: computeExpiresAt(),
-      price: isNegotiable ? null : parseInt(price),
-      is_negotiable: isNegotiable,
+      price: isAuctionFormat ? null : (isNegotiable ? null : parseInt(price)),
+      is_negotiable: isAuctionFormat ? false : isNegotiable,
+      is_urgent: format === 'urgent',
       vat_type: vatType,
       weight_gross: weightGross ? parseInt(weightGross) : null,
       weight_net:   weightNet   ? parseInt(weightNet)   : null,
-      is_urgent: isUrgent,
       requires_genset: requiresGenset,
       notes: notes.trim() || null,
+      auction_start_price: isAuctionFormat ? parseInt(auctionStartPrice) : null,
+      auction_end_time: isAuctionFormat ? new Date(auctionEndTime).toISOString() : null,
     })
 
     if (error) {
@@ -136,11 +147,20 @@ function NewOrderForm() {
     }
 
     toast.success(t.order.posted)
-    router.push('/dashboard')
+    router.push(isAuctionFormat ? '/auctions' : '/dashboard')
   }
 
   const today     = new Date().toISOString().split('T')[0]
   const minExpiry = addDays(1)
+  // Minimum auction end time: 1 hour from now
+  const minAuctionEnd = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)
+
+  const formatOptions: { value: OrderFormat; label: string; hint: string }[] = [
+    { value: 'regular',   label: t.order.formatRegular,   hint: '' },
+    { value: 'urgent',    label: t.order.formatUrgent,    hint: t.order.urgentHint },
+    { value: 'reduction', label: t.order.formatReduction, hint: t.order.formatReductionHint },
+    { value: 'auction',   label: t.order.formatAuction,   hint: t.order.formatAuctionHint },
+  ]
 
   return (
     <AppLayout>
@@ -299,36 +319,98 @@ function NewOrderForm() {
               <p className="text-xs text-gray-400 mt-1.5">{t.order.weightHint}</p>
             </div>
 
-            {/* Ставка + НДС */}
+            {/* Формат заявки */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">{t.order.rate}</label>
-              <div className="flex items-center gap-3 mb-2">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isNegotiable}
-                    onChange={e => {
-                      setIsNegotiable(e.target.checked)
-                      if (e.target.checked) setPrice('')
-                      setErrors(p => ({ ...p, price: '' }))
-                    }}
-                    className="w-4 h-4 rounded border-gray-300 text-blue-600"
-                  />
-                  <span className="text-sm text-gray-700">{t.order.negotiable}</span>
-                </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t.order.format}</label>
+              <div className="grid grid-cols-2 gap-2">
+                {formatOptions.map(opt => (
+                  <label
+                    key={opt.value}
+                    className={`flex flex-col gap-0.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-colors ${
+                      format === opt.value
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:bg-gray-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="format"
+                      value={opt.value}
+                      checked={format === opt.value}
+                      onChange={() => {
+                        setFormat(opt.value)
+                        setErrors(p => ({ ...p, auctionStartPrice: '', auctionEndTime: '' }))
+                      }}
+                      className="sr-only"
+                    />
+                    <span className={`text-sm font-medium ${format === opt.value ? 'text-blue-700' : 'text-gray-800'}`}>
+                      {opt.label}
+                    </span>
+                    {opt.hint && (
+                      <span className="text-xs text-gray-500 leading-tight">{opt.hint}</span>
+                    )}
+                  </label>
+                ))}
               </div>
-              {!isNegotiable && (
-                <Input
-                  id="price"
-                  type="number"
-                  placeholder={t.order.rateInRubles}
-                  value={price}
-                  onChange={e => { setPrice(e.target.value); setErrors(p => ({ ...p, price: '' })) }}
-                  min="0"
-                  error={errors.price}
-                />
-              )}
             </div>
+
+            {/* Поля для аукциона/редукциона */}
+            {isAuctionFormat && (
+              <div className="space-y-3 p-4 rounded-xl border border-amber-200 bg-amber-50">
+                <Input
+                  id="auctionStartPrice"
+                  type="number"
+                  label={t.order.auctionStartPrice}
+                  value={auctionStartPrice}
+                  onChange={e => { setAuctionStartPrice(e.target.value); setErrors(p => ({ ...p, auctionStartPrice: '' })) }}
+                  placeholder="₽"
+                  min="1"
+                  error={errors.auctionStartPrice}
+                />
+                <Input
+                  id="auctionEndTime"
+                  type="datetime-local"
+                  label={t.order.auctionEndTime}
+                  value={auctionEndTime}
+                  onChange={e => { setAuctionEndTime(e.target.value); setErrors(p => ({ ...p, auctionEndTime: '' })) }}
+                  min={minAuctionEnd}
+                  error={errors.auctionEndTime}
+                />
+              </div>
+            )}
+
+            {/* Ставка + НДС — скрываем для аукционов */}
+            {!isAuctionFormat && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t.order.rate}</label>
+                <div className="flex items-center gap-3 mb-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isNegotiable}
+                      onChange={e => {
+                        setIsNegotiable(e.target.checked)
+                        if (e.target.checked) setPrice('')
+                        setErrors(p => ({ ...p, price: '' }))
+                      }}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">{t.order.negotiable}</span>
+                  </label>
+                </div>
+                {!isNegotiable && (
+                  <Input
+                    id="price"
+                    type="number"
+                    placeholder={t.order.rateInRubles}
+                    value={price}
+                    onChange={e => { setPrice(e.target.value); setErrors(p => ({ ...p, price: '' })) }}
+                    min="0"
+                    error={errors.price}
+                  />
+                )}
+              </div>
+            )}
 
             {/* НДС */}
             <div>
@@ -369,20 +451,6 @@ function NewOrderForm() {
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-300 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               />
             </div>
-
-            {/* Срочно */}
-            <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
-              <input
-                type="checkbox"
-                checked={isUrgent}
-                onChange={e => setIsUrgent(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-red-500"
-              />
-              <div>
-                <div className="text-sm font-medium text-gray-900">{t.order.urgent}</div>
-                <div className="text-xs text-gray-500">{t.order.urgentHint}</div>
-              </div>
-            </label>
 
             <Button type="submit" loading={loading} className="w-full" size="lg">
               {t.order.post}

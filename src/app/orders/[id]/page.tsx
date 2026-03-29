@@ -6,7 +6,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, Phone, User, ArrowRight, CheckCircle,
   MoreVertical, X, Edit2, Copy, RotateCcw, Ban, Star, Banknote,
-  MapPin, Timer, Zap, Weight,
+  MapPin, Timer, Zap, Weight, TrendingDown, TrendingUp,
 } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/Button'
@@ -16,7 +16,7 @@ import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { Order, Response, Review, OrderStatus, ContainerType, VatType } from '@/types/database'
+import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType } from '@/types/database'
 import { formatDate, formatDateTime, formatPrice, formatPhone, maskPhone } from '@/lib/utils'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES } from '@/lib/cities'
 import { toast } from 'sonner'
@@ -128,6 +128,11 @@ export default function OrderDetailPage() {
   const [reviewComment, setReviewComment] = useState('')
   const [submittingReview, setSubmittingReview] = useState(false)
 
+  // Bids (for auction/reduction orders)
+  const [bids, setBids] = useState<(Bid & { carrier?: { name: string | null } })[]>([])
+  const [bidAmount, setBidAmount] = useState('')
+  const [bidLoading, setBidLoading] = useState(false)
+
   const isOwner = user?.id === order?.client_id
 
   useEffect(() => {
@@ -141,6 +146,15 @@ export default function OrderDetailPage() {
 
       if (!orderData) { router.push('/dashboard'); return }
       setOrder(orderData as Order)
+
+      if (orderData.format === 'reduction' || orderData.format === 'auction') {
+        const { data: bidsData } = await supabase
+          .from('bids')
+          .select('*, carrier:users!carrier_id(name)')
+          .eq('order_id', id)
+          .order('created_at', { ascending: false })
+        setBids((bidsData || []) as (Bid & { carrier?: { name: string | null } })[])
+      }
 
       const { data: responsesData } = await supabase
         .from('responses')
@@ -418,6 +432,31 @@ export default function OrderDetailPage() {
     )
   }
 
+  async function placeBid() {
+    if (!order || !user || !bidAmount) return
+    const amount = parseInt(bidAmount)
+    if (isNaN(amount) || amount <= 0) { toast.error('Введите корректную сумму'); return }
+    setBidLoading(true)
+    const supabase = createClient()
+    const { data: newBid, error } = await supabase
+      .from('bids')
+      .insert({ order_id: order.id, carrier_id: user.id, amount })
+      .select('*, carrier:users!carrier_id(name)')
+      .single()
+    setBidLoading(false)
+    if (error) {
+      const msg = error.message || ''
+      if (msg.includes('bid_too_high')) toast.error(t.auctions.bidTooHigh)
+      else if (msg.includes('bid_too_low')) toast.error(t.auctions.bidTooLow)
+      else if (msg.includes('auction_ended')) toast.error(t.auctions.auctionEnded)
+      else toast.error(msg || 'Ошибка при ставке')
+      return
+    }
+    toast.success(t.auctions.bidSuccess)
+    setBidAmount('')
+    if (newBid) setBids(prev => [newBid as Bid & { carrier?: { name: string | null } }, ...prev])
+  }
+
   if (!order) return null
 
   const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label
@@ -459,9 +498,19 @@ export default function OrderDetailPage() {
                 </span>
               )}
               <div className="flex items-center gap-2 flex-wrap">
-                {order.is_urgent && (
+                {order.format === 'urgent' && (
                   <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
                     🔴 СРОЧНО
+                  </span>
+                )}
+                {order.format === 'reduction' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
+                    <TrendingDown size={11} /> {t.order.formatReduction}
+                  </span>
+                )}
+                {order.format === 'auction' && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">
+                    <TrendingUp size={11} /> {t.order.formatAuction}
                   </span>
                 )}
                 <span className={cn('px-2.5 py-1 rounded-full text-xs font-semibold', ORDER_STATUS_CLASS[order.status])}>
@@ -646,7 +695,71 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          <div className="text-xs text-gray-400">
+          {/* Блок торгов */}
+          {(order.format === 'reduction' || order.format === 'auction') && (
+            <div className="mt-4 p-4 rounded-xl border border-amber-200 bg-amber-50">
+              <div className="flex items-center justify-between mb-3">
+                <div className="font-semibold text-amber-900 text-sm">
+                  {order.format === 'reduction' ? t.order.formatReduction : t.order.formatAuction}
+                </div>
+                {order.auction_end_time && (
+                  <ExpiryCountdown expiresAt={order.auction_end_time} />
+                )}
+              </div>
+              <div className="flex flex-wrap gap-4 mb-3 text-sm">
+                <div>
+                  <span className="text-gray-500">{t.auctions.startPrice}: </span>
+                  <strong>{order.auction_start_price?.toLocaleString('ru-RU')} ₽</strong>
+                </div>
+                {bids.length > 0 && (
+                  <div>
+                    <span className="text-gray-500">{t.auctions.bestBid}: </span>
+                    <strong className="text-amber-800">
+                      {(order.format === 'reduction'
+                        ? Math.min(...bids.map(b => b.amount))
+                        : Math.max(...bids.map(b => b.amount))
+                      ).toLocaleString('ru-RU')} ₽
+                    </strong>
+                  </div>
+                )}
+                <div className="text-gray-500">
+                  {bids.length} {t.auctions.bidCount}
+                </div>
+              </div>
+
+              {/* Форма ставки для перевозчиков */}
+              {user?.role === 'carrier' && order.status === 'active' && (
+                <div className="flex gap-2">
+                  <Input
+                    id="bidAmountDetail"
+                    type="number"
+                    label=""
+                    value={bidAmount}
+                    onChange={e => setBidAmount(e.target.value)}
+                    placeholder={t.auctions.yourBid}
+                    min="1"
+                  />
+                  <Button size="sm" onClick={placeBid} loading={bidLoading} className="shrink-0 self-end mb-0.5">
+                    {t.auctions.placeBid}
+                  </Button>
+                </div>
+              )}
+
+              {/* История ставок */}
+              {bids.length > 0 && (
+                <div className="mt-3 space-y-1.5 max-h-40 overflow-y-auto">
+                  {bids.map(b => (
+                    <div key={b.id} className="flex items-center justify-between text-xs text-gray-600 px-2 py-1 rounded-lg bg-white border border-amber-100">
+                      <span className="font-medium text-gray-800">{b.carrier?.name || 'Перевозчик'}</span>
+                      <span className="font-semibold text-amber-800">{b.amount.toLocaleString('ru-RU')} ₽</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="text-xs text-gray-400 mt-4">
             Размещено: {formatDateTime(order.created_at)}
           </div>
         </div>
