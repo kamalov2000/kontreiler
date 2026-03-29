@@ -34,7 +34,7 @@ export async function middleware(request: NextRequest) {
 
   // Публичные маршруты
   if (pathname === '/' || pathname.startsWith('/auth')) {
-    if (user && (pathname === '/auth/login' || pathname === '/auth/register')) {
+    if (user && (pathname === '/' || pathname === '/auth/login' || pathname === '/auth/register')) {
       // Получаем роль пользователя
       const { data: profile } = await supabase
         .from('users')
