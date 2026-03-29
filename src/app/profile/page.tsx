@@ -24,6 +24,9 @@ export default function ProfilePage() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [city, setCity] = useState('')
+  const [companyName, setCompanyName] = useState('')
+  const [inn, setInn] = useState('')
+  const [licenseNumber, setLicenseNumber] = useState('')
   const [saving, setSaving] = useState(false)
 
   // Phone verification
@@ -48,6 +51,9 @@ export default function ProfilePage() {
       setName(user.name || '')
       setPhone(user.phone || '')
       setCity(user.city || '')
+      setCompanyName(user.company_name || '')
+      setInn(user.inn || '')
+      setLicenseNumber(user.license_number || '')
     }
     // Fetch email from auth session
     const supabase = createClient()
@@ -100,9 +106,15 @@ export default function ProfilePage() {
     if (!user) return
     setSaving(true)
     const supabase = createClient()
+    const update: Record<string, unknown> = { name, phone: normalizePhone(phone), city }
+    if (user.role === 'carrier') {
+      update.company_name = companyName.trim() || null
+      update.inn = inn.trim() || null
+      update.license_number = licenseNumber.trim() || null
+    }
     const { error } = await supabase
       .from('users')
-      .update({ name, phone: normalizePhone(phone), city })
+      .update(update)
       .eq('id', user.id)
     if (error) {
       toast.error(t.profile.saveError)
@@ -259,6 +271,37 @@ export default function ProfilePage() {
               onChange={e => setCity(e.target.value)}
               required
             />
+            {user?.role === 'carrier' && (
+              <>
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">Реквизиты перевозчика</p>
+                  <div className="space-y-3">
+                    <Input
+                      id="company_name"
+                      label="Название компании / ИП"
+                      value={companyName}
+                      onChange={e => setCompanyName(e.target.value)}
+                      placeholder="ООО Транс-Логистик"
+                    />
+                    <Input
+                      id="inn"
+                      label="ИНН"
+                      value={inn}
+                      onChange={e => setInn(e.target.value)}
+                      placeholder="1234567890"
+                      maxLength={12}
+                    />
+                    <Input
+                      id="license_number"
+                      label="Номер лицензии"
+                      value={licenseNumber}
+                      onChange={e => setLicenseNumber(e.target.value)}
+                      placeholder="АВ 123456"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
             <Button type="submit" loading={saving} className="w-full">
               {t.profile.saveChanges}
             </Button>

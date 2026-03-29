@@ -14,6 +14,9 @@ export interface User {
   is_phone_verified: boolean
   last_seen_at: string | null
   created_at: string
+  company_name: string | null
+  inn: string | null
+  license_number: string | null
 }
 
 export interface Bid {
