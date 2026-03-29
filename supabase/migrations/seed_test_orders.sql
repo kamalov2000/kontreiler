@@ -5,9 +5,9 @@
 -- =============================================================================
 
 -- Очистка предыдущих тестовых заявок
-DELETE FROM bids      WHERE order_id IN (SELECT id FROM orders WHERE client_id LIKE 'c0000%');
-DELETE FROM responses WHERE order_id IN (SELECT id FROM orders WHERE client_id LIKE 'c0000%');
-DELETE FROM messages  WHERE order_id IN (SELECT id FROM orders WHERE client_id LIKE 'c0000%');
+DELETE FROM bids      WHERE order_id IN (SELECT id FROM orders WHERE client_id::text LIKE 'c0000%');
+DELETE FROM responses WHERE order_id IN (SELECT id FROM orders WHERE client_id::text LIKE 'c0000%');
+DELETE FROM messages  WHERE order_id IN (SELECT id FROM orders WHERE client_id::text LIKE 'c0000%');
 DELETE FROM orders    WHERE client_id::text LIKE 'c0000%';
 
 -- 1. Обычная заявка — активная (Москва → Владивосток)
