@@ -245,7 +245,7 @@ function TruckChatContent() {
 
   return (
     <AppLayout>
-      <div className="max-w-2xl flex flex-col" style={{ height: 'calc(100vh - 120px)' }}>
+      <div className="max-w-2xl flex flex-col" style={{ height: 'calc(100dvh - 120px)' }}>
         {/* Header */}
         <div className="flex items-center gap-3 mb-4 shrink-0">
           <Link

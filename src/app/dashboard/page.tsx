@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Plus } from 'lucide-react'
+import { Plus, Search, X } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderCard } from '@/components/orders/OrderCard'
 import { Button } from '@/components/ui/Button'
@@ -23,6 +23,7 @@ export default function DashboardPage() {
   const [tab, setTab] = useState<Tab>('active')
   const [closingId, setClosingId] = useState<string | null>(null)
   const [unreadMap, setUnreadMap] = useState<Record<string, number>>({})
+  const [search, setSearch] = useState('')
 
   const TAB_LABEL: Record<Tab, string> = {
     active:    t.dashboard.active,
@@ -112,11 +113,15 @@ export default function DashboardPage() {
   }
 
   const filtered = orders.filter(o => {
-    if (tab === 'active')    return !['closed', 'cancelled', 'expired'].includes(o.status)
-    if (tab === 'closed')    return o.status === 'closed'
-    if (tab === 'cancelled') return o.status === 'cancelled'
-    if (tab === 'expired')   return o.status === 'expired'
-    return false
+    if (tab === 'active')    { if (['closed', 'cancelled', 'expired'].includes(o.status)) return false }
+    else if (o.status !== tab) return false
+    if (!search) return true
+    const q = search.toLowerCase()
+    return (
+      o.from_city?.toLowerCase().includes(q) ||
+      o.to_city?.toLowerCase().includes(q) ||
+      o.order_number?.toLowerCase().includes(q)
+    )
   })
 
   const cancelledCount = orders.filter(o => o.status === 'cancelled').length
@@ -165,6 +170,23 @@ export default function DashboardPage() {
             )}
           </button>
         ))}
+      </div>
+
+      {/* Search */}
+      <div className="relative mb-4">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Город или номер заявки…"
+          className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        {search && (
+          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <X size={14} />
+          </button>
+        )}
       </div>
 
       {loading ? (
