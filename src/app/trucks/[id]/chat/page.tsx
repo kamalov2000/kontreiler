@@ -195,6 +195,7 @@ function TruckChatContent() {
     const { error } = await supabase.from('truck_messages').insert({
       truck_id: truckId,
       client_id: chatClientId,
+      carrier_id: truck!.carrier_id,
       sender_id: user.id,
       text: msgText,
     })

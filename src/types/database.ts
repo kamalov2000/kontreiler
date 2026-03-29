@@ -122,6 +122,7 @@ export interface TruckMessage {
   id: string
   truck_id: string
   client_id: string
+  carrier_id: string
   sender_id: string
   text: string
   created_at: string
