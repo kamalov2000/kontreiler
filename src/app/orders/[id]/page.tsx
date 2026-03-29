@@ -310,7 +310,17 @@ export default function OrderDetailPage() {
     const supabase = createClient()
     const { error } = await supabase.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
     if (error) toast.error('Ошибка при отмене заявки')
-    else { toast.success('Заявка отменена'); setOrder(prev => prev ? { ...prev, status: 'cancelled' } : prev) }
+    else {
+      toast.success('Заявка отменена')
+      setOrder(prev => prev ? { ...prev, status: 'cancelled' } : prev)
+      if (order.accepted_carrier_id) {
+        fetch('/api/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 'order_cancelled', orderId: order.id, carrierId: order.accepted_carrier_id }),
+        }).catch(() => {})
+      }
+    }
     setStatusChanging(false)
   }
 
@@ -376,7 +386,16 @@ export default function OrderDetailPage() {
     if (error) {
       toast.error('Ошибка при обновлении статуса')
     } else {
-      if (newStatus === 'delivered') setTimeout(() => setShowReviewModal(true), 600)
+      if (newStatus === 'delivered') {
+        setTimeout(() => setShowReviewModal(true), 600)
+        if (order.accepted_carrier_id) {
+          fetch('/api/email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'order_delivered', orderId: order.id, carrierId: order.accepted_carrier_id }),
+          }).catch(() => {})
+        }
+      }
       const labels: Record<string, string> = {
         in_transit: 'Статус: В пути',
         delivered:  'Статус: Доставлено',

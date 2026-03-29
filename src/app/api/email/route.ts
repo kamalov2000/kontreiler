@@ -91,6 +91,41 @@ export async function POST(req: Request) {
       }
     }
 
+    if (type === 'order_delivered') {
+      const { orderId, carrierId } = body
+      if (!UUID_RE.test(orderId) || !UUID_RE.test(carrierId)) return NextResponse.json({ ok: true })
+
+      const { data: order } = await supabase
+        .from('orders').select('from_city, to_city').eq('id', orderId).single()
+      const { data: carrierAuth } = await supabase.auth.admin.getUserById(carrierId)
+
+      if (order && carrierAuth?.user?.email) {
+        await sendEmail({
+          to: carrierAuth.user.email,
+          subject: `Рейс завершён: ${order.from_city} → ${order.to_city}`,
+          html: `<p>Клиент подтвердил доставку по заявке <strong>${order.from_city} → ${order.to_city}</strong>. Рейс завершён.</p>
+                 <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/orders/${orderId}">Открыть заявку →</a></p>`,
+        })
+      }
+    }
+
+    if (type === 'order_cancelled') {
+      const { orderId, carrierId } = body
+      if (!UUID_RE.test(orderId) || !UUID_RE.test(carrierId)) return NextResponse.json({ ok: true })
+
+      const { data: order } = await supabase
+        .from('orders').select('from_city, to_city').eq('id', orderId).single()
+      const { data: carrierAuth } = await supabase.auth.admin.getUserById(carrierId)
+
+      if (order && carrierAuth?.user?.email) {
+        await sendEmail({
+          to: carrierAuth.user.email,
+          subject: `Заявка отменена: ${order.from_city} → ${order.to_city}`,
+          html: `<p>Клиент отменил заявку <strong>${order.from_city} → ${order.to_city}</strong>, на которую вы откликались.</p>`,
+        })
+      }
+    }
+
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[EMAIL API]', err)
