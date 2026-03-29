@@ -185,7 +185,7 @@ function TruckChatContent() {
   }, [user, truckId, chatClientId, scrollToBottom])
 
   async function sendMessage() {
-    if (!text.trim() || !user || sending || !chatClientId) return
+    if (!text.trim() || !user || sending || !chatClientId || !truck) return
     setSending(true)
 
     const supabase = createClient()
@@ -195,7 +195,7 @@ function TruckChatContent() {
     const { error } = await supabase.from('truck_messages').insert({
       truck_id: truckId,
       client_id: chatClientId,
-      carrier_id: truck!.carrier_id,
+      carrier_id: truck.carrier_id,
       sender_id: user.id,
       text: msgText,
     })
