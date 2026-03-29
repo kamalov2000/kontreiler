@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Send, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -25,6 +25,7 @@ interface Message {
 export default function ChatPage() {
   const { id: orderId } = useParams<{ id: string }>()
   const { user, loading: userLoading } = useUser()
+  const router = useRouter()
 
   const [order, setOrder] = useState<Order | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -198,7 +199,6 @@ export default function ChatPage() {
     }
   }
 
-  const backHref = user?.role === 'carrier' ? '/my-responses' : `/orders/${orderId}`
 
   if (loading || userLoading) {
     return (
@@ -219,9 +219,9 @@ export default function ChatPage() {
           <p className="text-gray-500 text-sm mb-6">
             Чат доступен только участникам сделки: клиенту заявки и откликнувшемуся перевозчику.
           </p>
-          <Link href={backHref} className="text-blue-600 hover:underline text-sm">
+          <button onClick={() => router.back()} className="text-blue-600 hover:underline text-sm">
             ← Назад
-          </Link>
+          </button>
         </div>
       </AppLayout>
     )
@@ -234,13 +234,13 @@ export default function ChatPage() {
       <div className="max-w-2xl flex flex-col" style={{ height: 'calc(100vh - 120px)' }}>
         {/* Header */}
         <div className="flex items-center gap-3 mb-3 shrink-0">
-          <Link
-            href={backHref}
+          <button
+            onClick={() => router.back()}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors font-medium"
           >
             <ArrowLeft size={16} />
-            К заявке
-          </Link>
+            Назад
+          </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 flex-wrap">
               {order?.from_city}

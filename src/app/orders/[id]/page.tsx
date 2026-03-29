@@ -479,9 +479,9 @@ export default function OrderDetailPage() {
       <div className="max-w-2xl">
         {/* Навигация */}
         <div className="flex items-center justify-between mb-5">
-          <Link href="/dashboard" className="flex items-center gap-1 text-sm text-blue-600 hover:underline">
-            <ArrowLeft size={16} /> Назад к заявкам
-          </Link>
+          <button onClick={() => router.back()} className="flex items-center gap-1 text-sm text-blue-600 hover:underline">
+            <ArrowLeft size={16} /> Назад
+          </button>
         </div>
 
         {/* Карточка заявки */}
