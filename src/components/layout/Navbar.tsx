@@ -70,13 +70,13 @@ export function Navbar() {
           </Link>
 
           {/* Desktop links */}
-          <div className="hidden sm:flex items-center gap-1">
+          <div className="hidden sm:flex items-center gap-0.5">
             {links.map(link => (
               <Link
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  'relative px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  'relative px-2.5 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
                   pathname === link.href || pathname.startsWith(link.href + '/')
                     ? 'bg-blue-50 text-blue-700'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
