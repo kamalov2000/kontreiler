@@ -469,6 +469,7 @@ export default function OrderDetailPage() {
       if (msg.includes('bid_too_high')) toast.error(t.auctions.bidTooHigh)
       else if (msg.includes('bid_too_low')) toast.error(t.auctions.bidTooLow)
       else if (msg.includes('auction_ended')) toast.error(t.auctions.auctionEnded)
+      else if (msg.includes('bid_wrong_step')) { const step = msg.split(':')[1]; toast.error(`Шаг торгов: ${parseInt(step).toLocaleString('ru-RU')} ₽`) }
       else toast.error(msg || 'Ошибка при ставке')
       return
     }
@@ -680,6 +681,9 @@ export default function OrderDetailPage() {
             <div className="p-3 rounded-xl bg-gray-50">
               <div className="text-xs text-gray-500 mb-0.5">Дата погрузки/выгрузки</div>
               <div className="font-semibold text-gray-900 text-sm">{formatDate(order.ready_date)}</div>
+              {order.arrival_time && (
+                <div className="text-xs text-gray-500 mt-0.5">Прибытие ТС: {order.arrival_time.slice(0, 5)}</div>
+              )}
             </div>
             {(order.weight_gross || order.weight_net) && (
               <div className="p-3 rounded-xl bg-gray-50">

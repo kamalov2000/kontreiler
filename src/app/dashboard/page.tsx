@@ -217,9 +217,14 @@ export default function DashboardPage() {
                     )}
                     <Link href={`/orders/${order.id}`}>
                       <Button variant="secondary" size="sm">
-                        {isMatched ? t.dashboard.details : `${t.dashboard.responses} (${order.response_count || 0})`}
+                        Открыть
                       </Button>
                     </Link>
+                    {!isMatched && (order.response_count || 0) > 0 && (
+                      <span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold">
+                        {t.dashboard.responses}: {order.response_count}
+                      </span>
+                    )}
                     {(order.response_count || 0) > 0 && (
                       <Link href={`/orders/${order.id}/chat`} className="relative inline-flex">
                         <Button variant="ghost" size="sm" className="text-blue-600">

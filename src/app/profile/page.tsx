@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
-import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { createClient } from '@/lib/supabase/client'
@@ -306,14 +305,6 @@ export default function ProfilePage() {
               {t.profile.saveChanges}
             </Button>
           </form>
-        </div>
-
-        {/* Language switcher */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
-          <div className="flex items-center justify-between">
-            <span className="font-medium text-gray-900 text-sm">{t.profile.language}</span>
-            <LanguageSwitcher />
-          </div>
         </div>
 
         {/* Phone verification */}

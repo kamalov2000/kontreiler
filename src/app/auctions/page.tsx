@@ -106,6 +106,9 @@ export default function AuctionsPage() {
         toast.error(t.auctions.bidTooLow)
       } else if (msg.includes('auction_ended')) {
         toast.error(t.auctions.auctionEnded)
+      } else if (msg.includes('bid_wrong_step')) {
+        const step = msg.split(':')[1]
+        toast.error(`Шаг торгов: ${parseInt(step).toLocaleString('ru-RU')} ₽`)
       } else {
         toast.error(msg || 'Ошибка при ставке')
       }

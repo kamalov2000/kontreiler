@@ -60,6 +60,13 @@ function NewOrderForm() {
   )
   const [auctionStartPrice, setAuctionStartPrice] = useState('')
   const [auctionEndTime, setAuctionEndTime] = useState('')
+  const [auctionMinPrice, setAuctionMinPrice] = useState('')
+  const [auctionMaxPrice, setAuctionMaxPrice] = useState('')
+  const [auctionStep, setAuctionStep] = useState('')
+  const [auctionUseStep, setAuctionUseStep] = useState(false)
+  const [auctionAutoWinner, setAuctionAutoWinner] = useState(true)
+  const [auctionAutoExtend, setAuctionAutoExtend] = useState(true)
+  const [arrivalTime, setArrivalTime] = useState('')
 
   const [requiresGenset, setRequiresGenset] = useState(false)
   const [notes, setNotes] = useState(params.get('notes') || '')
@@ -135,8 +142,14 @@ function NewOrderForm() {
       weight_net:   weightNet   ? parseInt(weightNet)   : null,
       requires_genset: requiresGenset,
       notes: notes.trim() || null,
+      arrival_time: arrivalTime || null,
       auction_start_price: isAuctionFormat ? parseInt(auctionStartPrice) : null,
       auction_end_time: isAuctionFormat ? new Date(auctionEndTime).toISOString() : null,
+      auction_min_price: isAuctionFormat && auctionMinPrice ? parseInt(auctionMinPrice) : null,
+      auction_max_price: isAuctionFormat && auctionMaxPrice ? parseInt(auctionMaxPrice) : null,
+      auction_step: isAuctionFormat && auctionUseStep && auctionStep ? parseInt(auctionStep) : null,
+      auction_auto_winner: isAuctionFormat ? auctionAutoWinner : true,
+      auction_auto_extend: isAuctionFormat ? auctionAutoExtend : true,
     })
 
     if (error) {
@@ -266,6 +279,15 @@ function NewOrderForm() {
               error={errors.readyDate}
             />
 
+            {/* Плановое время прибытия ТС */}
+            <Input
+              id="arrivalTime"
+              type="time"
+              label={`Плановое время прибытия ТС (${t.common.optional})`}
+              value={arrivalTime}
+              onChange={e => setArrivalTime(e.target.value)}
+            />
+
             {/* Срок действия */}
             <div>
               <Select
@@ -375,6 +397,64 @@ function NewOrderForm() {
                   min={minAuctionEnd}
                   error={errors.auctionEndTime}
                 />
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    id="auctionMinPrice"
+                    type="number"
+                    label={`Мин. цена (${t.common.optional})`}
+                    value={auctionMinPrice}
+                    onChange={e => setAuctionMinPrice(e.target.value)}
+                    placeholder="₽"
+                    min="1"
+                  />
+                  <Input
+                    id="auctionMaxPrice"
+                    type="number"
+                    label={`Макс. цена (${t.common.optional})`}
+                    value={auctionMaxPrice}
+                    onChange={e => setAuctionMaxPrice(e.target.value)}
+                    placeholder="₽"
+                    min="1"
+                  />
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={auctionUseStep}
+                    onChange={e => setAuctionUseStep(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                  />
+                  Фиксированный шаг торгов
+                </label>
+                {auctionUseStep && (
+                  <Input
+                    id="auctionStep"
+                    type="number"
+                    label="Размер шага (₽)"
+                    value={auctionStep}
+                    onChange={e => setAuctionStep(e.target.value)}
+                    placeholder="например 5000"
+                    min="1"
+                  />
+                )}
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={auctionAutoWinner}
+                    onChange={e => setAuctionAutoWinner(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                  />
+                  Автоматически выбрать победителя по окончании
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={auctionAutoExtend}
+                    onChange={e => setAuctionAutoExtend(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                  />
+                  Продлить на 1 час если нет ставок
+                </label>
               </div>
             )}
 

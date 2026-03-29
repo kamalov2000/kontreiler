@@ -36,6 +36,12 @@ export interface Order {
   auction_start_price: number | null
   auction_end_time: string | null
   auction_winner_id: string | null
+  auction_min_price: number | null
+  auction_max_price: number | null
+  auction_step: number | null
+  auction_auto_winner: boolean
+  auction_auto_extend: boolean
+  arrival_time: string | null
   from_city: string
   via_city: string | null
   to_city: string

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { ArrowRight, Clock, AlertCircle, MessageSquare, Timer, Zap, TrendingDown, TrendingUp } from 'lucide-react'
 import { Order } from '@/types/database'
 import { formatDate, formatPrice, formatDateTime } from '@/lib/utils'
@@ -17,24 +18,35 @@ interface OrderCardProps {
 }
 
 function ExpiryCountdown({ expiresAt, t }: { expiresAt: string; t: { expiresIn: string; days: string; hours: string; minutes: string } }) {
-  const diff = new Date(expiresAt).getTime() - Date.now()
+  const [now, setNow] = useState(Date.now())
+
+  useEffect(() => {
+    const diff = new Date(expiresAt).getTime() - Date.now()
+    // Обновляем каждую секунду если < 1 часа, иначе каждую минуту
+    const interval = diff < 60 * 60 * 1000 ? 1000 : 60000
+    const timer = setInterval(() => setNow(Date.now()), interval)
+    return () => clearInterval(timer)
+  }, [expiresAt])
+
+  const diff = new Date(expiresAt).getTime() - now
   if (diff <= 0) return null
 
-  const totalMinutes = Math.floor(diff / 60000)
-  const days    = Math.floor(totalMinutes / 1440)
-  const hours   = Math.floor((totalMinutes % 1440) / 60)
-  const minutes = totalMinutes % 60
+  const totalSeconds = Math.floor(diff / 1000)
+  const days    = Math.floor(totalSeconds / 86400)
+  const hours   = Math.floor((totalSeconds % 86400) / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
 
   let label = ''
   if (days > 0)       label = `${days}${t.days} ${hours}${t.hours}`
   else if (hours > 0) label = `${hours}${t.hours} ${minutes}${t.minutes}`
-  else                label = `${minutes}${t.minutes}`
+  else                label = `${minutes}:${String(seconds).padStart(2, '0')}`
 
   const isUrgentExpiry = diff < 24 * 60 * 60 * 1000
 
   return (
     <span className={cn(
-      'flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm',
+      'flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm font-mono',
       isUrgentExpiry
         ? 'bg-red-50 text-red-600 font-medium'
         : 'bg-amber-50 text-amber-700'
