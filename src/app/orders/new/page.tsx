@@ -98,7 +98,6 @@ function NewOrderForm() {
   function validate() {
     const e: Record<string, string> = {}
     if (!fromCity) e.fromCity = t.order.errorPoint1
-    if (!viaCity)  e.viaCity  = t.order.errorPoint2
     if (!toCity)   e.toCity   = t.order.errorPoint3
     if (!readyDate) e.readyDate = t.order.errorDate
     if (!isAuctionFormat && !isNegotiable && !price) e.price = t.order.errorRate
