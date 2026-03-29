@@ -305,18 +305,23 @@ function FeedContent() {
                 order={order}
                 extra={clientRating ? <RatingBadge avg={clientRating.avg} count={clientRating.count} /> : undefined}
                 actions={
-                  alreadyResponded ? (
-                    <span className="px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium">
-                      {t.feed.alreadyResponded}
-                    </span>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={() => handleRespondClick(order)}
-                    >
-                      {t.feed.respond}
-                    </Button>
-                  )
+                  <>
+                    <Link href={`/orders/${order.id}`}>
+                      <Button size="sm" variant="secondary">{t.dashboard.details}</Button>
+                    </Link>
+                    {alreadyResponded ? (
+                      <span className="px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium">
+                        {t.feed.alreadyResponded}
+                      </span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => handleRespondClick(order)}
+                      >
+                        {t.feed.respond}
+                      </Button>
+                    )}
+                  </>
                 }
               />
             )
