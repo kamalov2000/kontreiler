@@ -9,6 +9,7 @@ import {
   MapPin, Timer, Zap, Weight, TrendingDown, TrendingUp,
 } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
+import { OrderDocuments } from '@/components/orders/OrderDocuments'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -820,6 +821,15 @@ export default function OrderDetailPage() {
               </Link>
             </div>
           </div>
+        )}
+
+        {/* Документы */}
+        {(isOwner || user?.id === order.accepted_carrier_id || responses.some(r => r.carrier_id === user?.id)) && (
+          <OrderDocuments
+            orderId={order.id}
+            currentUserId={user!.id}
+            canUpload={isOwner || user?.id === order.accepted_carrier_id}
+          />
         )}
 
         {/* Отзывы (после доставки) */}
