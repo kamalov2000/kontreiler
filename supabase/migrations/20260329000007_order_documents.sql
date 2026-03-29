@@ -37,9 +37,33 @@ CREATE POLICY "order_documents_insert" ON order_documents
 CREATE POLICY "order_documents_delete" ON order_documents
   FOR DELETE USING (auth.uid() = uploaded_by);
 
--- Storage bucket (выполнить вручную в Supabase Dashboard → Storage):
--- Название bucket: order-docs
--- Public: false
--- Allowed MIME types: application/pdf, image/*, application/msword,
---   application/vnd.openxmlformats-officedocument.wordprocessingml.document
--- Max file size: 10 MB
+-- Storage bucket: создать вручную в Dashboard → Storage
+-- Название: order-docs, Public: false, Max size: 10MB
+-- MIME types: application/pdf, image/jpeg, image/png, image/webp,
+--   application/msword, application/vnd.openxmlformats-officedocument.wordprocessingml.document,
+--   application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+-- Storage RLS policies
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'order-docs', 'order-docs', false, 10485760,
+  ARRAY[
+    'application/pdf', 'image/jpeg', 'image/png', 'image/webp',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  ]
+) ON CONFLICT (id) DO NOTHING;
+
+CREATE POLICY "storage upload" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'order-docs');
+
+CREATE POLICY "storage select" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (bucket_id = 'order-docs');
+
+CREATE POLICY "storage delete" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (bucket_id = 'order-docs');
