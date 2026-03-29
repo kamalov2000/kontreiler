@@ -1,6 +1,7 @@
 export type UserRole = 'client' | 'carrier'
-export type ContainerType = '20ft' | '40ft' | '40HC' | '45ft'
-export type OrderStatus = 'active' | 'matched' | 'in_transit' | 'delivered' | 'closed' | 'cancelled'
+export type ContainerType = '20ft' | '40ft' | '40HC' | '45ft' | '20REF' | '40REF' | '20TC' | '40TC'
+export type VatType = 'none' | 'vat20' | 'vat0'
+export type OrderStatus = 'active' | 'matched' | 'in_transit' | 'delivered' | 'closed' | 'cancelled' | 'expired'
 
 export interface User {
   id: string
@@ -19,12 +20,21 @@ export interface Order {
   client_id: string
   accepted_carrier_id?: string | null
   from_city: string
+  via_city: string | null
   to_city: string
+  from_city_address: string | null
+  via_city_address: string | null
+  to_city_address: string | null
   container_type: ContainerType
   ready_date: string
+  expires_at: string | null
   price: number | null
   is_negotiable: boolean
   is_urgent: boolean
+  weight_gross: number | null
+  weight_net: number | null
+  vat_type: VatType
+  requires_genset: boolean
   notes: string | null
   agreed_price: number | null
   order_number: string | null

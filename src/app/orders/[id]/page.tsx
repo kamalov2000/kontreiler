@@ -6,6 +6,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, Phone, User, ArrowRight, CheckCircle,
   MoreVertical, X, Edit2, Copy, RotateCcw, Ban, Star, Banknote,
+  MapPin, Timer, Zap, Weight,
 } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/Button'
@@ -14,11 +15,13 @@ import { Select } from '@/components/ui/Select'
 import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
-import { Order, Response, Review, OrderStatus, ContainerType } from '@/types/database'
+import { useLanguage } from '@/contexts/LanguageContext'
+import { Order, Response, Review, OrderStatus, ContainerType, VatType } from '@/types/database'
 import { formatDate, formatDateTime, formatPrice, formatPhone, maskPhone } from '@/lib/utils'
-import { CONTAINER_TYPES } from '@/lib/cities'
+import { CONTAINER_TYPES, REF_CONTAINER_TYPES } from '@/lib/cities'
 import { toast } from 'sonner'
-import { ORDER_STATUS_LABEL, ORDER_STATUS_CLASS } from '@/lib/status'
+import { ORDER_STATUS_CLASS } from '@/lib/status'
+import { cn } from '@/lib/utils'
 
 const PREV_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   matched:    'active',
@@ -32,7 +35,6 @@ const REVERT_LABEL: Partial<Record<OrderStatus, string>> = {
   delivered:  '← Вернуть: "В пути"',
 }
 
-// Компонент выбора звёзд
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const [hovered, setHovered] = useState(0)
   return (
@@ -48,9 +50,7 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
         >
           <Star
             size={28}
-            className={`transition-colors ${
-              star <= (hovered || value) ? 'fill-amber-400 text-amber-400' : 'text-gray-300'
-            }`}
+            className={`transition-colors ${star <= (hovered || value) ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}`}
           />
         </button>
       ))}
@@ -58,10 +58,34 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
   )
 }
 
+function ExpiryCountdown({ expiresAt }: { expiresAt: string }) {
+  const diff = new Date(expiresAt).getTime() - Date.now()
+  if (diff <= 0) return <span className="text-red-600 font-medium text-sm">Истекла</span>
+
+  const totalMinutes = Math.floor(diff / 60000)
+  const days    = Math.floor(totalMinutes / 1440)
+  const hours   = Math.floor((totalMinutes % 1440) / 60)
+  const minutes = totalMinutes % 60
+  const isUrgent = diff < 24 * 60 * 60 * 1000
+
+  let label = ''
+  if (days > 0)       label = `${days} д ${hours} ч`
+  else if (hours > 0) label = `${hours} ч ${minutes} мин`
+  else                label = `${minutes} мин`
+
+  return (
+    <span className={cn('flex items-center gap-1.5 font-medium text-sm', isUrgent ? 'text-red-600' : 'text-amber-700')}>
+      <Timer size={14} />
+      Истекает через {label}
+    </span>
+  )
+}
+
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const { user } = useUser()
+  const { t } = useLanguage()
   const [order, setOrder] = useState<Order | null>(null)
   const [responses, setResponses] = useState<Response[]>([])
   const [reviews, setReviews] = useState<Review[]>([])
@@ -71,7 +95,6 @@ export default function OrderDetailPage() {
   const [acceptingId, setAcceptingId] = useState<string | null>(null)
   const [statusChanging, setStatusChanging] = useState(false)
 
-  // Action menu
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -79,6 +102,7 @@ export default function OrderDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editFrom, setEditFrom] = useState('')
+  const [editVia, setEditVia] = useState('')
   const [editTo, setEditTo] = useState('')
   const [editContainer, setEditContainer] = useState<ContainerType>('20ft')
   const [editDate, setEditDate] = useState('')
@@ -86,6 +110,10 @@ export default function OrderDetailPage() {
   const [editNegotiable, setEditNegotiable] = useState(false)
   const [editUrgent, setEditUrgent] = useState(false)
   const [editNotes, setEditNotes] = useState('')
+  const [editGenset, setEditGenset] = useState(false)
+  const [editVatType, setEditVatType] = useState<VatType>('none')
+  const [editWeightGross, setEditWeightGross] = useState('')
+  const [editWeightNet, setEditWeightNet] = useState('')
 
   // Agreed price modal
   const [agreedPriceOpen, setAgreedPriceOpen] = useState(false)
@@ -96,7 +124,6 @@ export default function OrderDetailPage() {
   const [revealedResponsePhones, setRevealedResponsePhones] = useState<Set<string>>(new Set())
   const [showReviewModal, setShowReviewModal] = useState(false)
 
-  // Review form
   const [reviewRating, setReviewRating] = useState(0)
   const [reviewComment, setReviewComment] = useState('')
   const [submittingReview, setSubmittingReview] = useState(false)
@@ -112,10 +139,7 @@ export default function OrderDetailPage() {
         .eq('id', id)
         .single()
 
-      if (!orderData) {
-        router.push('/dashboard')
-        return
-      }
+      if (!orderData) { router.push('/dashboard'); return }
       setOrder(orderData as Order)
 
       const { data: responsesData } = await supabase
@@ -125,14 +149,12 @@ export default function OrderDetailPage() {
         .order('created_at', { ascending: false })
       setResponses((responsesData || []) as Response[])
 
-      // Загружаем отзывы для этой заявки
       const { data: reviewsData } = await supabase
         .from('reviews')
         .select('*, reviewer:users!reviewer_id(name), reviewee:users!reviewee_id(name)')
         .eq('order_id', id)
       setReviews((reviewsData || []) as Review[])
 
-      // Загружаем рейтинги перевозчиков из откликов
       if (responsesData && responsesData.length > 0) {
         const carrierIds = responsesData.map((r: Response) => r.carrier_id)
         const { data: allReviews } = await supabase
@@ -154,7 +176,6 @@ export default function OrderDetailPage() {
           setCarrierRatings(computed)
         }
       }
-
       setLoading(false)
     }
     fetch()
@@ -170,11 +191,10 @@ export default function OrderDetailPage() {
     return () => document.removeEventListener('mousedown', handler)
   }, [menuOpen])
 
-  // ── Edit ────────────────────────────────────────────────────────────
-
   function openEdit() {
     if (!order) return
     setEditFrom(order.from_city)
+    setEditVia(order.via_city || '')
     setEditTo(order.to_city)
     setEditContainer(order.container_type)
     setEditDate(order.ready_date)
@@ -182,6 +202,10 @@ export default function OrderDetailPage() {
     setEditNegotiable(order.is_negotiable)
     setEditUrgent(order.is_urgent)
     setEditNotes(order.notes || '')
+    setEditGenset(order.requires_genset)
+    setEditVatType(order.vat_type || 'none')
+    setEditWeightGross(order.weight_gross ? String(order.weight_gross) : '')
+    setEditWeightNet(order.weight_net ? String(order.weight_net) : '')
     setEditOpen(true)
     setMenuOpen(false)
   }
@@ -194,6 +218,7 @@ export default function OrderDetailPage() {
       .from('orders')
       .update({
         from_city: editFrom,
+        via_city: editVia || null,
         to_city: editTo,
         container_type: editContainer,
         ready_date: editDate,
@@ -201,6 +226,10 @@ export default function OrderDetailPage() {
         is_negotiable: editNegotiable,
         is_urgent: editUrgent,
         notes: editNotes.trim() || null,
+        requires_genset: editGenset,
+        vat_type: editVatType,
+        weight_gross: editWeightGross ? parseInt(editWeightGross) : null,
+        weight_net: editWeightNet ? parseInt(editWeightNet) : null,
       })
       .eq('id', order.id)
 
@@ -210,18 +239,19 @@ export default function OrderDetailPage() {
       toast.success('Заявка обновлена')
       setOrder(prev => prev ? {
         ...prev,
-        from_city: editFrom, to_city: editTo,
+        from_city: editFrom, via_city: editVia || null, to_city: editTo,
         container_type: editContainer, ready_date: editDate,
         price: editNegotiable ? null : (parseInt(editPrice) || null),
         is_negotiable: editNegotiable, is_urgent: editUrgent,
         notes: editNotes.trim() || null,
+        requires_genset: editGenset, vat_type: editVatType,
+        weight_gross: editWeightGross ? parseInt(editWeightGross) : null,
+        weight_net: editWeightNet ? parseInt(editWeightNet) : null,
       } : prev)
       setEditOpen(false)
     }
     setSaving(false)
   }
-
-  // ── Status changes ──────────────────────────────────────────────────
 
   async function revertStatus() {
     if (!order) return
@@ -238,8 +268,8 @@ export default function OrderDetailPage() {
       toast.error('Ошибка при откате статуса')
     } else {
       const labels: Record<string, string> = {
-        active:     'Статус сброшен в "Новая"',
-        matched:    'Статус сброшен в "Перевозчик найден"',
+        active: 'Статус сброшен в "Новая"',
+        matched: 'Статус сброшен в "Перевозчик найден"',
         in_transit: 'Статус сброшен в "В пути"',
       }
       toast.success(labels[prevStatus] || 'Статус обновлён')
@@ -293,8 +323,6 @@ export default function OrderDetailPage() {
     router.push('/dashboard')
   }
 
-  // ── Accept carrier (with agreed price popup) ─────────────────────────
-
   function openAcceptModal(carrierId: string) {
     setPendingCarrierId(carrierId)
     setAgreedPriceInput(order?.price ? String(order.price) : '')
@@ -309,30 +337,16 @@ export default function OrderDetailPage() {
     const agreedPrice = agreedPriceInput ? parseInt(agreedPriceInput) : null
     const { error } = await supabase
       .from('orders')
-      .update({
-        accepted_carrier_id: pendingCarrierId,
-        status: 'matched',
-        agreed_price: agreedPrice,
-      })
+      .update({ accepted_carrier_id: pendingCarrierId, status: 'matched', agreed_price: agreedPrice })
       .eq('id', order.id)
 
-    if (error) {
-      toast.error('Ошибка при выборе перевозчика')
-      setAcceptingId(null)
-      return
-    }
+    if (error) { toast.error('Ошибка при выборе перевозчика'); setAcceptingId(null); return }
 
     toast.success('Перевозчик выбран! Перейдите в чат для согласования деталей.')
-    setOrder(prev => prev ? {
-      ...prev,
-      accepted_carrier_id: pendingCarrierId,
-      status: 'matched',
-      agreed_price: agreedPrice,
-    } : prev)
+    setOrder(prev => prev ? { ...prev, accepted_carrier_id: pendingCarrierId, status: 'matched', agreed_price: agreedPrice } : prev)
     setAcceptingId(null)
     setPendingCarrierId(null)
 
-    // Email уведомление перевозчику
     fetch('/api/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -348,10 +362,7 @@ export default function OrderDetailPage() {
     if (error) {
       toast.error('Ошибка при обновлении статуса')
     } else {
-      if (newStatus === 'delivered') {
-        // Предлагаем оставить отзыв
-        setTimeout(() => setShowReviewModal(true), 600)
-      }
+      if (newStatus === 'delivered') setTimeout(() => setShowReviewModal(true), 600)
       const labels: Record<string, string> = {
         in_transit: 'Статус: В пути',
         delivered:  'Статус: Доставлено',
@@ -367,22 +378,15 @@ export default function OrderDetailPage() {
     setStatusChanging(false)
   }
 
-  // ── Reviews ─────────────────────────────────────────────────────────
-
   const myReview = reviews.find(r => r.reviewer_id === user?.id)
   const canReview = order?.status === 'delivered' && !myReview && (
     (isOwner && !!order?.accepted_carrier_id) ||
     (!isOwner && user?.id === order?.accepted_carrier_id)
   )
-
-  // Reviewee: если я клиент — оцениваю перевозчика, если перевозчик — оцениваю клиента
   const revieweeId = isOwner ? order?.accepted_carrier_id : order?.client_id
 
   async function submitReview() {
-    if (!order || !user || !revieweeId || reviewRating === 0) {
-      toast.error('Выберите оценку')
-      return
-    }
+    if (!order || !user || !revieweeId || reviewRating === 0) { toast.error('Выберите оценку'); return }
     setSubmittingReview(true)
     const supabase = createClient()
     const { data, error } = await supabase.from('reviews').insert({
@@ -404,8 +408,6 @@ export default function OrderDetailPage() {
     setSubmittingReview(false)
   }
 
-  // ── Loading ────────────────────────────────────────────────────────
-
   if (loading) {
     return (
       <AppLayout>
@@ -421,43 +423,60 @@ export default function OrderDetailPage() {
   const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label
   const isMatched = order.status === 'matched'
   const acceptedResponse = responses.find(r => r.carrier_id === order.accepted_carrier_id)
+  const statusLabel = t.status[order.status as keyof typeof t.status] ?? order.status
 
   const canRevert = isOwner && !!PREV_STATUS[order.status]
-  const canReopen = isOwner && (order.status === 'closed' || order.status === 'cancelled')
+  const canReopen = isOwner && (order.status === 'closed' || order.status === 'cancelled' || order.status === 'expired')
   const canCancel = isOwner && ['active', 'matched', 'in_transit'].includes(order.status)
   const canEdit   = isOwner && order.status === 'active'
+  const today     = new Date().toISOString().split('T')[0]
 
-  const today = new Date().toISOString().split('T')[0]
+  const vatLabel = order.vat_type === 'vat20' ? t.order.vatVat20
+    : order.vat_type === 'vat0' ? t.order.vatVat0
+    : t.order.vatNone
 
   return (
     <AppLayout>
       <div className="max-w-2xl">
-        <div className="flex items-center justify-between mb-6">
+        {/* Навигация */}
+        <div className="flex items-center justify-between mb-5">
           <Link href="/dashboard" className="flex items-center gap-1 text-sm text-blue-600 hover:underline">
             <ArrowLeft size={16} /> Назад к заявкам
           </Link>
-          {order.order_number && (
-            <span className="text-sm font-mono text-gray-400 bg-gray-50 px-3 py-1 rounded-lg border border-gray-100">
-              {order.order_number}
-            </span>
-          )}
         </div>
 
-        {/* Order details */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
+        {/* Карточка заявки */}
+        <div className={cn(
+          'bg-white rounded-2xl border shadow-sm p-5 mb-6',
+          order.is_urgent ? 'border-red-200' : 'border-gray-100'
+        )}>
+          {/* Номер + статус + управление */}
           <div className="flex items-start justify-between gap-4 mb-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              {order.is_urgent && (
-                <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
-                  🔴 СРОЧНО
+            <div className="flex flex-col gap-1.5">
+              {order.order_number && (
+                <span className="text-2xl font-black font-mono text-blue-600 tracking-tight">
+                  {order.order_number}
                 </span>
               )}
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ORDER_STATUS_CLASS[order.status]}`}>
-                {ORDER_STATUS_LABEL[order.status] ?? order.status}
-              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                {order.is_urgent && (
+                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
+                    🔴 СРОЧНО
+                  </span>
+                )}
+                <span className={cn('px-2.5 py-1 rounded-full text-xs font-semibold', ORDER_STATUS_CLASS[order.status])}>
+                  {statusLabel}
+                </span>
+                {order.requires_genset && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
+                    <Zap size={11} /> Genset
+                  </span>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            {/* Кнопки действий */}
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
               {isOwner && order.status === 'matched' && (
                 <Button size="sm" loading={statusChanging} onClick={() => changeStatus('in_transit')}>
                   В пути
@@ -518,30 +537,100 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-2xl font-bold text-gray-900">{order.from_city}</span>
-            <ArrowRight size={20} className="text-gray-400" />
-            <span className="text-2xl font-bold text-gray-900">{order.to_city}</span>
+          {/* Маршрут цепочкой А → Б → В с адресами */}
+          <div className="mb-4">
+            <div className="flex items-start gap-0 flex-col sm:flex-row sm:items-center">
+              {/* Точка А */}
+              <div className="flex items-start gap-2">
+                <div className="flex flex-col items-center pt-1 shrink-0">
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-gray-900">{order.from_city}</div>
+                  {order.from_city_address && (
+                    <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
+                      <MapPin size={12} className="shrink-0" />
+                      {order.from_city_address}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <ArrowRight size={18} className="text-gray-300 mx-3 shrink-0 my-2 sm:my-0" />
+
+              {/* Точка Б (если есть) */}
+              {order.via_city && (
+                <>
+                  <div className="flex items-start gap-2">
+                    <div className="flex flex-col items-center pt-1 shrink-0">
+                      <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                    </div>
+                    <div>
+                      <div className="text-xl font-bold text-gray-900">{order.via_city}</div>
+                      {order.via_city_address && (
+                        <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
+                          <MapPin size={12} className="shrink-0" />
+                          {order.via_city_address}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <ArrowRight size={18} className="text-gray-300 mx-3 shrink-0 my-2 sm:my-0" />
+                </>
+              )}
+
+              {/* Точка В */}
+              <div className="flex items-start gap-2">
+                <div className="flex flex-col items-center pt-1 shrink-0">
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-gray-900">{order.to_city}</div>
+                  {order.to_city_address && (
+                    <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
+                      <MapPin size={12} className="shrink-0" />
+                      {order.to_city_address}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {/* Сетка параметров */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
             <div className="p-3 rounded-xl bg-gray-50">
               <div className="text-xs text-gray-500 mb-0.5">Контейнер</div>
-              <div className="font-medium text-gray-900">{containerLabel}</div>
+              <div className="font-semibold text-gray-900 text-sm">{containerLabel}</div>
             </div>
             <div className="p-3 rounded-xl bg-gray-50">
               <div className="text-xs text-gray-500 mb-0.5">Ставка</div>
-              <div className="font-medium text-blue-700">{formatPrice(order.price, order.is_negotiable)}</div>
+              <div className="font-semibold text-blue-700 text-sm">{formatPrice(order.price, order.is_negotiable)}</div>
+              <div className="text-xs text-gray-400 mt-0.5">{vatLabel}</div>
             </div>
             <div className="p-3 rounded-xl bg-gray-50">
-              <div className="text-xs text-gray-500 mb-0.5">Дата готовности</div>
-              <div className="font-medium text-gray-900">{formatDate(order.ready_date)}</div>
+              <div className="text-xs text-gray-500 mb-0.5">Дата погрузки/выгрузки</div>
+              <div className="font-semibold text-gray-900 text-sm">{formatDate(order.ready_date)}</div>
             </div>
+            {(order.weight_gross || order.weight_net) && (
+              <div className="p-3 rounded-xl bg-gray-50">
+                <div className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Weight size={11} /> Вес</div>
+                {order.weight_gross && <div className="text-xs text-gray-700">Брутто: <strong>{order.weight_gross.toLocaleString('ru-RU')} кг</strong></div>}
+                {order.weight_net   && <div className="text-xs text-gray-700">Нетто: <strong>{order.weight_net.toLocaleString('ru-RU')} кг</strong></div>}
+              </div>
+            )}
+            {order.expires_at && (
+              <div className="p-3 rounded-xl bg-gray-50 col-span-2 sm:col-span-2">
+                <div className="text-xs text-gray-500 mb-1">Срок действия</div>
+                <ExpiryCountdown expiresAt={order.expires_at} />
+                <div className="text-xs text-gray-400 mt-0.5">до {formatDate(order.expires_at)}</div>
+              </div>
+            )}
           </div>
 
-          {/* Agreed price */}
+          {/* Договорная цена */}
           {order.agreed_price && (
-            <div className="mt-3 flex items-center gap-2 p-3 rounded-xl bg-green-50 border border-green-100">
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-green-50 border border-green-100 mb-3">
               <Banknote size={16} className="text-green-600 shrink-0" />
               <span className="text-sm font-medium text-green-800">
                 Договорная цена: {order.agreed_price.toLocaleString('ru-RU')} ₽
@@ -549,20 +638,20 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          {/* Notes */}
+          {/* Особые условия */}
           {order.notes && (
-            <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-100">
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 mb-3">
               <div className="text-xs text-amber-600 mb-0.5">Особые условия</div>
               <div className="text-sm text-amber-900">{order.notes}</div>
             </div>
           )}
 
-          <div className="mt-3 text-xs text-gray-400">
+          <div className="text-xs text-gray-400">
             Размещено: {formatDateTime(order.created_at)}
           </div>
         </div>
 
-        {/* Matched: show accepted carrier */}
+        {/* Выбранный перевозчик */}
         {(isMatched || ['in_transit', 'delivered', 'closed', 'cancelled'].includes(order.status)) && acceptedResponse && (
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6">
             <div className="flex items-center gap-2 mb-2">
@@ -601,12 +690,10 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        {/* Reviews section (after delivery) */}
+        {/* Отзывы (после доставки) */}
         {order.status === 'delivered' && (
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Отзывы</h2>
-
-            {/* Leave review form */}
             {canReview && (
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
                 <div className="font-medium text-gray-900 mb-3">
@@ -621,18 +708,11 @@ export default function OrderDetailPage() {
                   maxLength={500}
                   className="mt-3 w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 />
-                <Button
-                  onClick={submitReview}
-                  loading={submittingReview}
-                  className="mt-3 w-full"
-                  disabled={reviewRating === 0}
-                >
+                <Button onClick={submitReview} loading={submittingReview} className="mt-3 w-full" disabled={reviewRating === 0}>
                   Отправить отзыв
                 </Button>
               </div>
             )}
-
-            {/* Existing reviews */}
             {reviews.length > 0 && (
               <div className="space-y-3">
                 {reviews.map(rv => (
@@ -643,30 +723,23 @@ export default function OrderDetailPage() {
                       </span>
                       <div className="flex gap-0.5">
                         {[1, 2, 3, 4, 5].map(s => (
-                          <Star
-                            key={s}
-                            size={14}
-                            className={s <= rv.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}
-                          />
+                          <Star key={s} size={14} className={s <= rv.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'} />
                         ))}
                       </div>
                     </div>
-                    {rv.comment && (
-                      <p className="text-sm text-gray-600">{rv.comment}</p>
-                    )}
+                    {rv.comment && <p className="text-sm text-gray-600">{rv.comment}</p>}
                     <div className="text-xs text-gray-400 mt-1">{formatDateTime(rv.created_at)}</div>
                   </div>
                 ))}
               </div>
             )}
-
             {reviews.length === 0 && !canReview && (
               <div className="text-sm text-gray-400 text-center py-4">Отзывов пока нет</div>
             )}
           </div>
         )}
 
-        {/* Responses */}
+        {/* Отклики */}
         <h2 className="text-lg font-semibold text-gray-900 mb-3">
           Отклики ({responses.length})
         </h2>
@@ -681,7 +754,6 @@ export default function OrderDetailPage() {
               const isAccepted = r.carrier_id === order.accepted_carrier_id
               const canAccept = isOwner && (order.status === 'active' || order.status === 'matched') && !isAccepted
               const rating = carrierRatings[r.carrier_id]
-
               return (
                 <div
                   key={r.id}
@@ -718,16 +790,14 @@ export default function OrderDetailPage() {
                             href={`tel:${r.carrier.phone}`}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
                           >
-                            <Phone size={14} />
-                            {formatPhone(r.carrier.phone)}
+                            <Phone size={14} /> {formatPhone(r.carrier.phone)}
                           </a>
                         ) : (
                           <button
                             onClick={() => setRevealedResponsePhones(prev => { const s = new Set(prev); s.add(r.carrier_id); return s })}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
                           >
-                            <Phone size={14} />
-                            {maskPhone(r.carrier.phone)}
+                            <Phone size={14} /> {maskPhone(r.carrier.phone)}
                           </button>
                         ))}
                         <Link
@@ -768,26 +838,44 @@ export default function OrderDetailPage() {
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <CityAutocomplete label="Откуда" value={editFrom} onChange={setEditFrom} placeholder="Город отправления" />
-                <CityAutocomplete label="Куда" value={editTo} onChange={setEditTo} placeholder="Город назначения" />
-              </div>
+              <CityAutocomplete label="Откуда" value={editFrom} onChange={setEditFrom} placeholder="Город отправления" />
+              <CityAutocomplete label="Промежуточная точка" value={editVia} onChange={setEditVia} placeholder="Город (необязательно)" />
+              <CityAutocomplete label="Куда" value={editTo} onChange={setEditTo} placeholder="Город назначения" />
               <Select
                 label="Тип контейнера"
                 value={editContainer}
-                onChange={e => setEditContainer(e.target.value as ContainerType)}
+                onChange={e => { setEditContainer(e.target.value as ContainerType); if (!REF_CONTAINER_TYPES.has(e.target.value)) setEditGenset(false) }}
                 options={CONTAINER_TYPES.map(c => ({ value: c.value, label: c.label }))}
               />
-              <Input label="Дата готовности" type="date" value={editDate} onChange={e => setEditDate(e.target.value)} min={today} />
+              {REF_CONTAINER_TYPES.has(editContainer) && (
+                <label className="flex items-center gap-2 cursor-pointer p-2.5 rounded-xl border border-blue-200 bg-blue-50">
+                  <input type="checkbox" checked={editGenset} onChange={e => setEditGenset(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
+                  <span className="text-sm text-blue-800">⚡ {t.order.genset}</span>
+                </label>
+              )}
+              <Input label="Дата погрузки/выгрузки" type="date" value={editDate} onChange={e => setEditDate(e.target.value)} min={today} />
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  label={t.order.weightGross}
+                  type="number"
+                  value={editWeightGross}
+                  onChange={e => setEditWeightGross(e.target.value)}
+                  placeholder="кг"
+                  min="0"
+                />
+                <Input
+                  label={t.order.weightNet}
+                  type="number"
+                  value={editWeightNet}
+                  onChange={e => setEditWeightNet(e.target.value)}
+                  placeholder="кг"
+                  min="0"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Ставка</label>
                 <label className="flex items-center gap-2 mb-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editNegotiable}
-                    onChange={e => { setEditNegotiable(e.target.checked); if (e.target.checked) setEditPrice('') }}
-                    className="w-4 h-4 rounded border-gray-300 text-blue-600"
-                  />
+                  <input type="checkbox" checked={editNegotiable} onChange={e => { setEditNegotiable(e.target.checked); if (e.target.checked) setEditPrice('') }} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
                   <span className="text-sm text-gray-700">Договорная</span>
                 </label>
                 {!editNegotiable && (
@@ -795,23 +883,29 @@ export default function OrderDetailPage() {
                 )}
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t.order.vatType}</label>
+                <div className="flex gap-2 flex-wrap">
+                  {(['none', 'vat20', 'vat0'] as VatType[]).map(v => (
+                    <label key={v} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm ${editVatType === v ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                      <input type="radio" name="editVatType" value={v} checked={editVatType === v} onChange={() => setEditVatType(v)} className="sr-only" />
+                      {v === 'none' ? t.order.vatNone : v === 'vat20' ? t.order.vatVat20 : t.order.vatVat0}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Особые условия</label>
                 <textarea
                   value={editNotes}
                   onChange={e => setEditNotes(e.target.value)}
-                  placeholder="Рефрижератор, опасный груз..."
+                  placeholder="Опасный груз..."
                   rows={2}
                   maxLength={500}
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 />
               </div>
               <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={editUrgent}
-                  onChange={e => setEditUrgent(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-red-500"
-                />
+                <input type="checkbox" checked={editUrgent} onChange={e => setEditUrgent(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-red-500" />
                 <div>
                   <div className="text-sm font-medium text-gray-900">🔴 Срочная заявка</div>
                   <div className="text-xs text-gray-500">Будет выделена в ленте перевозчиков</div>
@@ -840,28 +934,17 @@ export default function OrderDetailPage() {
               <p className="text-sm text-gray-600">
                 Укажите итоговую договорную стоимость рейса (необязательно). Сумма будет видна обеим сторонам.
               </p>
-              <Input
-                label="Сумма (₽)"
-                type="number"
-                value={agreedPriceInput}
-                onChange={e => setAgreedPriceInput(e.target.value)}
-                placeholder="Например: 85000"
-                min="0"
-              />
+              <Input label="Сумма (₽)" type="number" value={agreedPriceInput} onChange={e => setAgreedPriceInput(e.target.value)} placeholder="Например: 85000" min="0" />
             </div>
             <div className="flex gap-3 p-5 border-t border-gray-100">
-              <Button onClick={confirmAccept} className="flex-1">
-                Принять перевозчика
-              </Button>
-              <Button variant="secondary" onClick={() => { setAgreedPriceOpen(false); setPendingCarrierId(null) }}>
-                Отмена
-              </Button>
+              <Button onClick={confirmAccept} className="flex-1">Принять перевозчика</Button>
+              <Button variant="secondary" onClick={() => { setAgreedPriceOpen(false); setPendingCarrierId(null) }}>Отмена</Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Review prompt modal (after delivery) */}
+      {/* Review prompt modal */}
       {showReviewModal && canReview && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
@@ -885,17 +968,10 @@ export default function OrderDetailPage() {
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               />
               <div className="flex gap-2">
-                <Button
-                  onClick={async () => { await submitReview(); setShowReviewModal(false) }}
-                  loading={submittingReview}
-                  disabled={reviewRating === 0}
-                  className="flex-1"
-                >
+                <Button onClick={async () => { await submitReview(); setShowReviewModal(false) }} loading={submittingReview} disabled={reviewRating === 0} className="flex-1">
                   Отправить отзыв
                 </Button>
-                <Button variant="secondary" onClick={() => setShowReviewModal(false)}>
-                  Позже
-                </Button>
+                <Button variant="secondary" onClick={() => setShowReviewModal(false)}>Позже</Button>
               </div>
             </div>
           </div>

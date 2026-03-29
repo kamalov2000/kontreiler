@@ -9,9 +9,12 @@ import { useUser } from '@/hooks/useUser'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
+import { useLanguage } from '@/contexts/LanguageContext'
 
 export function Navbar() {
   const { user } = useUser()
+  const { t } = useLanguage()
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -21,24 +24,24 @@ export function Navbar() {
 
   const links = isClient
     ? [
-        { href: '/dashboard', label: 'Мои заявки' },
-        { href: '/orders/new', label: '+ Новая заявка' },
-        { href: '/trucks', label: 'Найти машину' },
-        { href: '/stats', label: 'Статистика' },
+        { href: '/dashboard', label: t.nav.myOrders },
+        { href: '/orders/new', label: t.nav.newOrder },
+        { href: '/trucks', label: t.nav.findTruck },
+        { href: '/stats', label: t.nav.stats },
       ]
     : isCarrier
     ? [
-        { href: '/feed', label: 'Лента заявок' },
-        { href: '/my-responses', label: 'Мои отклики' },
-        { href: '/my-trucks', label: 'Мои машины' },
-        { href: '/stats', label: 'Статистика' },
+        { href: '/feed', label: t.nav.feed },
+        { href: '/my-responses', label: t.nav.myResponses },
+        { href: '/my-trucks', label: t.nav.myTrucks },
+        { href: '/stats', label: t.nav.stats },
       ]
     : []
 
   async function handleLogout() {
     const supabase = createClient()
     await supabase.auth.signOut()
-    toast.success('Вы вышли из системы')
+    toast.success(t.nav.logout)
     router.push('/auth/login')
   }
 
@@ -72,6 +75,7 @@ export function Navbar() {
 
           {/* Desktop right */}
           <div className="hidden sm:flex items-center gap-2">
+            <LanguageSwitcher />
             <NotificationBell />
             <Link
               href="/profile"
@@ -83,14 +87,14 @@ export function Navbar() {
               )}
             >
               <User size={16} />
-              {user?.name || 'Профиль'}
+              {user?.name || t.nav.profile}
             </Link>
             <button
               onClick={handleLogout}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
             >
               <LogOut size={16} />
-              Выйти
+              {t.nav.logout}
             </button>
           </div>
 
@@ -130,13 +134,16 @@ export function Navbar() {
             onClick={() => setMenuOpen(false)}
             className="block px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
           >
-            <span className="flex items-center gap-2"><User size={16} /> Профиль</span>
+            <span className="flex items-center gap-2"><User size={16} /> {t.nav.profile}</span>
           </Link>
+          <div className="px-3 py-2">
+            <LanguageSwitcher />
+          </div>
           <button
             onClick={() => { setMenuOpen(false); handleLogout() }}
             className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 flex items-center gap-2"
           >
-            <LogOut size={16} /> Выйти
+            <LogOut size={16} /> {t.nav.logout}
           </button>
         </div>
       )}

@@ -8,25 +8,28 @@ import { OrderCard } from '@/components/orders/OrderCard'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { Order } from '@/types/database'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
-type Tab = 'active' | 'closed' | 'cancelled'
-
-const TAB_LABEL: Record<Tab, string> = {
-  active:    'Активные',
-  closed:    'Архив',
-  cancelled: 'Отменённые',
-}
+type Tab = 'active' | 'closed' | 'cancelled' | 'expired'
 
 export default function DashboardPage() {
   const { user, loading: userLoading } = useUser()
+  const { t } = useLanguage()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('active')
   const [closingId, setClosingId] = useState<string | null>(null)
   const [unreadMap, setUnreadMap] = useState<Record<string, number>>({})
+
+  const TAB_LABEL: Record<Tab, string> = {
+    active:    t.dashboard.active,
+    closed:    t.dashboard.archive,
+    cancelled: t.dashboard.cancelled,
+    expired:   t.dashboard.expired,
+  }
 
   async function fetchOrders() {
     if (!user) return
@@ -75,7 +78,6 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, userLoading])
 
-  // Realtime: refresh unread when notifications change
   useEffect(() => {
     if (!user) return
     const supabase = createClient()
@@ -101,50 +103,64 @@ export default function DashboardPage() {
       .eq('id', orderId)
 
     if (error) {
-      toast.error('Ошибка при закрытии заявки')
+      toast.error(t.dashboard.closeError)
     } else {
-      toast.success('Заявка закрыта')
+      toast.success(t.dashboard.closedSuccess)
       fetchOrders()
     }
     setClosingId(null)
   }
 
   const filtered = orders.filter(o => {
-    if (tab === 'active')    return !['closed', 'cancelled'].includes(o.status)
+    if (tab === 'active')    return !['closed', 'cancelled', 'expired'].includes(o.status)
     if (tab === 'closed')    return o.status === 'closed'
     if (tab === 'cancelled') return o.status === 'cancelled'
+    if (tab === 'expired')   return o.status === 'expired'
     return false
   })
 
   const cancelledCount = orders.filter(o => o.status === 'cancelled').length
+  const expiredCount = orders.filter(o => o.status === 'expired').length
+
+  const emptyMessage = {
+    active:    <><p className="mb-4">{t.dashboard.noActive}</p><Link href="/orders/new"><Button>{t.dashboard.postFirst}</Button></Link></>,
+    closed:    <p>{t.dashboard.noClosed}</p>,
+    cancelled: <p>{t.dashboard.noCancelled}</p>,
+    expired:   <p>{t.dashboard.noExpired}</p>,
+  }
 
   return (
     <AppLayout>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Мои заявки</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t.dashboard.title}</h1>
         <Link href="/orders/new">
           <Button size="md">
             <Plus size={16} className="mr-1" />
-            Новая заявка
+            {t.dashboard.newOrder}
           </Button>
         </Link>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit mb-6">
-        {(['active', 'closed', 'cancelled'] as Tab[]).map(t => (
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit mb-6 flex-wrap">
+        {(['active', 'closed', 'cancelled', 'expired'] as Tab[]).map(tabKey => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={tabKey}
+            onClick={() => setTab(tabKey)}
             className={cn(
               'relative px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-              tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              tab === tabKey ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             )}
           >
-            {TAB_LABEL[t]}
-            {t === 'cancelled' && cancelledCount > 0 && (
+            {TAB_LABEL[tabKey]}
+            {tabKey === 'cancelled' && cancelledCount > 0 && (
               <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-red-100 text-red-600 text-[10px] font-bold px-1">
                 {cancelledCount}
+              </span>
+            )}
+            {tabKey === 'expired' && expiredCount > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-orange-100 text-orange-600 text-[10px] font-bold px-1">
+                {expiredCount}
               </span>
             )}
           </button>
@@ -157,18 +173,7 @@ export default function DashboardPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
-          {tab === 'active' ? (
-            <>
-              <p className="mb-4">У вас нет активных заявок</p>
-              <Link href="/orders/new">
-                <Button>Разместить первую заявку</Button>
-              </Link>
-            </>
-          ) : tab === 'cancelled' ? (
-            <p>Отменённых заявок нет</p>
-          ) : (
-            <p>Закрытых заявок нет</p>
-          )}
+          {emptyMessage[tab]}
         </div>
       ) : (
         <div className="space-y-4">
@@ -185,18 +190,18 @@ export default function DashboardPage() {
                   <>
                     {isMatched && (
                       <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-700 text-xs font-semibold">
-                        ✓ Перевозчик выбран
+                        {t.dashboard.carrierChosen}
                       </span>
                     )}
                     <Link href={`/orders/${order.id}`}>
                       <Button variant="secondary" size="sm">
-                        {isMatched ? 'Детали' : `Отклики (${order.response_count || 0})`}
+                        {isMatched ? t.dashboard.details : `${t.dashboard.responses} (${order.response_count || 0})`}
                       </Button>
                     </Link>
                     {(order.response_count || 0) > 0 && (
                       <Link href={`/orders/${order.id}/chat`} className="relative inline-flex">
                         <Button variant="ghost" size="sm" className="text-blue-600">
-                          💬 Чат
+                          {t.dashboard.chat}
                         </Button>
                         {unread > 0 && (
                           <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 leading-none">
@@ -212,7 +217,7 @@ export default function DashboardPage() {
                         loading={closingId === order.id}
                         onClick={() => closeOrder(order.id)}
                       >
-                        Закрыть
+                        {t.dashboard.close}
                       </Button>
                     )}
                   </>

@@ -316,7 +316,7 @@ export default function ChatPage() {
                 <div className="font-medium text-blue-700">{formatPrice(order.price, order.is_negotiable)}</div>
               </div>
               <div className="bg-gray-50 rounded-xl p-2">
-                <div className="text-gray-400 mb-0.5">Готовность</div>
+                <div className="text-gray-400 mb-0.5">Дата погрузки/выгрузки</div>
                 <div className="font-medium text-gray-800">{formatDate(order.ready_date)}</div>
               </div>
             </div>

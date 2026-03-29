@@ -6,17 +6,21 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
+import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { useUser } from '@/hooks/useUser'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { createClient } from '@/lib/supabase/client'
 import { SavedRoute, Review } from '@/types/database'
 import { toast } from 'sonner'
 import { normalizePhone, formatDateTime } from '@/lib/utils'
-import { User, Shield, CheckCircle, Phone, Trash2, Plus, MapPin, Star } from 'lucide-react'
+import { User, Shield, CheckCircle, Phone, Trash2, Plus, MapPin, Star, Mail } from 'lucide-react'
 import { CONTAINER_TYPES } from '@/lib/cities'
 import { RatingBadge } from '@/components/ui/RatingBadge'
 
 export default function ProfilePage() {
   const { user, loading } = useUser()
+  const { t } = useLanguage()
+  const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [city, setCity] = useState('')
@@ -45,6 +49,11 @@ export default function ProfilePage() {
       setPhone(user.phone || '')
       setCity(user.city || '')
     }
+    // Fetch email from auth session
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) setEmail(data.user.email)
+    })
   }, [user])
 
   const fetchSavedRoutes = useCallback(async () => {
@@ -96,16 +105,16 @@ export default function ProfilePage() {
       .update({ name, phone: normalizePhone(phone), city })
       .eq('id', user.id)
     if (error) {
-      toast.error('Ошибка сохранения')
+      toast.error(t.profile.saveError)
     } else {
-      toast.success('Профиль обновлён')
+      toast.success(t.profile.saveSuccess)
     }
     setSaving(false)
   }
 
   async function handleSendCode() {
     if (!user || !phone) {
-      toast.error('Сначала укажите телефон')
+      toast.error(t.profile.phoneVerification.noPhone)
       return
     }
     setSending(true)
@@ -116,10 +125,10 @@ export default function ProfilePage() {
       body: JSON.stringify({ userId: user.id, phone: normalized }),
     })
     if (res.ok) {
-      toast.success('Код отправлен (в dev режиме — в консоль сервера)')
+      toast.success(t.profile.phoneVerification.sentHint)
       setCodeSent(true)
     } else {
-      toast.error('Ошибка отправки кода')
+      toast.error(t.profile.phoneVerification.sendError)
     }
     setSending(false)
   }
@@ -134,21 +143,20 @@ export default function ProfilePage() {
       body: JSON.stringify({ userId: user.id, phone: normalized, code }),
     })
     if (res.ok) {
-      toast.success('Телефон подтверждён!')
+      toast.success(t.profile.phoneVerification.successVerify)
       setCodeSent(false)
       setCode('')
-      // Перезагружаем страницу чтобы обновить useUser
       window.location.reload()
     } else {
       const data = await res.json()
-      toast.error(data.error || 'Неверный код')
+      toast.error(data.error || 'Error')
     }
     setVerifying(false)
   }
 
   async function handleAddRoute() {
     if (!user || !routeFrom || !routeTo) {
-      toast.error('Укажите города маршрута')
+      toast.error(t.profile.savedRoutes.cityRequired)
       return
     }
     setAddingRoute(true)
@@ -160,9 +168,9 @@ export default function ProfilePage() {
       container_type: routeContainer || null,
     })
     if (error) {
-      toast.error('Ошибка добавления маршрута')
+      toast.error(t.profile.savedRoutes.addError)
     } else {
-      toast.success('Маршрут сохранён')
+      toast.success(t.profile.savedRoutes.addSuccess)
       setRouteFrom('')
       setRouteTo('')
       setRouteContainer('')
@@ -190,7 +198,7 @@ export default function ProfilePage() {
   return (
     <AppLayout>
       <div className="max-w-md">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Мой профиль</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">{t.profile.title}</h1>
 
         {/* Profile form */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-4">
@@ -199,27 +207,39 @@ export default function ProfilePage() {
               <User size={24} className="text-blue-600" />
             </div>
             <div>
-              <div className="font-semibold text-gray-900">{user?.name || 'Без имени'}</div>
+              <div className="font-semibold text-gray-900">{user?.name || '—'}</div>
               <div className="text-sm text-gray-500 flex items-center gap-2 flex-wrap">
-                {user?.role === 'client' ? 'Клиент' : 'Перевозчик'}
+                {user?.role === 'client' ? t.profile.client : t.profile.carrier}
                 {user?.is_verified && (
                   <span className="inline-flex items-center gap-1 text-green-600">
-                    <Shield size={12} /> Верифицирован
+                    <Shield size={12} /> {t.profile.verified}
                   </span>
                 )}
                 {user?.is_phone_verified && (
                   <span className="inline-flex items-center gap-1 text-blue-600">
-                    <CheckCircle size={12} /> Тел. подтверждён
+                    <CheckCircle size={12} /> {t.profile.phoneVerified}
                   </span>
                 )}
               </div>
             </div>
           </div>
 
+          {/* Email (readonly) */}
+          {email && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                <span className="flex items-center gap-1.5"><Mail size={14} />{t.profile.email}</span>
+              </label>
+              <div className="px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-600 select-all">
+                {email}
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSave} className="space-y-4">
             <Input
               id="name"
-              label="Имя / Название компании"
+              label={t.profile.nameLabel}
               value={name}
               onChange={e => setName(e.target.value)}
               required
@@ -227,22 +247,30 @@ export default function ProfilePage() {
             <Input
               id="phone"
               type="tel"
-              label="Телефон"
+              label={t.profile.phone}
               value={phone}
               onChange={e => setPhone(e.target.value)}
               required
             />
             <Input
               id="city"
-              label="Город"
+              label={t.profile.city}
               value={city}
               onChange={e => setCity(e.target.value)}
               required
             />
             <Button type="submit" loading={saving} className="w-full">
-              Сохранить изменения
+              {t.profile.saveChanges}
             </Button>
           </form>
+        </div>
+
+        {/* Language switcher */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
+          <div className="flex items-center justify-between">
+            <span className="font-medium text-gray-900 text-sm">{t.profile.language}</span>
+            <LanguageSwitcher />
+          </div>
         </div>
 
         {/* Phone verification */}
@@ -250,20 +278,20 @@ export default function ProfilePage() {
           <div className="bg-white rounded-2xl border border-amber-200 shadow-sm p-5 mb-4">
             <div className="flex items-center gap-2 mb-3">
               <Phone size={18} className="text-amber-500" />
-              <span className="font-semibold text-gray-900">Подтверждение телефона</span>
+              <span className="font-semibold text-gray-900">{t.profile.phoneVerification.title}</span>
             </div>
             <p className="text-sm text-gray-500 mb-4">
-              Требуется для отклика на заявки. Код придёт на указанный выше телефон.
+              {t.profile.phoneVerification.hint}
             </p>
             {!codeSent ? (
               <Button onClick={handleSendCode} loading={sending} variant="secondary" className="w-full">
-                Отправить код
+                {t.profile.phoneVerification.send}
               </Button>
             ) : (
               <div className="space-y-3">
                 <Input
                   id="verify-code"
-                  label="Введите 6-значный код"
+                  label={t.profile.phoneVerification.codeLabel}
                   value={code}
                   onChange={e => setCode(e.target.value)}
                   placeholder="123456"
@@ -271,17 +299,17 @@ export default function ProfilePage() {
                 />
                 <div className="flex gap-2">
                   <Button onClick={handleVerifyCode} loading={verifying} className="flex-1">
-                    Подтвердить
+                    {t.profile.phoneVerification.confirm}
                   </Button>
                   <Button variant="secondary" onClick={() => { setCodeSent(false); setCode('') }}>
-                    Отмена
+                    {t.common.cancel}
                   </Button>
                 </div>
                 <button
                   className="text-sm text-blue-600 hover:underline"
                   onClick={() => { setCodeSent(false); handleSendCode() }}
                 >
-                  Отправить код повторно
+                  {t.profile.phoneVerification.resend}
                 </button>
               </div>
             )}
@@ -293,11 +321,11 @@ export default function ProfilePage() {
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
             <div className="flex items-center gap-2 mb-4">
               <MapPin size={18} className="text-blue-500" />
-              <span className="font-semibold text-gray-900">Сохранённые маршруты</span>
+              <span className="font-semibold text-gray-900">{t.profile.savedRoutes.title}</span>
             </div>
 
             {savedRoutes.length === 0 ? (
-              <p className="text-sm text-gray-400 mb-4">Нет сохранённых маршрутов</p>
+              <p className="text-sm text-gray-400 mb-4">{t.profile.savedRoutes.none}</p>
             ) : (
               <div className="space-y-2 mb-4">
                 {savedRoutes.map(r => (
@@ -320,27 +348,27 @@ export default function ProfilePage() {
             )}
 
             <div className="border-t border-gray-100 pt-4 space-y-3">
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Добавить маршрут</div>
+              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t.profile.savedRoutes.addTitle}</div>
               <div className="grid grid-cols-2 gap-2">
                 <CityAutocomplete
-                  label="Откуда"
+                  label={t.profile.savedRoutes.from}
                   value={routeFrom}
                   onChange={setRouteFrom}
-                  placeholder="Город"
+                  placeholder={t.common.anyCity}
                 />
                 <CityAutocomplete
-                  label="Куда"
+                  label={t.profile.savedRoutes.to}
                   value={routeTo}
                   onChange={setRouteTo}
-                  placeholder="Город"
+                  placeholder={t.common.anyCity}
                 />
               </div>
               <Select
-                label="Тип контейнера (необязательно)"
+                label={t.profile.savedRoutes.containerOptional}
                 value={routeContainer}
                 onChange={e => setRouteContainer(e.target.value)}
                 options={CONTAINER_TYPES.map(c => ({ value: c.value, label: c.label }))}
-                placeholder="Любой"
+                placeholder={t.common.anyType}
               />
               <Button
                 onClick={handleAddRoute}
@@ -349,7 +377,7 @@ export default function ProfilePage() {
                 className="w-full"
               >
                 <Plus size={16} className="mr-1.5" />
-                Добавить маршрут
+                {t.profile.savedRoutes.add}
               </Button>
             </div>
           </div>
@@ -359,7 +387,7 @@ export default function ProfilePage() {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
           <div className="flex items-center gap-2 mb-4">
             <Star size={18} className="text-amber-500" />
-            <span className="font-semibold text-gray-900">Мой рейтинг</span>
+            <span className="font-semibold text-gray-900">{t.profile.rating.title}</span>
           </div>
           {myRating ? (
             <>
@@ -376,7 +404,7 @@ export default function ProfilePage() {
                   {myReviews.map(rv => (
                     <div key={rv.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
                       <div className="flex items-center justify-between mb-1 gap-2">
-                        <span className="text-sm font-medium text-gray-700">{rv.reviewer?.name || 'Аноним'}</span>
+                        <span className="text-sm font-medium text-gray-700">{rv.reviewer?.name || t.profile.rating.anon}</span>
                         <div className="flex gap-0.5 shrink-0">
                           {[1,2,3,4,5].map(s => (
                             <Star key={s} size={12} className={s <= rv.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-200 fill-gray-200'} />
@@ -391,12 +419,12 @@ export default function ProfilePage() {
               )}
             </>
           ) : (
-            <p className="text-sm text-gray-400">Отзывов пока нет. Рейтинг появится после завершения первой сделки.</p>
+            <p className="text-sm text-gray-400">{t.profile.rating.noReviews}</p>
           )}
         </div>
 
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-          Роль аккаунта (<strong>{user?.role === 'client' ? 'Клиент' : 'Перевозчик'}</strong>) изменить нельзя.
+          {t.profile.roleHint} (<strong>{user?.role === 'client' ? t.profile.client : t.profile.carrier}</strong>) {t.profile.roleCannotChange}
         </div>
       </div>
     </AppLayout>

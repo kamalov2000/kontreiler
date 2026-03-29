@@ -10,6 +10,7 @@ import { Select } from '@/components/ui/Select'
 import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, SavedRoute } from '@/types/database'
 import { CONTAINER_TYPES } from '@/lib/cities'
 import { toast } from 'sonner'
@@ -19,6 +20,7 @@ import { RatingBadge } from '@/components/ui/RatingBadge'
 
 function FeedContent() {
   const { user } = useUser()
+  const { t } = useLanguage()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -32,7 +34,6 @@ function FeedContent() {
   const [numberSearch, setNumberSearch] = useState('')
   const [clientRatings, setClientRatings] = useState<Record<string, { avg: number; count: number }>>({})
 
-  // Saved routes modal
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([])
   const [showRoutes, setShowRoutes] = useState(false)
 
@@ -67,11 +68,14 @@ function FeedContent() {
     if (typeFilter) query = query.eq('container_type', typeFilter)
 
     const { data } = await query
-    const loaded = (data || []) as Order[]
+    // Фильтруем просроченные по времени (на случай если cron ещё не обработал)
+    const now = Date.now()
+    const loaded = ((data || []) as Order[]).filter(o =>
+      !o.expires_at || new Date(o.expires_at).getTime() > now
+    )
     setOrders(loaded)
     setLoading(false)
 
-    // Загружаем рейтинги клиентов
     const clientIds = loaded.map(o => o.client_id).filter((v, i, a) => a.indexOf(v) === i)
     if (clientIds.length > 0) {
       const { data: ratings } = await supabase
@@ -118,7 +122,6 @@ function FeedContent() {
     }
   }, [fetchOrders, fetchMyResponses, fetchSavedRoutes, user])
 
-  // Realtime
   useEffect(() => {
     const supabase = createClient()
     const channel = supabase
@@ -141,7 +144,7 @@ function FeedContent() {
     if (!respondingTo || !user) return
 
     if (!user.is_phone_verified) {
-      toast.error('Сначала подтвердите телефон в настройках профиля')
+      toast.error(t.feed.respondModal.noPhone)
       setRespondingTo(null)
       return
     }
@@ -156,15 +159,14 @@ function FeedContent() {
 
     if (error) {
       if (error.code === '23505') {
-        toast.error('Вы уже откликались на эту заявку')
+        toast.error(t.feed.respondModal.alreadyError)
       } else {
-        toast.error('Ошибка при отклике')
+        toast.error(t.feed.respondModal.error)
       }
     } else {
-      toast.success('Отклик отправлен! Контакт клиента доступен в "Мои отклики"')
+      toast.success(t.feed.respondModal.success)
       setMyResponses(prev => { const s = new Set(prev); s.add(respondingTo.id); return s })
 
-      // Email уведомление владельцу заявки
       fetch('/api/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -183,7 +185,7 @@ function FeedContent() {
 
   function handleRespondClick(order: Order) {
     if (!user?.is_phone_verified) {
-      toast.error('Подтвердите телефон в профиле, чтобы откликаться на заявки')
+      toast.error(t.feed.respondModal.noPhone)
       return
     }
     setRespondingTo(order)
@@ -193,7 +195,7 @@ function FeedContent() {
   return (
     <AppLayout>
       <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-        <h1 className="text-2xl font-bold text-gray-900">Лента заявок</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t.feed.title}</h1>
         <div className="flex items-center gap-2">
           {savedRoutes.length > 0 && (
             <button
@@ -201,7 +203,7 @@ function FeedContent() {
               className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
             >
               <Bookmark size={16} />
-              Мои маршруты
+              {t.feed.myRoutes}
             </button>
           )}
           <button
@@ -211,7 +213,7 @@ function FeedContent() {
             }`}
           >
             <Filter size={16} />
-            Фильтры
+            {t.feed.filters}
             {hasFilters && (
               <span className="w-4 h-4 rounded-full bg-white text-blue-600 text-xs flex items-center justify-center font-bold">
                 {[fromFilter, toFilter, typeFilter].filter(Boolean).length}
@@ -228,7 +230,7 @@ function FeedContent() {
           type="text"
           value={numberSearch}
           onChange={e => setNumberSearch(e.target.value)}
-          placeholder="Поиск по номеру заявки (КТ-2026-…)"
+          placeholder={t.feed.searchPlaceholder}
           className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
         {numberSearch && (
@@ -243,23 +245,23 @@ function FeedContent() {
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <CityAutocomplete
-              label="Откуда"
+              label={t.feed.from}
               value={fromFilter}
               onChange={v => updateFilter('from', v)}
-              placeholder="Любой город"
+              placeholder={t.common.anyCity}
             />
             <CityAutocomplete
-              label="Куда"
+              label={t.feed.to}
               value={toFilter}
               onChange={v => updateFilter('to', v)}
-              placeholder="Любой город"
+              placeholder={t.common.anyCity}
             />
             <Select
-              label="Тип контейнера"
+              label={t.feed.containerType}
               value={typeFilter}
               onChange={e => updateFilter('type', e.target.value)}
               options={CONTAINER_TYPES.map(c => ({ value: c.value, label: c.label }))}
-              placeholder="Любой тип"
+              placeholder={t.common.anyType}
             />
           </div>
           {hasFilters && (
@@ -267,7 +269,7 @@ function FeedContent() {
               onClick={clearFilters}
               className="mt-3 flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
             >
-              <X size={14} /> Сбросить фильтры
+              <X size={14} /> {t.feed.clearFilters}
             </button>
           )}
         </div>
@@ -276,9 +278,9 @@ function FeedContent() {
       {/* Phone not verified warning */}
       {user && !user.is_phone_verified && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm text-amber-800 flex items-center justify-between gap-2">
-          <span>Для отклика нужно подтвердить телефон</span>
+          <span>{t.feed.verifyPhone}</span>
           <Link href="/profile" className="font-medium underline hover:text-amber-900 shrink-0">
-            Подтвердить →
+            {t.feed.verifyLink}
           </Link>
         </div>
       )}
@@ -302,14 +304,14 @@ function FeedContent() {
                 actions={
                   alreadyResponded ? (
                     <span className="px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium">
-                      ✓ Вы откликнулись
+                      {t.feed.alreadyResponded}
                     </span>
                   ) : (
                     <Button
                       size="sm"
                       onClick={() => handleRespondClick(order)}
                     >
-                      Откликнуться
+                      {t.feed.respond}
                     </Button>
                   )
                 }
@@ -323,32 +325,34 @@ function FeedContent() {
       <Modal
         open={!!respondingTo}
         onClose={() => { setRespondingTo(null); setMessage('') }}
-        title="Откликнуться на заявку"
+        title={t.feed.respondModal.title}
       >
         {respondingTo && (
           <div>
             <div className="mb-4 p-3 rounded-xl bg-gray-50">
               <div className="font-medium text-gray-900">
-                {respondingTo.from_city} → {respondingTo.to_city}
+                {respondingTo.from_city}
+                {respondingTo.via_city ? ` → ${respondingTo.via_city}` : ''}
+                {' → '}{respondingTo.to_city}
               </div>
               <div className="text-sm text-gray-500 mt-0.5">
                 {CONTAINER_TYPES.find(c => c.value === respondingTo.container_type)?.label}
               </div>
               {respondingTo.notes && (
                 <div className="mt-2 text-sm text-gray-600 italic">
-                  Особые условия: {respondingTo.notes}
+                  {respondingTo.notes}
                 </div>
               )}
             </div>
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Комментарий (необязательно)
+                {t.feed.respondModal.commentLabel}
               </label>
               <textarea
                 value={message}
                 onChange={e => setMessage(e.target.value)}
-                placeholder="Могу забрать завтра утром..."
+                placeholder={t.feed.respondModal.commentPlaceholder}
                 rows={3}
                 maxLength={300}
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
@@ -356,15 +360,15 @@ function FeedContent() {
             </div>
 
             <p className="text-sm text-gray-500 mb-4">
-              После отклика вы получите контактный телефон клиента в разделе «Мои отклики».
+              {t.feed.respondModal.hint}
             </p>
 
             <div className="flex gap-3">
               <Button className="flex-1" loading={responding} onClick={handleRespond}>
-                Подтвердить отклик
+                {t.feed.respondModal.confirm}
               </Button>
               <Button variant="secondary" onClick={() => { setRespondingTo(null); setMessage('') }}>
-                Отмена
+                {t.common.cancel}
               </Button>
             </div>
           </div>
@@ -375,7 +379,7 @@ function FeedContent() {
       <Modal
         open={showRoutes}
         onClose={() => setShowRoutes(false)}
-        title="Мои маршруты"
+        title={t.feed.routeModal.title}
       >
         <div className="space-y-2">
           {savedRoutes.map(r => (
@@ -395,7 +399,10 @@ function FeedContent() {
             </button>
           ))}
           <p className="text-xs text-gray-400 pt-2">
-            Управление маршрутами — в <Link href="/profile" className="text-blue-600 hover:underline" onClick={() => setShowRoutes(false)}>профиле</Link>
+            {t.feed.routeModal.manage}{' '}
+            <Link href="/profile" className="text-blue-600 hover:underline" onClick={() => setShowRoutes(false)}>
+              {t.feed.routeModal.profileLink}
+            </Link>
           </p>
         </div>
       </Modal>

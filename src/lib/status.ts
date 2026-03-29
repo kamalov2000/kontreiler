@@ -1,4 +1,4 @@
-// Статусы заявок
+// Статусы заявок (fallback для компонентов без i18n)
 export const ORDER_STATUS_LABEL: Record<string, string> = {
   active:     'Новая',
   matched:    'Перевозчик найден',
@@ -6,6 +6,7 @@ export const ORDER_STATUS_LABEL: Record<string, string> = {
   delivered:  'Доставлено',
   closed:     'Закрыта',
   cancelled:  'Отменена',
+  expired:    'Просрочена',
 }
 
 export const ORDER_STATUS_CLASS: Record<string, string> = {
@@ -15,6 +16,7 @@ export const ORDER_STATUS_CLASS: Record<string, string> = {
   delivered:  'bg-green-100 text-green-700',
   closed:     'bg-gray-200 text-gray-500',
   cancelled:  'bg-red-100 text-red-600',
+  expired:    'bg-orange-100 text-orange-700',
 }
 
 // Статусы рейсов (машин)

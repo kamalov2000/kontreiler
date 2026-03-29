@@ -86,8 +86,14 @@ export const RUSSIAN_CITIES = [
 ] as const
 
 export const CONTAINER_TYPES = [
-  { value: '20ft', label: '20 футов' },
-  { value: '40ft', label: '40 футов' },
-  { value: '40HC', label: '40 HC (High Cube)' },
-  { value: '45ft', label: '45 футов' },
+  { value: '20ft',  label: '20 футов' },
+  { value: '40ft',  label: '40 футов' },
+  { value: '40HC',  label: '40 HC (High Cube)' },
+  { value: '45ft',  label: '45 футов' },
+  { value: '20REF', label: '20 REF (рефрижератор)' },
+  { value: '40REF', label: '40 REF (рефрижератор)' },
+  { value: '20TC',  label: '20 TC (танк-контейнер)' },
+  { value: '40TC',  label: '40 TC (танк-контейнер)' },
 ] as const
+
+export const REF_CONTAINER_TYPES = new Set(['20REF', '40REF'])
