@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Package } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -11,7 +11,6 @@ import { toast } from 'sonner'
 
 function ResetPasswordContent() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [loading, setLoading] = useState(false)
@@ -19,15 +18,12 @@ function ResetPasswordContent() {
   const [error, setError] = useState(false)
 
   useEffect(() => {
-    const code = searchParams.get('code')
-    if (!code) { setError(true); return }
-
     const supabase = createClient()
-    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-      if (error) { setError(true) }
-      else { setReady(true) }
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setReady(true)
+      else setError(true)
     })
-  }, [searchParams])
+  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
