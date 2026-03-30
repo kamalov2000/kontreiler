@@ -19,7 +19,7 @@ import Link from 'next/link'
 import { RatingBadge } from '@/components/ui/RatingBadge'
 
 function FeedContent() {
-  const { user } = useUser()
+  const { user, isEmailVerified } = useUser()
   const { t } = useLanguage()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -146,8 +146,8 @@ function FeedContent() {
   async function handleRespond() {
     if (!respondingTo || !user) return
 
-    if (!user.is_phone_verified) {
-      toast.error(t.feed.respondModal.noPhone)
+    if (!isEmailVerified) {
+      toast.error(t.feed.respondModal.noEmail)
       setRespondingTo(null)
       return
     }
@@ -187,8 +187,8 @@ function FeedContent() {
   }
 
   function handleRespondClick(order: Order) {
-    if (!user?.is_phone_verified) {
-      toast.error(t.feed.respondModal.noPhone)
+    if (!isEmailVerified) {
+      toast.error(t.feed.respondModal.noEmail)
       return
     }
     setRespondingTo(order)
@@ -279,9 +279,9 @@ function FeedContent() {
       )}
 
       {/* Phone not verified warning */}
-      {user && !user.is_phone_verified && (
+      {user && !isEmailVerified && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm text-amber-800 flex items-center justify-between gap-2">
-          <span>{t.feed.verifyPhone}</span>
+          <span>{t.feed.verifyEmail}</span>
           <Link href="/profile" className="font-medium underline hover:text-amber-900 shrink-0">
             {t.feed.verifyLink}
           </Link>

@@ -6,6 +6,7 @@ import { User } from '@/types/database'
 
 export function useUser() {
   const [user, setUser] = useState<User | null>(null)
+  const [isEmailVerified, setIsEmailVerified] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -15,9 +16,12 @@ export function useUser() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) {
         setUser(null)
+        setIsEmailVerified(false)
         setLoading(false)
         return
       }
+
+      setIsEmailVerified(!!authUser.email_confirmed_at)
 
       const { data } = await supabase
         .from('users')
@@ -38,5 +42,5 @@ export function useUser() {
     return () => subscription.unsubscribe()
   }, [])
 
-  return { user, loading }
+  return { user, isEmailVerified, loading }
 }

@@ -12,12 +12,12 @@ import { createClient } from '@/lib/supabase/client'
 import { SavedRoute, Review } from '@/types/database'
 import { toast } from 'sonner'
 import { normalizePhone, formatDateTime } from '@/lib/utils'
-import { User, Shield, CheckCircle, Phone, Trash2, Plus, MapPin, Star, Mail } from 'lucide-react'
+import { User, Shield, CheckCircle, Trash2, Plus, MapPin, Star, Mail } from 'lucide-react'
 import { CONTAINER_TYPES } from '@/lib/cities'
 import { RatingBadge } from '@/components/ui/RatingBadge'
 
 export default function ProfilePage() {
-  const { user, loading } = useUser()
+  const { user, isEmailVerified, loading } = useUser()
   const { t } = useLanguage()
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
@@ -28,11 +28,7 @@ export default function ProfilePage() {
   const [licenseNumber, setLicenseNumber] = useState('')
   const [saving, setSaving] = useState(false)
 
-  // Phone verification
-  const [code, setCode] = useState('')
-  const [sending, setSending] = useState(false)
-  const [verifying, setVerifying] = useState(false)
-  const [codeSent, setCodeSent] = useState(false)
+  const [resending, setResending] = useState(false)
 
   // Saved routes (carrier only)
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([])
@@ -123,46 +119,17 @@ export default function ProfilePage() {
     setSaving(false)
   }
 
-  async function handleSendCode() {
-    if (!user || !phone) {
-      toast.error(t.profile.phoneVerification.noPhone)
-      return
-    }
-    setSending(true)
-    const normalized = normalizePhone(phone)
-    const res = await fetch('/api/phone/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id, phone: normalized }),
-    })
-    if (res.ok) {
-      toast.success(t.profile.phoneVerification.sentHint)
-      setCodeSent(true)
+  async function handleResendEmail() {
+    if (!email) return
+    setResending(true)
+    const supabase = createClient()
+    const { error } = await supabase.auth.resend({ type: 'signup', email })
+    if (error) {
+      toast.error(t.profile.emailVerification.resentError)
     } else {
-      toast.error(t.profile.phoneVerification.sendError)
+      toast.success(t.profile.emailVerification.resentSuccess)
     }
-    setSending(false)
-  }
-
-  async function handleVerifyCode() {
-    if (!user || !code) return
-    setVerifying(true)
-    const normalized = normalizePhone(phone)
-    const res = await fetch('/api/phone/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: user.id, phone: normalized, code }),
-    })
-    if (res.ok) {
-      toast.success(t.profile.phoneVerification.successVerify)
-      setCodeSent(false)
-      setCode('')
-      window.location.reload()
-    } else {
-      const data = await res.json()
-      toast.error(data.error || 'Error')
-    }
-    setVerifying(false)
+    setResending(false)
   }
 
   async function handleAddRoute() {
@@ -226,9 +193,9 @@ export default function ProfilePage() {
                     <Shield size={12} /> {t.profile.verified}
                   </span>
                 )}
-                {user?.is_phone_verified && (
+                {isEmailVerified && (
                   <span className="inline-flex items-center gap-1 text-blue-600">
-                    <CheckCircle size={12} /> {t.profile.phoneVerified}
+                    <CheckCircle size={12} /> {t.profile.emailVerified}
                   </span>
                 )}
               </div>
@@ -307,46 +274,19 @@ export default function ProfilePage() {
           </form>
         </div>
 
-        {/* Phone verification */}
-        {!user?.is_phone_verified && (
+        {/* Email verification */}
+        {!isEmailVerified && (
           <div className="bg-white rounded-2xl border border-amber-200 shadow-sm p-5 mb-4">
             <div className="flex items-center gap-2 mb-3">
-              <Phone size={18} className="text-amber-500" />
-              <span className="font-semibold text-gray-900">{t.profile.phoneVerification.title}</span>
+              <Mail size={18} className="text-amber-500" />
+              <span className="font-semibold text-gray-900">{t.profile.emailVerification.title}</span>
             </div>
             <p className="text-sm text-gray-500 mb-4">
-              {t.profile.phoneVerification.hint}
+              {t.profile.emailVerification.hint}
             </p>
-            {!codeSent ? (
-              <Button onClick={handleSendCode} loading={sending} variant="secondary" className="w-full">
-                {t.profile.phoneVerification.send}
-              </Button>
-            ) : (
-              <div className="space-y-3">
-                <Input
-                  id="verify-code"
-                  label={t.profile.phoneVerification.codeLabel}
-                  value={code}
-                  onChange={e => setCode(e.target.value)}
-                  placeholder="123456"
-                  maxLength={6}
-                />
-                <div className="flex gap-2">
-                  <Button onClick={handleVerifyCode} loading={verifying} className="flex-1">
-                    {t.profile.phoneVerification.confirm}
-                  </Button>
-                  <Button variant="secondary" onClick={() => { setCodeSent(false); setCode('') }}>
-                    {t.common.cancel}
-                  </Button>
-                </div>
-                <button
-                  className="text-sm text-blue-600 hover:underline"
-                  onClick={() => { setCodeSent(false); handleSendCode() }}
-                >
-                  {t.profile.phoneVerification.resend}
-                </button>
-              </div>
-            )}
+            <Button onClick={handleResendEmail} loading={resending} variant="secondary" className="w-full">
+              {t.profile.emailVerification.resend}
+            </Button>
           </div>
         )}
 
