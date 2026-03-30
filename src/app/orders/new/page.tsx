@@ -25,7 +25,7 @@ function addDays(days: number): string {
 
 function NewOrderForm() {
   const router = useRouter()
-  const { user } = useUser()
+  const { user, isEmailVerified } = useUser()
   const { t } = useLanguage()
   const params = useSearchParams()
 
@@ -119,6 +119,10 @@ function NewOrderForm() {
     const errs = validate()
     if (Object.keys(errs).length > 0) { setErrors(errs); return }
     if (!user) return
+    if (!isEmailVerified) {
+      toast.error('Подтвердите почту чтобы создавать заявки')
+      return
+    }
     setLoading(true)
 
     const supabase = createClient()

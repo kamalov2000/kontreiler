@@ -22,6 +22,7 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState('')
   const [city, setCity] = useState('')
   const [loading, setLoading] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
@@ -31,10 +32,12 @@ export default function RegisterPage() {
     const supabase = createClient()
 
     const normalizedPhone = normalizePhone(phone)
+    const next = role === 'carrier' ? '/feed' : '/dashboard'
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${next}`,
         data: { role, name, phone: normalizedPhone, city },
       },
     })
@@ -44,11 +47,40 @@ export default function RegisterPage() {
       return
     }
 
-    // Профиль создаётся триггером handle_new_user() на стороне Supabase.
-    // Никакого дополнительного запроса в users не нужно.
+    // Если email confirmation включён — session будет null, показываем экран проверки почты
+    // Если выключен — сразу редиректим
+    if (!data.session) {
+      setEmailSent(true)
+    } else {
+      router.push(next)
+    }
+    setLoading(false)
+  }
 
-    toast.success('Аккаунт создан!')
-    router.push(role === 'carrier' ? '/feed' : '/dashboard')
+  if (emailSent) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+        <div className="w-full max-w-sm">
+          <div className="flex flex-col items-center mb-8">
+            <Link href="/" className="flex items-center gap-2 text-blue-600 font-bold text-2xl mb-2">
+              <Package size={28} />
+              Контрейл
+            </Link>
+          </div>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
+            <div className="text-4xl mb-4">📧</div>
+            <h1 className="text-xl font-semibold text-gray-900 mb-2">Подтвердите почту</h1>
+            <p className="text-sm text-gray-500 mb-6">
+              Письмо отправлено на <span className="font-medium text-gray-700">{email}</span>.
+              Перейдите по ссылке в письме чтобы завершить регистрацию.
+            </p>
+            <Link href="/auth/login" className="text-blue-600 hover:underline text-sm">
+              ← Войти
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
