@@ -18,20 +18,39 @@ import { cn } from '@/lib/utils'
 
 type Tab = 'active' | 'closed' | 'cancelled' | 'expired' | 'all'
 
-// Универсальный поиск:
-// - "заявка КТ-00010", "заявку 00010", "order КТ-00010", "# 10", "№10" — стрипаем префикс
-// - "00010", "10" — только цифры → пэддинг до 5 знаков, ищем по концу номера
-// - "КТ", "А-000", "Р-0" — частичный номер
-// - город, примечание, тип контейнера
+// Слова-префиксы которые пользователь может набирать перед номером
+const SEARCH_PREFIX_WORDS = ['заявка', 'заявку', 'заявки', 'заявке', 'заявкой', 'ордер', 'order']
+
+// Извлекаем реальный поисковый запрос:
+// - "з/за/зая/заяв/заявк/заявка" → '' (пользователь ещё набирает слово-префикс → показать всё)
+// - "заявка КТ-00010" → 'кт-00010'
+// - "00010" → '00010'
+// - "Москва" → 'москва'
+function extractQuery(raw: string): string {
+  const q = raw.toLowerCase().trim()
+  if (!q) return ''
+
+  const spaceIdx = q.indexOf(' ')
+  const firstWord = spaceIdx === -1 ? q : q.slice(0, spaceIdx)
+  const rest = spaceIdx === -1 ? '' : q.slice(spaceIdx + 1).trim()
+
+  // Если первое слово — начало одного из стрипаемых слов (≥2 символа) → стрипаем
+  const isPrefix = firstWord.length >= 2 &&
+    SEARCH_PREFIX_WORDS.some(w => w.startsWith(firstWord))
+
+  if (isPrefix) return rest  // может быть пустой строкой → показать всё
+
+  // # и № стрипаем всегда
+  if (/^[#№]/.test(q)) return q.replace(/^[#№]\s*/, '').trim()
+
+  return q
+}
+
 function matchesSearch(order: Order, q: string): boolean {
   if (!q) return true
 
-  // Стрипаем общие слова-префиксы
-  const ql = q.toLowerCase().trim()
-    .replace(/^(заявк[а-яё]*|ордер[а-яё]*|order|#|№)\s*/i, '')
-    .trim()
-
-  if (!ql) return true
+  const ql = extractQuery(q)
+  if (!ql) return true  // набирают слово-префикс → всё совпадает
 
   const num = order.order_number || ''
   const shortNum = formatOrderNumber(num).toLowerCase()
@@ -42,7 +61,6 @@ function matchesSearch(order: Order, q: string): boolean {
     return num.endsWith('-' + padded) || shortNum.endsWith('-' + padded)
   }
 
-  // Метка контейнера ("40 HC", "20 футов" и т.д.)
   const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label?.toLowerCase() || ''
 
   return (

@@ -19,14 +19,22 @@ import Link from 'next/link'
 import { RatingBadge } from '@/components/ui/RatingBadge'
 import { formatOrderNumber } from '@/lib/utils'
 
-// Поиск в ленте: номер (с префиксом "заявка" и без), города, примечания
+const FEED_PREFIX_WORDS = ['заявка', 'заявку', 'заявки', 'заявке', 'заявкой', 'ордер', 'order']
+
+function extractFeedQuery(raw: string): string {
+  const q = raw.toLowerCase().trim()
+  if (!q) return ''
+  const spaceIdx = q.indexOf(' ')
+  const firstWord = spaceIdx === -1 ? q : q.slice(0, spaceIdx)
+  const rest = spaceIdx === -1 ? '' : q.slice(spaceIdx + 1).trim()
+  if (firstWord.length >= 2 && FEED_PREFIX_WORDS.some(w => w.startsWith(firstWord))) return rest
+  if (/^[#№]/.test(q)) return q.replace(/^[#№]\s*/, '').trim()
+  return q
+}
+
 function matchesOrderSearch(order: Order, q: string): boolean {
   if (!q) return true
-
-  const ql = q.toLowerCase().trim()
-    .replace(/^(заявк[а-яё]*|ордер[а-яё]*|order|#|№)\s*/i, '')
-    .trim()
-
+  const ql = extractFeedQuery(q)
   if (!ql) return true
 
   const num = order.order_number || ''
