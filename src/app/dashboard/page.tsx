@@ -18,31 +18,42 @@ import { cn } from '@/lib/utils'
 
 type Tab = 'active' | 'closed' | 'cancelled' | 'expired' | 'all'
 
-// Универсальный поиск: номер (00010/КТ-00010/КТ-2026-00010), города, примечания, тип контейнера
+// Универсальный поиск:
+// - "заявка КТ-00010", "заявку 00010", "order КТ-00010", "# 10", "№10" — стрипаем префикс
+// - "00010", "10" — только цифры → пэддинг до 5 знаков, ищем по концу номера
+// - "КТ", "А-000", "Р-0" — частичный номер
+// - город, примечание, тип контейнера
 function matchesSearch(order: Order, q: string): boolean {
   if (!q) return true
+
+  // Стрипаем общие слова-префиксы
   const ql = q.toLowerCase().trim()
+    .replace(/^(заявк[аую]|ордер|order|#|№)\s*/i, '')
+    .trim()
+
+  if (!ql) return true
+
   const num = order.order_number || ''
   const shortNum = formatOrderNumber(num).toLowerCase()
 
-  // Только цифры — ищем по концу номера (пэддинг до 5 знаков)
+  // Только цифры — пэддинг до 5 и ищем по концу
   if (/^\d+$/.test(ql)) {
     const padded = ql.padStart(5, '0')
     return num.endsWith('-' + padded) || shortNum.endsWith('-' + padded)
   }
 
-  // Метка контейнера (например "40 HC")
+  // Метка контейнера ("40 HC", "20 футов" и т.д.)
   const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label?.toLowerCase() || ''
 
   return (
-    order.from_city?.toLowerCase().includes(ql) ||
-    order.to_city?.toLowerCase().includes(ql) ||
+    num.toLowerCase().includes(ql) ||
+    shortNum.includes(ql) ||
+    (order.from_city?.toLowerCase().includes(ql) ?? false) ||
+    (order.to_city?.toLowerCase().includes(ql) ?? false) ||
     (order.via_city?.toLowerCase().includes(ql) ?? false) ||
     (order.notes?.toLowerCase().includes(ql) ?? false) ||
     containerLabel.includes(ql) ||
-    order.container_type?.toLowerCase().includes(ql) ||
-    num.toLowerCase().includes(ql) ||
-    shortNum.includes(ql)
+    (order.container_type?.toLowerCase().includes(ql) ?? false)
   )
 }
 
@@ -251,7 +262,7 @@ export default function DashboardPage() {
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Город, номер (00010 / КТ-00010 / КТ-2026-00010)…"
+          placeholder="Поиск: город, 00010, КТ-00010, заявка КТ-00010…"
           className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
         {search && (

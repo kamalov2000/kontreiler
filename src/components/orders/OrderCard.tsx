@@ -223,7 +223,7 @@ export function OrderCard({ order, showResponses, actions, extra, bidData }: Ord
 
       {extra && <div className="mb-3">{extra}</div>}
 
-      {actions && <div className="flex gap-2 flex-wrap">{actions}</div>}
+      {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
     </div>
   )
 }

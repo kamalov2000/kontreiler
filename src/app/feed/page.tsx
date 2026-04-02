@@ -19,21 +19,29 @@ import Link from 'next/link'
 import { RatingBadge } from '@/components/ui/RatingBadge'
 import { formatOrderNumber } from '@/lib/utils'
 
-// Поиск в ленте: номер, города, примечания
+// Поиск в ленте: номер (с префиксом "заявка" и без), города, примечания
 function matchesOrderSearch(order: Order, q: string): boolean {
   if (!q) return true
+
   const ql = q.toLowerCase().trim()
+    .replace(/^(заявк[аую]|ордер|order|#|№)\s*/i, '')
+    .trim()
+
+  if (!ql) return true
+
   const num = order.order_number || ''
   const shortNum = formatOrderNumber(num).toLowerCase()
+
   if (/^\d+$/.test(ql)) {
     const padded = ql.padStart(5, '0')
     return num.endsWith('-' + padded) || shortNum.endsWith('-' + padded)
   }
+
   return (
     num.toLowerCase().includes(ql) ||
     shortNum.includes(ql) ||
-    order.from_city?.toLowerCase().includes(ql) ||
-    order.to_city?.toLowerCase().includes(ql) ||
+    (order.from_city?.toLowerCase().includes(ql) ?? false) ||
+    (order.to_city?.toLowerCase().includes(ql) ?? false) ||
     (order.via_city?.toLowerCase().includes(ql) ?? false) ||
     (order.notes?.toLowerCase().includes(ql) ?? false)
   )
