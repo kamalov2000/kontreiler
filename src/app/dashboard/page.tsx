@@ -18,22 +18,29 @@ import { cn } from '@/lib/utils'
 
 type Tab = 'active' | 'closed' | 'cancelled' | 'expired' | 'all'
 
-// Поиск по номеру: "00010", "КТ-00010", "КТ-2026-00010"
+// Универсальный поиск: номер (00010/КТ-00010/КТ-2026-00010), города, примечания, тип контейнера
 function matchesSearch(order: Order, q: string): boolean {
   if (!q) return true
   const ql = q.toLowerCase().trim()
   const num = order.order_number || ''
   const shortNum = formatOrderNumber(num).toLowerCase()
 
-  // Только цифры — ищем по концу номера
+  // Только цифры — ищем по концу номера (пэддинг до 5 знаков)
   if (/^\d+$/.test(ql)) {
     const padded = ql.padStart(5, '0')
     return num.endsWith('-' + padded) || shortNum.endsWith('-' + padded)
   }
 
+  // Метка контейнера (например "40 HC")
+  const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label?.toLowerCase() || ''
+
   return (
     order.from_city?.toLowerCase().includes(ql) ||
     order.to_city?.toLowerCase().includes(ql) ||
+    (order.via_city?.toLowerCase().includes(ql) ?? false) ||
+    (order.notes?.toLowerCase().includes(ql) ?? false) ||
+    containerLabel.includes(ql) ||
+    order.container_type?.toLowerCase().includes(ql) ||
     num.toLowerCase().includes(ql) ||
     shortNum.includes(ql)
   )

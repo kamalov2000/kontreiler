@@ -19,7 +19,8 @@ import Link from 'next/link'
 import { RatingBadge } from '@/components/ui/RatingBadge'
 import { formatOrderNumber } from '@/lib/utils'
 
-function matchesNumberSearch(order: Order, q: string): boolean {
+// Поиск в ленте: номер, города, примечания
+function matchesOrderSearch(order: Order, q: string): boolean {
   if (!q) return true
   const ql = q.toLowerCase().trim()
   const num = order.order_number || ''
@@ -28,7 +29,14 @@ function matchesNumberSearch(order: Order, q: string): boolean {
     const padded = ql.padStart(5, '0')
     return num.endsWith('-' + padded) || shortNum.endsWith('-' + padded)
   }
-  return num.toLowerCase().includes(ql) || shortNum.includes(ql)
+  return (
+    num.toLowerCase().includes(ql) ||
+    shortNum.includes(ql) ||
+    order.from_city?.toLowerCase().includes(ql) ||
+    order.to_city?.toLowerCase().includes(ql) ||
+    (order.via_city?.toLowerCase().includes(ql) ?? false) ||
+    (order.notes?.toLowerCase().includes(ql) ?? false)
+  )
 }
 
 function FeedContent() {
@@ -308,7 +316,7 @@ function FeedContent() {
       ) : (
         <div className="space-y-4">
           {orders
-            .filter(o => matchesNumberSearch(o, numberSearch))
+            .filter(o => matchesOrderSearch(o, numberSearch))
             .map(order => {
             const alreadyResponded = myResponses.has(order.id)
             const clientRating = clientRatings[order.client_id]
