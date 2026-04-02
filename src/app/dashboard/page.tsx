@@ -28,7 +28,7 @@ function matchesSearch(order: Order, q: string): boolean {
 
   // Стрипаем общие слова-префиксы
   const ql = q.toLowerCase().trim()
-    .replace(/^(заявк[аую]|ордер|order|#|№)\s*/i, '')
+    .replace(/^(заявк[а-яё]*|ордер[а-яё]*|order|#|№)\s*/i, '')
     .trim()
 
   if (!ql) return true

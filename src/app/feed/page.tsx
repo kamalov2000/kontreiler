@@ -24,7 +24,7 @@ function matchesOrderSearch(order: Order, q: string): boolean {
   if (!q) return true
 
   const ql = q.toLowerCase().trim()
-    .replace(/^(заявк[аую]|ордер|order|#|№)\s*/i, '')
+    .replace(/^(заявк[а-яё]*|ордер[а-яё]*|order|#|№)\s*/i, '')
     .trim()
 
   if (!ql) return true
