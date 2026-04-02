@@ -28,6 +28,7 @@ export function Navbar() {
       .select('id', { count: 'exact', head: true })
       .in('format', ['reduction', 'auction'])
       .eq('status', 'active')
+      .gt('auction_end_time', new Date().toISOString())
       .then(({ count }) => setAuctionCount(count ?? 0))
   }, [user])
 
