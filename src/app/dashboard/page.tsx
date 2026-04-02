@@ -35,7 +35,7 @@ function extractQuery(raw: string): string {
   const rest = spaceIdx === -1 ? '' : q.slice(spaceIdx + 1).trim()
 
   // Если первое слово — начало одного из стрипаемых слов (≥2 символа) → стрипаем
-  const isPrefix = firstWord.length >= 2 &&
+  const isPrefix = firstWord.length >= 1 &&
     SEARCH_PREFIX_WORDS.some(w => w.startsWith(firstWord))
 
   if (isPrefix) return rest  // может быть пустой строкой → показать всё

@@ -27,7 +27,7 @@ function extractFeedQuery(raw: string): string {
   const spaceIdx = q.indexOf(' ')
   const firstWord = spaceIdx === -1 ? q : q.slice(0, spaceIdx)
   const rest = spaceIdx === -1 ? '' : q.slice(spaceIdx + 1).trim()
-  if (firstWord.length >= 2 && FEED_PREFIX_WORDS.some(w => w.startsWith(firstWord))) return rest
+  if (firstWord.length >= 1 && FEED_PREFIX_WORDS.some(w => w.startsWith(firstWord))) return rest
   if (/^[#№]/.test(q)) return q.replace(/^[#№]\s*/, '').trim()
   return q
 }
