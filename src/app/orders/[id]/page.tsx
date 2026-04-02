@@ -92,7 +92,6 @@ export default function OrderDetailPage() {
   const [reviews, setReviews] = useState<Review[]>([])
   const [carrierRatings, setCarrierRatings] = useState<Record<string, { avg: number; count: number }>>({})
   const [loading, setLoading] = useState(true)
-  const [closingId, setClosingId] = useState(false)
   const [acceptingId, setAcceptingId] = useState<string | null>(null)
   const [statusChanging, setStatusChanging] = useState(false)
 
@@ -339,14 +338,6 @@ export default function OrderDetailPage() {
     router.push(`/orders/new?${qs}`)
   }
 
-  async function closeOrder() {
-    if (!order) return
-    setClosingId(true)
-    const supabase = createClient()
-    await supabase.from('orders').update({ status: 'closed' }).eq('id', order.id)
-    toast.success('Заявка закрыта')
-    router.push('/dashboard')
-  }
 
   function openAcceptModal(carrierId: string) {
     setPendingCarrierId(carrierId)
