@@ -17,6 +17,19 @@ import { toast } from 'sonner'
 import { Filter, X, Bookmark, Search } from 'lucide-react'
 import Link from 'next/link'
 import { RatingBadge } from '@/components/ui/RatingBadge'
+import { formatOrderNumber } from '@/lib/utils'
+
+function matchesNumberSearch(order: Order, q: string): boolean {
+  if (!q) return true
+  const ql = q.toLowerCase().trim()
+  const num = order.order_number || ''
+  const shortNum = formatOrderNumber(num).toLowerCase()
+  if (/^\d+$/.test(ql)) {
+    const padded = ql.padStart(5, '0')
+    return num.endsWith('-' + padded) || shortNum.endsWith('-' + padded)
+  }
+  return num.toLowerCase().includes(ql) || shortNum.includes(ql)
+}
 
 function FeedContent() {
   const { user, isEmailVerified } = useUser()
@@ -295,7 +308,7 @@ function FeedContent() {
       ) : (
         <div className="space-y-4">
           {orders
-            .filter(o => !numberSearch || (o.order_number?.toLowerCase().includes(numberSearch.toLowerCase())))
+            .filter(o => matchesNumberSearch(o, numberSearch))
             .map(order => {
             const alreadyResponded = myResponses.has(order.id)
             const clientRating = clientRatings[order.client_id]

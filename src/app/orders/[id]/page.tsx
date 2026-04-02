@@ -106,6 +106,7 @@ export default function OrderDetailPage() {
   const [editTo, setEditTo] = useState('')
   const [editContainer, setEditContainer] = useState<ContainerType>('20ft')
   const [editDate, setEditDate] = useState('')
+  const [editReadyTime, setEditReadyTime] = useState('')
   const [editPrice, setEditPrice] = useState('')
   const [editNegotiable, setEditNegotiable] = useState(false)
   const [editUrgent, setEditUrgent] = useState(false)
@@ -212,6 +213,7 @@ export default function OrderDetailPage() {
     setEditTo(order.to_city)
     setEditContainer(order.container_type)
     setEditDate(order.ready_date)
+    setEditReadyTime(order.ready_time || '')
     setEditPrice(order.price ? String(order.price) : '')
     setEditNegotiable(order.is_negotiable)
     setEditUrgent(order.is_urgent)
@@ -236,6 +238,7 @@ export default function OrderDetailPage() {
         to_city: editTo,
         container_type: editContainer,
         ready_date: editDate,
+        ready_time: editReadyTime || null,
         price: editNegotiable ? null : (parseInt(editPrice) || null),
         is_negotiable: editNegotiable,
         is_urgent: editUrgent,
@@ -254,7 +257,7 @@ export default function OrderDetailPage() {
       setOrder(prev => prev ? {
         ...prev,
         from_city: editFrom, via_city: editVia || null, to_city: editTo,
-        container_type: editContainer, ready_date: editDate,
+        container_type: editContainer, ready_date: editDate, ready_time: editReadyTime || null,
         price: editNegotiable ? null : (parseInt(editPrice) || null),
         is_negotiable: editNegotiable, is_urgent: editUrgent,
         notes: editNotes.trim() || null,
@@ -995,7 +998,10 @@ export default function OrderDetailPage() {
                   <span className="text-sm text-blue-800">⚡ {t.order.genset}</span>
                 </label>
               )}
-              <Input label="Дата погрузки/выгрузки" type="date" value={editDate} onChange={e => setEditDate(e.target.value)} min={today} />
+              <div className="grid grid-cols-2 gap-3">
+                <Input label="Дата погрузки/выгрузки" type="date" value={editDate} onChange={e => setEditDate(e.target.value)} min={today} />
+                <Input label="Время (необязательно)" type="time" value={editReadyTime} onChange={e => setEditReadyTime(e.target.value)} />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <Input
                   label={t.order.weightGross}
