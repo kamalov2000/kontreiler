@@ -68,3 +68,22 @@ export function isValidPhone(phone: string): boolean {
   return (digits.length === 11 && (digits.startsWith('7') || digits.startsWith('8')))
     || digits.length === 10
 }
+
+// Убирает год из номера заявки для отображения:
+// КТ-2026-00001 → КТ-00001; А-2026-00001 → А-00001
+export function formatOrderNumber(num: string | null | undefined): string {
+  if (!num) return ''
+  return num.replace(/^(.+)-\d{4}-(\d+)$/, '$1-$2')
+}
+
+// Форматирует дату погрузки с опциональным временем: "30 марта 2026, 14:30"
+export function formatDateWithTime(date: string, time?: string | null): string {
+  const d = new Date(date + 'T00:00:00')
+  const dateStr = d.toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+  if (!time) return dateStr
+  return `${dateStr}, ${time}`
+}

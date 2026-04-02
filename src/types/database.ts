@@ -56,6 +56,8 @@ export interface Order {
   is_urgent: boolean
   weight_gross: number | null
   weight_net: number | null
+  ready_time: string | null
+  was_expired: boolean
   vat_type: VatType
   requires_genset: boolean
   notes: string | null

@@ -18,7 +18,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType } from '@/types/database'
-import { formatDate, formatDateTime, formatPrice, formatPhone, maskPhone } from '@/lib/utils'
+import { formatDateWithTime, formatDateTime, formatPrice, formatPhone, maskPhone, formatOrderNumber } from '@/lib/utils'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES } from '@/lib/cities'
 import { toast } from 'sonner'
 import { ORDER_STATUS_CLASS } from '@/lib/status'
@@ -515,7 +515,7 @@ export default function OrderDetailPage() {
             <div className="flex flex-col gap-1.5">
               {order.order_number && (
                 <span className="text-2xl font-black font-mono text-blue-600 tracking-tight">
-                  {order.order_number}
+                  {formatOrderNumber(order.order_number)}
                 </span>
               )}
               <div className="flex items-center gap-2 flex-wrap">
@@ -557,31 +557,35 @@ export default function OrderDetailPage() {
                   Доставлено
                 </Button>
               )}
-              {isOwner && order.status === 'active' && (
-                <Button variant="danger" size="sm" loading={closingId} onClick={closeOrder}>
-                  Закрыть
+
+              {/* Пункт 2: 3 полноценные кнопки вместо меню */}
+              {isOwner && canEdit && (
+                <Button variant="secondary" size="sm" onClick={openEdit}>
+                  <Edit2 size={14} className="mr-1" /> Редактировать
+                </Button>
+              )}
+              {isOwner && (
+                <Button variant="secondary" size="sm" onClick={duplicateOrder}>
+                  <Copy size={14} className="mr-1" /> Дублировать
+                </Button>
+              )}
+              {isOwner && canCancel && (
+                <Button variant="danger" size="sm" loading={statusChanging} onClick={cancelOrder}>
+                  <Ban size={14} className="mr-1" /> Отменить заявку
                 </Button>
               )}
 
-              {isOwner && (
+              {isOwner && (canRevert || canReopen) && (
                 <div ref={menuRef} className="relative">
                   <button
                     onClick={() => setMenuOpen(v => !v)}
                     className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
-                    title="Действия"
+                    title="Дополнительно"
                   >
                     <MoreVertical size={18} />
                   </button>
                   {menuOpen && (
                     <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
-                      {canEdit && (
-                        <button onClick={openEdit} className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                          <Edit2 size={15} className="text-gray-400" /> Редактировать
-                        </button>
-                      )}
-                      <button onClick={duplicateOrder} className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                        <Copy size={15} className="text-gray-400" /> Дублировать
-                      </button>
                       {canRevert && (
                         <button onClick={revertStatus} className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 transition-colors">
                           <RotateCcw size={15} className="text-amber-500" /> {REVERT_LABEL[order.status]}
@@ -591,14 +595,6 @@ export default function OrderDetailPage() {
                         <button onClick={reopenOrder} className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-blue-700 hover:bg-blue-50 transition-colors">
                           <RotateCcw size={15} className="text-blue-500" /> Переоткрыть заявку
                         </button>
-                      )}
-                      {canCancel && (
-                        <>
-                          <div className="border-t border-gray-100" />
-                          <button onClick={cancelOrder} className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
-                            <Ban size={15} className="text-red-400" /> Отменить заявку
-                          </button>
-                        </>
                       )}
                     </div>
                   )}
@@ -673,14 +669,23 @@ export default function OrderDetailPage() {
               <div className="text-xs text-gray-500 mb-0.5">Контейнер</div>
               <div className="font-semibold text-gray-900 text-sm">{containerLabel}</div>
             </div>
-            <div className="p-3 rounded-xl bg-gray-50">
-              <div className="text-xs text-gray-500 mb-0.5">Ставка</div>
-              <div className="font-semibold text-blue-700 text-sm">{formatPrice(order.price, order.is_negotiable)}</div>
-              <div className="text-xs text-gray-400 mt-0.5">{vatLabel}</div>
-            </div>
+            {/* Пункт 10: для аукционов — начальная ставка вместо обычной цены */}
+            {order.format === 'reduction' || order.format === 'auction' ? (
+              <div className="p-3 rounded-xl bg-amber-50">
+                <div className="text-xs text-gray-500 mb-0.5">Начальная ставка</div>
+                <div className="font-semibold text-amber-700 text-sm">{order.auction_start_price?.toLocaleString('ru-RU')} ₽</div>
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-gray-50">
+                <div className="text-xs text-gray-500 mb-0.5">Ставка</div>
+                <div className="font-semibold text-blue-700 text-sm">{formatPrice(order.price, order.is_negotiable)}</div>
+                <div className="text-xs text-gray-400 mt-0.5">{vatLabel}</div>
+              </div>
+            )}
+            {/* Пункт 9: дата + время погрузки */}
             <div className="p-3 rounded-xl bg-gray-50">
               <div className="text-xs text-gray-500 mb-0.5">Дата погрузки/выгрузки</div>
-              <div className="font-semibold text-gray-900 text-sm">{formatDate(order.ready_date)}</div>
+              <div className="font-semibold text-gray-900 text-sm">{formatDateWithTime(order.ready_date, order.ready_time)}</div>
               {order.arrival_time && (
                 <div className="text-xs text-gray-500 mt-0.5">Прибытие ТС: {order.arrival_time.slice(0, 5)}</div>
               )}
@@ -696,7 +701,7 @@ export default function OrderDetailPage() {
               <div className="p-3 rounded-xl bg-gray-50 col-span-2 sm:col-span-2">
                 <div className="text-xs text-gray-500 mb-1">Срок действия</div>
                 <ExpiryCountdown expiresAt={order.expires_at} />
-                <div className="text-xs text-gray-400 mt-0.5">до {formatDate(order.expires_at)}</div>
+                <div className="text-xs text-gray-400 mt-0.5">до {formatDateWithTime(order.expires_at!)}</div>
               </div>
             )}
           </div>

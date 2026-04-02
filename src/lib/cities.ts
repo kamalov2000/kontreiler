@@ -97,3 +97,15 @@ export const CONTAINER_TYPES = [
 ] as const
 
 export const REF_CONTAINER_TYPES = new Set(['20REF', '40REF'])
+
+// Собственный вес контейнера (тара), кг
+export const CONTAINER_TARE_WEIGHT: Record<string, number> = {
+  '20ft':  2200,
+  '40ft':  3800,
+  '40HC':  4000,
+  '45ft':  4800,
+  '20REF': 3000,
+  '40REF': 4500,
+  '20TC':  2700,
+  '40TC':  4200,
+}

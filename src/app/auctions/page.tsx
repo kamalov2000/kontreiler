@@ -20,18 +20,25 @@ type BidRow = {
   bid_count: number
 }
 
-type Tab = 'reduction' | 'auction'
+type FormatTab = 'reduction' | 'auction'
+type StatusTab = 'active' | 'closed' | 'cancelled'
+
+const STATUS_LABEL: Record<StatusTab, string> = {
+  active:    'Активные',
+  closed:    'Завершённые',
+  cancelled: 'Отменённые',
+}
 
 export default function AuctionsPage() {
   const { user } = useUser()
   const { t } = useLanguage()
 
-  const [tab, setTab] = useState<Tab>('reduction')
+  const [formatTab, setFormatTab] = useState<FormatTab>('reduction')
+  const [statusTab, setStatusTab] = useState<StatusTab>('active')
   const [orders, setOrders] = useState<Order[]>([])
   const [bidMap, setBidMap] = useState<Record<string, BidRow>>({})
   const [loading, setLoading] = useState(true)
 
-  // Bid modal
   const [biddingOrder, setBiddingOrder] = useState<Order | null>(null)
   const [bidAmount, setBidAmount] = useState('')
   const [bidLoading, setBidLoading] = useState(false)
@@ -40,17 +47,30 @@ export default function AuctionsPage() {
     setLoading(true)
     const supabase = createClient()
 
-    const { data } = await supabase
+    let query = supabase
       .from('orders')
       .select('*, client:users!client_id(id, name, city)')
-      .eq('format', tab)
-      .eq('status', 'active')
+      .eq('format', formatTab)
       .order('auction_end_time', { ascending: true })
 
+    // Пункт 11: фильтруем по статусу (active/closed/cancelled)
+    if (statusTab === 'active') {
+      query = query.eq('status', 'active')
+    } else if (statusTab === 'closed') {
+      // Завершённые = matched или expired (торги закончились)
+      query = query.in('status', ['matched', 'expired', 'delivered', 'in_transit'])
+    } else {
+      query = query.eq('status', 'cancelled')
+    }
+
+    const { data } = await query
+
+    // Фильтруем просроченные по времени если активный таб
     const now = Date.now()
-    const loaded = ((data || []) as Order[]).filter(o =>
-      !o.auction_end_time || new Date(o.auction_end_time).getTime() > now
-    )
+    const loaded = ((data || []) as Order[]).filter(o => {
+      if (statusTab !== 'active') return true
+      return !o.auction_end_time || new Date(o.auction_end_time).getTime() > now
+    })
     setOrders(loaded)
     setLoading(false)
 
@@ -65,15 +85,17 @@ export default function AuctionsPage() {
         for (const b of bids) map[b.order_id] = b
         setBidMap(map)
       }
+    } else {
+      setBidMap({})
     }
-  }, [tab])
+  }, [formatTab, statusTab])
 
   useEffect(() => {
     fetchOrders()
   }, [fetchOrders])
 
-  // Realtime subscription to bids table
   useEffect(() => {
+    if (statusTab !== 'active') return
     const supabase = createClient()
     const channel = supabase
       .channel('auctions-bids')
@@ -82,7 +104,7 @@ export default function AuctionsPage() {
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [fetchOrders])
+  }, [fetchOrders, statusTab])
 
   async function placeBid() {
     if (!biddingOrder || !bidAmount || !user) return
@@ -122,24 +144,46 @@ export default function AuctionsPage() {
 
   const isCarrier = user?.role === 'carrier'
 
+  const noOrdersMsg = {
+    reduction: { active: t.auctions.noReduction, closed: 'Нет завершённых редукционов', cancelled: 'Нет отменённых редукционов' },
+    auction:   { active: t.auctions.noAuction,   closed: 'Нет завершённых аукционов',   cancelled: 'Нет отменённых аукционов' },
+  }
+
   return (
     <AppLayout>
       <div className="max-w-2xl">
         <h1 className="text-2xl font-bold text-gray-900 mb-4">{t.auctions.title}</h1>
 
-        {/* Tabs */}
-        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-6 w-fit">
-          {(['reduction', 'auction'] as Tab[]).map(type => (
+        {/* Тип торгов: Редукцион / Аукцион */}
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-3 w-fit">
+          {(['reduction', 'auction'] as FormatTab[]).map(type => (
             <button
               key={type}
-              onClick={() => setTab(type)}
+              onClick={() => setFormatTab(type)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                tab === type
+                formatTab === type
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {type === 'reduction' ? t.auctions.tabReduction : t.auctions.tabAuction}
+            </button>
+          ))}
+        </div>
+
+        {/* Пункт 11: статусные вкладки */}
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl mb-6 w-fit">
+          {(['active', 'closed', 'cancelled'] as StatusTab[]).map(s => (
+            <button
+              key={s}
+              onClick={() => setStatusTab(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                statusTab === s
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {STATUS_LABEL[s]}
             </button>
           ))}
         </div>
@@ -150,7 +194,7 @@ export default function AuctionsPage() {
           </div>
         ) : orders.length === 0 ? (
           <div className="text-center py-16 text-gray-500">
-            {tab === 'reduction' ? t.auctions.noReduction : t.auctions.noAuction}
+            {noOrdersMsg[formatTab][statusTab]}
           </div>
         ) : (
           <div className="space-y-4">
@@ -161,7 +205,7 @@ export default function AuctionsPage() {
                   bidData={bidMap[order.id] ?? null}
                   actions={
                     <div className="flex gap-2 flex-wrap">
-                      {isCarrier && order.status === 'active' && (
+                      {isCarrier && statusTab === 'active' && (
                         <Button
                           size="sm"
                           onClick={() => { setBiddingOrder(order); setBidAmount('') }}
@@ -181,7 +225,6 @@ export default function AuctionsPage() {
         )}
       </div>
 
-      {/* Bid modal */}
       {biddingOrder && (
         <Modal
           open={true}
@@ -195,9 +238,6 @@ export default function AuctionsPage() {
             {bidMap[biddingOrder.id]?.best_amount ? (
               <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-sm">
                 {t.auctions.bestBid}: <strong>{bidMap[biddingOrder.id].best_amount?.toLocaleString('ru-RU')} ₽</strong>
-                {biddingOrder.format === 'reduction'
-                  ? ` — ${t.auctions.bidTooHigh.replace('должна', 'должна быть')}`
-                  : ''}
               </div>
             ) : (
               <div className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm">
@@ -214,18 +254,10 @@ export default function AuctionsPage() {
               min="1"
             />
             <div className="flex gap-3">
-              <Button
-                onClick={placeBid}
-                loading={bidLoading}
-                className="flex-1"
-              >
+              <Button onClick={placeBid} loading={bidLoading} className="flex-1">
                 {t.auctions.confirm}
               </Button>
-              <Button
-                variant="secondary"
-                onClick={() => { setBiddingOrder(null); setBidAmount('') }}
-                className="flex-1"
-              >
+              <Button variant="secondary" onClick={() => { setBiddingOrder(null); setBidAmount('') }} className="flex-1">
                 {t.common.cancel}
               </Button>
             </div>

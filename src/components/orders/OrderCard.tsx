@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ArrowRight, Clock, AlertCircle, MessageSquare, Timer, Zap, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowRight, AlertCircle, MessageSquare, Zap, TrendingDown, TrendingUp } from 'lucide-react'
 import { Order } from '@/types/database'
-import { formatDate, formatPrice, formatDateTime } from '@/lib/utils'
+import { formatDateWithTime, formatPrice, formatOrderNumber } from '@/lib/utils'
 import { CONTAINER_TYPES } from '@/lib/cities'
 import { cn } from '@/lib/utils'
 import { ORDER_STATUS_CLASS } from '@/lib/status'
@@ -17,16 +17,14 @@ interface OrderCardProps {
   bidData?: { best_amount: number | null; participant_count: number; bid_count: number } | null
 }
 
-function ExpiryCountdown({ expiresAt, t }: { expiresAt: string; t: { expiresIn: string; days: string; hours: string; minutes: string } }) {
+// Обратный отсчёт с секундами (пункты 6, 7, 8)
+function ExpiryCountdown({ expiresAt }: { expiresAt: string }) {
   const [now, setNow] = useState(Date.now())
 
   useEffect(() => {
-    const diff = new Date(expiresAt).getTime() - Date.now()
-    // Обновляем каждую секунду если < 1 часа, иначе каждую минуту
-    const interval = diff < 60 * 60 * 1000 ? 1000 : 60000
-    const timer = setInterval(() => setNow(Date.now()), interval)
+    const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
-  }, [expiresAt])
+  }, [])
 
   const diff = new Date(expiresAt).getTime() - now
   if (diff <= 0) return null
@@ -37,22 +35,21 @@ function ExpiryCountdown({ expiresAt, t }: { expiresAt: string; t: { expiresIn: 
   const minutes = Math.floor((totalSeconds % 3600) / 60)
   const seconds = totalSeconds % 60
 
-  let label = ''
-  if (days > 0)       label = `${days}${t.days} ${hours}${t.hours}`
-  else if (hours > 0) label = `${hours}${t.hours} ${minutes}${t.minutes}`
-  else                label = `${minutes}:${String(seconds).padStart(2, '0')}`
+  let label: string
+  if (days > 0) {
+    label = `${days}д ${hours}ч ${minutes}мин ${seconds}сек`
+  } else {
+    label = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+  }
 
-  const isUrgentExpiry = diff < 24 * 60 * 60 * 1000
+  const isUrgent = diff < 24 * 60 * 60 * 1000
 
   return (
     <span className={cn(
-      'flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm font-mono',
-      isUrgentExpiry
-        ? 'bg-red-50 text-red-600 font-medium'
-        : 'bg-amber-50 text-amber-700'
+      'flex-1 flex items-center gap-1.5 text-sm font-mono',
+      isUrgent ? 'text-red-600 font-semibold' : 'text-amber-700'
     )}>
-      <Timer size={13} />
-      {t.expiresIn} {label}
+      ⏱ Истекает через {label}
     </span>
   )
 }
@@ -70,13 +67,30 @@ function VatBadge({ vatType, t }: { vatType: string; t: { vatNone: string; vatVa
 export function OrderCard({ order, showResponses, actions, extra, bidData }: OrderCardProps) {
   const { t } = useLanguage()
   const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label || order.container_type
-  const statusLabel = t.status[order.status as keyof typeof t.status] ?? order.status
   const isAuctionFormat = order.format === 'reduction' || order.format === 'auction'
+
+  // Пункт 8: если expires_at прошёл — показываем как просроченную даже если статус active
+  const now = Date.now()
+  const effectiveStatus = (
+    order.status === 'active' &&
+    order.expires_at &&
+    new Date(order.expires_at).getTime() <= now
+  ) ? 'expired' : order.status
+
+  const statusLabel = t.status[effectiveStatus as keyof typeof t.status] ?? effectiveStatus
+  const statusClass = ORDER_STATUS_CLASS[effectiveStatus] ?? ORDER_STATUS_CLASS.active
+
+  // Таймер показываем только для активных заявок с ещё не истёкшим expires_at
+  const showTimer = effectiveStatus === 'active' && !!order.expires_at
+
+  // Пункт 11: для аукционов/редукционов не показываем статус "Новая"
+  const showStatusBadge = !(isAuctionFormat && effectiveStatus === 'active')
 
   return (
     <div className={cn(
       'bg-white rounded-2xl border shadow-sm p-4 sm:p-5 transition-shadow hover:shadow-md',
-      order.format === 'urgent' ? 'border-red-200' : isAuctionFormat ? 'border-amber-200' : 'border-gray-100'
+      order.format === 'urgent' ? 'border-red-200' : isAuctionFormat ? 'border-amber-200' : 'border-gray-100',
+      effectiveStatus === 'expired' ? 'border-orange-200 bg-orange-50/30' : ''
     )}>
       {/* Шапка */}
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -96,12 +110,14 @@ export function OrderCard({ order, showResponses, actions, extra, bidData }: Ord
               <TrendingUp size={11} /> {t.order.formatAuction}
             </span>
           )}
-          <span className="text-xs text-gray-400">{formatDateTime(order.created_at)}</span>
+          <span className="text-xs text-gray-400">
+            {new Date(order.created_at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+          </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {order.order_number && (
             <span className="text-sm font-bold font-mono text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
-              {t.order.number} {order.order_number}
+              {t.order.number} {formatOrderNumber(order.order_number)}
             </span>
           )}
           {showResponses !== undefined && (
@@ -113,7 +129,7 @@ export function OrderCard({ order, showResponses, actions, extra, bidData }: Ord
         </div>
       </div>
 
-      {/* Маршрут: три точки А → Б → В */}
+      {/* Маршрут */}
       <div className="flex items-center gap-1.5 mb-3 flex-wrap">
         <span className="font-semibold text-gray-900 text-base sm:text-lg">{order.from_city}</span>
         <ArrowRight size={14} className="text-gray-400 shrink-0" />
@@ -127,7 +143,7 @@ export function OrderCard({ order, showResponses, actions, extra, bidData }: Ord
       </div>
 
       {/* Детали */}
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-3">
         <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 text-sm">
           {containerLabel}
         </span>
@@ -136,27 +152,48 @@ export function OrderCard({ order, showResponses, actions, extra, bidData }: Ord
             <Zap size={11} /> Genset
           </span>
         )}
-        <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium">
-          {formatPrice(order.price, order.is_negotiable)}
-        </span>
+        {/* Пункт 10: для аукционов/редукционов — Начальная ставка, иначе обычная цена */}
+        {isAuctionFormat ? (
+          <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 text-sm font-medium">
+            Начальная ставка: {order.auction_start_price?.toLocaleString('ru-RU')} ₽
+          </span>
+        ) : (
+          <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium">
+            {formatPrice(order.price, order.is_negotiable)}
+          </span>
+        )}
         <VatBadge vatType={order.vat_type} t={t.order} />
-        <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-100 text-gray-600 text-sm">
-          <Clock size={13} />
-          {formatDate(order.ready_date)}
+        {/* Пункт 9: дата + время погрузки */}
+        <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-gray-600 text-sm">
+          {formatDateWithTime(order.ready_date, order.ready_time)}
         </span>
-        <span className={cn('px-2.5 py-1 rounded-lg text-xs font-medium', ORDER_STATUS_CLASS[order.status])}>
-          {statusLabel}
-        </span>
-        {order.expires_at && order.status === 'active' && (
-          <ExpiryCountdown expiresAt={order.expires_at} t={t.order} />
+      </div>
+
+      {/* Пункты 6 + 8: статус + таймер в одной строке */}
+      <div className="flex items-center gap-2 mb-3">
+        {showStatusBadge && (
+          <span className={cn('px-2.5 py-1 rounded-lg text-xs font-medium shrink-0', statusClass)}>
+            {/* Пункт 1: жирный красный текст для просроченных */}
+            {effectiveStatus === 'expired'
+              ? <strong className="text-red-700 font-black">ПРОСРОЧЕНА</strong>
+              : statusLabel
+            }
+          </span>
+        )}
+        {showTimer && order.expires_at && (
+          <ExpiryCountdown expiresAt={order.expires_at} />
         )}
       </div>
 
-      {/* Вес */}
+      {/* Пункт 3: вес — показываем "Вес груза с контейнером: X кг" */}
       {(order.weight_gross || order.weight_net) && (
         <div className="mb-3 flex gap-3 text-xs text-gray-500">
-          {order.weight_gross && <span>Брутто: <strong className="text-gray-700">{order.weight_gross.toLocaleString('ru-RU')} кг</strong></span>}
-          {order.weight_net   && <span>Нетто: <strong className="text-gray-700">{order.weight_net.toLocaleString('ru-RU')} кг</strong></span>}
+          {order.weight_gross && (
+            <span>Вес с контейнером: <strong className="text-gray-700">{order.weight_gross.toLocaleString('ru-RU')} кг</strong></span>
+          )}
+          {order.weight_net && (
+            <span>Нетто: <strong className="text-gray-700">{order.weight_net.toLocaleString('ru-RU')} кг</strong></span>
+          )}
         </div>
       )}
 
@@ -184,10 +221,8 @@ export function OrderCard({ order, showResponses, actions, extra, bidData }: Ord
         </div>
       )}
 
-      {/* Extra content (рейтинг клиента и т.п.) */}
       {extra && <div className="mb-3">{extra}</div>}
 
-      {/* Действия */}
       {actions && <div className="flex gap-2 flex-wrap">{actions}</div>}
     </div>
   )

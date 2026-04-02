@@ -11,16 +11,16 @@ import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { CONTAINER_TYPES, REF_CONTAINER_TYPES } from '@/lib/cities'
+import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT } from '@/lib/cities'
 import { ContainerType, VatType, OrderFormat } from '@/types/database'
 import { toast } from 'sonner'
 
-type ValidityOption = '1' | '3' | '7' | '14' | 'custom'
-
-function addDays(days: number): string {
+// Дефолтный expires_at: 7 дней от сейчас в формате datetime-local
+function defaultExpiresAt(): string {
   const d = new Date()
-  d.setDate(d.getDate() + days)
-  return d.toISOString().split('T')[0]
+  d.setDate(d.getDate() + 7)
+  d.setHours(23, 59, 0, 0)
+  return d.toISOString().slice(0, 16)
 }
 
 function NewOrderForm() {
@@ -42,8 +42,8 @@ function NewOrderForm() {
     (params.get('container') as ContainerType) || '20ft'
   )
   const [readyDate, setReadyDate] = useState(params.get('date') || '')
-  const [validity, setValidity] = useState<ValidityOption>('7')
-  const [customExpiryDate, setCustomExpiryDate] = useState('')
+  const [readyTime, setReadyTime] = useState('')
+  const [expiresAt, setExpiresAt] = useState(defaultExpiresAt())
 
   // Price & VAT
   const [price, setPrice] = useState(params.get('price') || '')
@@ -77,29 +77,11 @@ function NewOrderForm() {
   const isDuplicate = params.has('from')
   const isRefContainer = REF_CONTAINER_TYPES.has(containerType)
   const isAuctionFormat = format === 'reduction' || format === 'auction'
+  const tarWeight = CONTAINER_TARE_WEIGHT[containerType] ?? 0
 
   function handleContainerChange(v: ContainerType) {
     setContainerType(v)
     if (!REF_CONTAINER_TYPES.has(v)) setRequiresGenset(false)
-  }
-
-  const validityOptions: { value: ValidityOption; label: string }[] = [
-    { value: '1',      label: t.order.validity1 },
-    { value: '3',      label: t.order.validity3 },
-    { value: '7',      label: t.order.validity7 },
-    { value: '14',     label: t.order.validity14 },
-    { value: 'custom', label: t.order.validityCustom },
-  ]
-
-  function computeExpiresAt(): string | null {
-    if (validity === 'custom') {
-      return customExpiryDate ? new Date(customExpiryDate + 'T23:59:59').toISOString() : null
-    }
-    const days = parseInt(validity)
-    const d = new Date()
-    d.setDate(d.getDate() + days)
-    d.setHours(23, 59, 59, 0)
-    return d.toISOString()
   }
 
   function validate() {
@@ -108,7 +90,7 @@ function NewOrderForm() {
     if (!toCity)   e.toCity   = t.order.errorPoint3
     if (!readyDate) e.readyDate = t.order.errorDate
     if (!isAuctionFormat && !isNegotiable && !price) e.price = t.order.errorRate
-    if (validity === 'custom' && !customExpiryDate) e.customExpiry = t.order.errorValidity
+    if (!expiresAt) e.expiresAt = t.order.errorValidity
     if (isAuctionFormat && !auctionStartPrice) e.auctionStartPrice = t.order.errorStartPrice
     if (isAuctionFormat && !auctionEndTime) e.auctionEndTime = t.order.errorEndTime
     return e
@@ -137,7 +119,8 @@ function NewOrderForm() {
       to_city_address: toCityAddress.trim() || null,
       container_type: containerType,
       ready_date: readyDate,
-      expires_at: computeExpiresAt(),
+      expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
+      ready_time: readyTime || null,
       price: isAuctionFormat ? null : (isNegotiable ? null : parseInt(price)),
       is_negotiable: isAuctionFormat ? false : isNegotiable,
       is_urgent: format === 'urgent',
@@ -166,9 +149,8 @@ function NewOrderForm() {
     router.push(isAuctionFormat ? '/auctions' : '/dashboard')
   }
 
-  const today     = new Date().toISOString().split('T')[0]
-  const minExpiry = addDays(1)
-  // Minimum auction end time: 1 hour from now
+  const today = new Date().toISOString().split('T')[0]
+  const minExpiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)
   const minAuctionEnd = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)
 
   const formatOptions: { value: OrderFormat; label: string; hint: string }[] = [
@@ -272,16 +254,28 @@ function NewOrderForm() {
               </label>
             )}
 
-            {/* Дата погрузки/выгрузки */}
-            <Input
-              id="readyDate"
-              type="date"
-              label={t.order.loadingDate}
-              value={readyDate}
-              onChange={e => { setReadyDate(e.target.value); setErrors(p => ({ ...p, readyDate: '' })) }}
-              min={today}
-              error={errors.readyDate}
-            />
+            {/* Дата погрузки/выгрузки + время (пункты 7, 9) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">{t.order.loadingDate}</label>
+              <div className="grid grid-cols-2 gap-3">
+                <Input
+                  id="readyDate"
+                  type="date"
+                  label="Дата"
+                  value={readyDate}
+                  onChange={e => { setReadyDate(e.target.value); setErrors(p => ({ ...p, readyDate: '' })) }}
+                  min={today}
+                  error={errors.readyDate}
+                />
+                <Input
+                  id="readyTime"
+                  type="time"
+                  label={`Время (${t.common.optional})`}
+                  value={readyTime}
+                  onChange={e => setReadyTime(e.target.value)}
+                />
+              </div>
+            </div>
 
             {/* Плановое время прибытия ТС */}
             <Input
@@ -292,35 +286,28 @@ function NewOrderForm() {
               onChange={e => setArrivalTime(e.target.value)}
             />
 
-            {/* Срок действия */}
+            {/* Срок действия — дата+время вручную (пункт 7) */}
             <div>
-              <Select
-                id="validity"
+              <Input
+                id="expiresAt"
+                type="datetime-local"
                 label={t.order.validity}
-                value={validity}
-                onChange={e => { setValidity(e.target.value as ValidityOption); setErrors(p => ({ ...p, customExpiry: '' })) }}
-                options={validityOptions}
+                value={expiresAt}
+                onChange={e => { setExpiresAt(e.target.value); setErrors(p => ({ ...p, expiresAt: '' })) }}
+                min={minExpiresAt}
+                error={errors.expiresAt}
               />
-              {validity === 'custom' && (
-                <div className="mt-2">
-                  <Input
-                    id="customExpiry"
-                    type="date"
-                    label={t.order.validityUntil}
-                    value={customExpiryDate}
-                    onChange={e => { setCustomExpiryDate(e.target.value); setErrors(p => ({ ...p, customExpiry: '' })) }}
-                    min={minExpiry}
-                    error={errors.customExpiry}
-                  />
-                </div>
-              )}
+              <p className="text-xs text-gray-400 mt-1">Укажите дату и время истечения заявки</p>
             </div>
 
-            {/* Вес груза */}
+            {/* Вес груза (пункт 3) */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Вес груза <span className="text-gray-400 font-normal">({t.common.optional})</span>
               </label>
+              <div className="mb-2 px-3 py-2 rounded-lg bg-gray-50 text-xs text-gray-500">
+                Вес контейнера ({containerType}): <strong className="text-gray-700">{tarWeight.toLocaleString('ru-RU')} кг</strong>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <Input
                   id="weightGross"
