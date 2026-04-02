@@ -183,7 +183,11 @@ export default function DashboardPage() {
     setArchivingId(null)
   }
 
-  const now = Date.now()
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 10000)
+    return () => clearInterval(timer)
+  }, [])
 
   // Фильтрация по вкладкам
   const filtered = orders.filter(o => {
