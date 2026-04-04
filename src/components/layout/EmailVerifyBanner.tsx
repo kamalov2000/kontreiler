@@ -6,7 +6,7 @@ import { useUser } from '@/hooks/useUser'
 import { ShieldAlert } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-export function PhoneVerifyBanner() {
+export function EmailVerifyBanner() {
   const { user, isEmailVerified, loading } = useUser()
 
   // Обновляем last_seen_at при каждом рендере (активность пользователя)
