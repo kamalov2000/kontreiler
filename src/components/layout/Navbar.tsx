@@ -21,7 +21,7 @@ export function Navbar() {
   const isClient = user?.role === 'client'
   const isCarrier = user?.role === 'carrier'
 
-  const links = isClient
+  const links: { href: string; label: string; badge?: number }[] = isClient
     ? [
         { href: '/dashboard', label: t.nav.myOrders },
         { href: '/orders/new', label: t.nav.newOrder },
