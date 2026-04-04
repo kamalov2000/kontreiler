@@ -115,6 +115,7 @@ export default function OrderDetailPage() {
   const [editVatType, setEditVatType] = useState<VatType>('none')
   const [editWeightGross, setEditWeightGross] = useState('')
   const [editWeightNet, setEditWeightNet] = useState('')
+  const [editExpiresAt, setEditExpiresAt] = useState('')
 
   // Agreed price modal
   const [agreedPriceOpen, setAgreedPriceOpen] = useState(false)
@@ -222,6 +223,7 @@ export default function OrderDetailPage() {
     setEditVatType(order.vat_type || 'none')
     setEditWeightGross(order.weight_gross ? String(order.weight_gross) : '')
     setEditWeightNet(order.weight_net ? String(order.weight_net) : '')
+    setEditExpiresAt(order.expires_at ? order.expires_at.slice(0, 16) : '')
     setEditOpen(true)
     setMenuOpen(false)
   }
@@ -242,13 +244,21 @@ export default function OrderDetailPage() {
         price: editNegotiable ? null : (parseInt(editPrice) || null),
         is_negotiable: editNegotiable,
         is_urgent: editUrgent,
+        format: (order.format === 'auction' || order.format === 'reduction')
+          ? order.format
+          : editUrgent ? 'urgent' : 'regular',
         notes: editNotes.trim() || null,
         requires_genset: editGenset,
         vat_type: editVatType,
         weight_gross: editWeightGross ? parseInt(editWeightGross) : null,
         weight_net: editWeightNet ? parseInt(editWeightNet) : null,
+        expires_at: editExpiresAt ? new Date(editExpiresAt).toISOString() : null,
       })
       .eq('id', order.id)
+
+    const newFormat = (order.format === 'auction' || order.format === 'reduction')
+      ? order.format
+      : editUrgent ? 'urgent' : 'regular'
 
     if (error) {
       toast.error('Ошибка при сохранении')
@@ -260,10 +270,12 @@ export default function OrderDetailPage() {
         container_type: editContainer, ready_date: editDate, ready_time: editReadyTime || null,
         price: editNegotiable ? null : (parseInt(editPrice) || null),
         is_negotiable: editNegotiable, is_urgent: editUrgent,
+        format: newFormat,
         notes: editNotes.trim() || null,
         requires_genset: editGenset, vat_type: editVatType,
         weight_gross: editWeightGross ? parseInt(editWeightGross) : null,
         weight_net: editWeightNet ? parseInt(editWeightNet) : null,
+        expires_at: editExpiresAt ? new Date(editExpiresAt).toISOString() : null,
       } : prev)
       setEditOpen(false)
     }
@@ -1059,6 +1071,12 @@ export default function OrderDetailPage() {
                   <div className="text-xs text-gray-500">Будет выделена в ленте перевозчиков</div>
                 </div>
               </label>
+              <Input
+                label="Действует до (необязательно)"
+                type="datetime-local"
+                value={editExpiresAt}
+                onChange={e => setEditExpiresAt(e.target.value)}
+              />
             </div>
             <div className="flex gap-3 p-5 border-t border-gray-100">
               <Button onClick={saveEdit} loading={saving} className="flex-1">Сохранить</Button>

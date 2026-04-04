@@ -11,6 +11,7 @@ import { useUser } from '@/hooks/useUser'
 import { Truck, TruckResponse } from '@/types/database'
 import { formatDate, formatDateTime, formatPrice, maskPhone, formatPhone } from '@/lib/utils'
 import { CONTAINER_TYPES } from '@/lib/cities'
+import { TRUCK_STATUS_LABEL, TRUCK_STATUS_CLASS } from '@/lib/status'
 import { toast } from 'sonner'
 
 export default function TruckDetailPage() {
@@ -30,6 +31,7 @@ export default function TruckDetailPage() {
 
   const isCarrier = user?.role === 'carrier'
   const isClient = user?.role === 'client'
+  const [acceptingClientId, setAcceptingClientId] = useState<string | null>(null)
 
   useEffect(() => {
     if (userLoading || !user) return
@@ -97,6 +99,23 @@ export default function TruckDetailPage() {
     router.push(`/trucks/${id}/chat`)
   }
 
+  async function acceptClient(clientId: string) {
+    if (!truck) return
+    setAcceptingClientId(clientId)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('trucks')
+      .update({ status: 'busy' })
+      .eq('id', truck.id)
+    if (error) {
+      toast.error('Ошибка при принятии клиента')
+    } else {
+      toast.success('Клиент принят, машина занята')
+      setTruck(prev => prev ? { ...prev, status: 'busy' } : prev)
+    }
+    setAcceptingClientId(null)
+  }
+
   if (loading || userLoading) {
     return (
       <AppLayout>
@@ -127,10 +146,8 @@ export default function TruckDetailPage() {
         {/* Truck card */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
           <div className="flex items-start justify-between gap-4 mb-4">
-            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-              truck.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-            }`}>
-              {truck.status === 'active' ? 'Доступен' : 'Закрыт'}
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${TRUCK_STATUS_CLASS[truck.status] ?? 'bg-gray-100 text-gray-600'}`}>
+              {TRUCK_STATUS_LABEL[truck.status] ?? truck.status}
             </span>
           </div>
 
@@ -277,6 +294,15 @@ export default function TruckDetailPage() {
                         >
                           <MessageCircle size={14} /> Чат
                         </Link>
+                        {truck.status === 'active' && (
+                          <button
+                            onClick={() => acceptClient(r.client_id)}
+                            disabled={acceptingClientId === r.client_id}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                          >
+                            {acceptingClientId === r.client_id ? '...' : 'Принять клиента'}
+                          </button>
+                        )}
                       </div>
                       <div className="mt-1 text-xs text-gray-400">{formatDateTime(r.created_at)}</div>
                     </div>
