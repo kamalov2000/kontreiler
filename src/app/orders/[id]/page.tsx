@@ -829,7 +829,7 @@ export default function OrderDetailPage() {
                 )
               )}
               <Link
-                href={`/orders/${order.id}/chat`}
+                href={`/orders/${order.id}/chat?carrier=${order.accepted_carrier_id}`}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
               >
                 💬 Открыть чат
@@ -958,7 +958,7 @@ export default function OrderDetailPage() {
                           </button>
                         ))}
                         <Link
-                          href={`/orders/${order.id}/chat`}
+                          href={`/orders/${order.id}/chat?carrier=${r.carrier_id}`}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors"
                         >
                           💬 Чат

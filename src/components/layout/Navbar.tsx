@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Package, LogOut, User, Menu, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
@@ -18,20 +18,6 @@ export function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [auctionCount, setAuctionCount] = useState(0)
-
-  useEffect(() => {
-    if (!user) return
-    const supabase = createClient()
-    supabase
-      .from('orders')
-      .select('id', { count: 'exact', head: true })
-      .in('format', ['reduction', 'auction'])
-      .eq('status', 'active')
-      .gt('auction_end_time', new Date().toISOString())
-      .then(({ count }) => setAuctionCount(count ?? 0))
-  }, [user])
-
   const isClient = user?.role === 'client'
   const isCarrier = user?.role === 'carrier'
 
@@ -40,13 +26,11 @@ export function Navbar() {
         { href: '/dashboard', label: t.nav.myOrders },
         { href: '/orders/new', label: t.nav.newOrder },
         { href: '/trucks', label: t.nav.findTruck },
-        { href: '/auctions', label: t.nav.auctions, badge: auctionCount || undefined },
         { href: '/stats', label: t.nav.stats },
       ]
     : isCarrier
     ? [
         { href: '/feed', label: t.nav.feed },
-        { href: '/auctions', label: t.nav.auctions, badge: auctionCount || undefined },
         { href: '/my-responses', label: t.nav.myResponses },
         { href: '/my-trucks', label: t.nav.myTrucks },
         { href: '/stats', label: t.nav.stats },

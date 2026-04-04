@@ -225,6 +225,12 @@ export default function RegisterPage() {
               Войти
             </Link>
           </p>
+          <p className="mt-3 text-center text-xs text-gray-400">
+            Регистрируясь, вы соглашаетесь с{' '}
+            <Link href="/terms" className="hover:underline">условиями</Link>
+            {' '}и{' '}
+            <Link href="/privacy" className="hover:underline">политикой конфиденциальности</Link>
+          </p>
         </div>
       </div>
     </div>

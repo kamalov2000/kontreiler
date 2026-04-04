@@ -93,6 +93,9 @@ function NewOrderForm() {
     if (!expiresAt) e.expiresAt = t.order.errorValidity
     if (isAuctionFormat && !auctionStartPrice) e.auctionStartPrice = t.order.errorStartPrice
     if (isAuctionFormat && !auctionEndTime) e.auctionEndTime = t.order.errorEndTime
+    if (weightGross && weightNet && parseInt(weightNet) > parseInt(weightGross)) {
+      e.weightNet = 'Нетто не может превышать брутто'
+    }
     return e
   }
 
@@ -154,10 +157,8 @@ function NewOrderForm() {
   const minAuctionEnd = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)
 
   const formatOptions: { value: OrderFormat; label: string; hint: string }[] = [
-    { value: 'regular',   label: t.order.formatRegular,   hint: '' },
-    { value: 'urgent',    label: t.order.formatUrgent,    hint: t.order.urgentHint },
-    { value: 'reduction', label: t.order.formatReduction, hint: t.order.formatReductionHint },
-    { value: 'auction',   label: t.order.formatAuction,   hint: t.order.formatAuctionHint },
+    { value: 'regular', label: t.order.formatRegular, hint: '' },
+    { value: 'urgent',  label: t.order.formatUrgent,  hint: t.order.urgentHint },
   ]
 
   return (
@@ -277,14 +278,17 @@ function NewOrderForm() {
               </div>
             </div>
 
-            {/* Плановое время прибытия ТС */}
-            <Input
-              id="arrivalTime"
-              type="time"
-              label={`Плановое время прибытия ТС (${t.common.optional})`}
-              value={arrivalTime}
-              onChange={e => setArrivalTime(e.target.value)}
-            />
+            {/* Время подачи транспорта */}
+            <div>
+              <Input
+                id="arrivalTime"
+                type="time"
+                label={`Во сколько ждёте машину на погрузке (${t.common.optional})`}
+                value={arrivalTime}
+                onChange={e => setArrivalTime(e.target.value)}
+              />
+              <p className="text-xs text-gray-400 mt-1">Укажите желаемое время подачи транспорта</p>
+            </div>
 
             {/* Срок действия — дата+время вручную (пункт 7) */}
             <div>
@@ -323,9 +327,10 @@ function NewOrderForm() {
                   type="number"
                   label={t.order.weightNet}
                   value={weightNet}
-                  onChange={e => setWeightNet(e.target.value)}
+                  onChange={e => { setWeightNet(e.target.value); setErrors(p => ({ ...p, weightNet: '' })) }}
                   placeholder="кг"
                   min="0"
+                  error={errors.weightNet}
                 />
               </div>
               <p className="text-xs text-gray-400 mt-1.5">{t.order.weightHint}</p>

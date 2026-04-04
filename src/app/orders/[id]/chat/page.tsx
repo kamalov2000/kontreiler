@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState, useRef, useCallback, Suspense } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Send, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -16,20 +16,23 @@ import { CONTAINER_TYPES } from '@/lib/cities'
 interface Message {
   id: string
   order_id: string
+  carrier_id: string | null
   sender_id: string
   text: string
   created_at: string
   sender?: User
 }
 
-export default function ChatPage() {
+function ChatContent() {
   const { id: orderId } = useParams<{ id: string }>()
+  const searchParams = useSearchParams()
   const { user, loading: userLoading } = useUser()
   const router = useRouter()
 
   const [order, setOrder] = useState<Order | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [otherParty, setOtherParty] = useState<User | null>(null)
+  const [carrierId, setCarrierId] = useState<string | null>(null)
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -50,7 +53,6 @@ export default function ChatPage() {
     async function init() {
       const supabase = createClient()
 
-      // Проверяем доступ: пользователь должен быть участником сделки
       const { data: orderData } = await supabase
         .from('orders')
         .select('*, client:users!client_id(*)')
@@ -63,9 +65,45 @@ export default function ChatPage() {
         return
       }
 
-      // Проверяем права доступа к чату
       const isClient = orderData.client_id === currentUser.id
-      if (!isClient) {
+
+      let resolvedCarrierId: string | null = null
+
+      if (isClient) {
+        // Клиент: carrier берём из ?carrier= параметра
+        const paramCarrier = searchParams.get('carrier')
+        if (paramCarrier) {
+          resolvedCarrierId = paramCarrier
+        } else {
+          // Fallback: первый откликнувшийся
+          const { data: firstResp } = await supabase
+            .from('responses')
+            .select('carrier_id, carrier:users!carrier_id(*)')
+            .eq('order_id', orderId)
+            .order('created_at', { ascending: true })
+            .limit(1)
+            .single()
+          if (firstResp) {
+            resolvedCarrierId = firstResp.carrier_id
+          }
+        }
+
+        if (!resolvedCarrierId) {
+          setAccessDenied(true)
+          setLoading(false)
+          return
+        }
+
+        // Загружаем профиль перевозчика
+        const { data: carrierData } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', resolvedCarrierId)
+          .single()
+        if (carrierData) setOtherParty(carrierData as User)
+
+      } else {
+        // Перевозчик: проверяем что откликался
         const { data: resp } = await supabase
           .from('responses')
           .select('carrier_id')
@@ -78,36 +116,21 @@ export default function ChatPage() {
           setLoading(false)
           return
         }
-      }
 
-      setOrder(orderData as Order)
-
-      // Определяем собеседника
-      if (isClient) {
-        // Клиент — показываем первого откликнувшегося перевозчика (или выбранного)
-        const { data: firstResp } = await supabase
-          .from('responses')
-          .select('carrier:users!carrier_id(*)')
-          .eq('order_id', orderId)
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .single()
-
-        if (firstResp) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          setOtherParty((firstResp as any).carrier as User)
-        }
-      } else {
-        // Перевозчик — показываем клиента
+        resolvedCarrierId = currentUser.id
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setOtherParty((orderData as any).client as User)
       }
 
-      // Загружаем сообщения
+      setCarrierId(resolvedCarrierId)
+      setOrder(orderData as Order)
+
+      // Загружаем сообщения этого диалога
       const { data: msgs } = await supabase
         .from('messages')
         .select('*, sender:users!sender_id(id, name, role)')
         .eq('order_id', orderId)
+        .eq('carrier_id', resolvedCarrierId)
         .order('created_at', { ascending: true })
 
       setMessages((msgs || []) as Message[])
@@ -116,15 +139,15 @@ export default function ChatPage() {
     }
 
     init()
-  }, [user, userLoading, orderId, scrollToBottom])
+  }, [user, userLoading, orderId, searchParams, scrollToBottom])
 
   // Realtime подписка
   useEffect(() => {
-    if (!user) return
+    if (!user || !carrierId) return
     const supabase = createClient()
 
     const channel = supabase
-      .channel(`chat-${orderId}`)
+      .channel(`chat-${orderId}-${carrierId}`)
       .on(
         'postgres_changes',
         {
@@ -134,7 +157,9 @@ export default function ChatPage() {
           filter: `order_id=eq.${orderId}`,
         },
         async (payload) => {
-          // Подгружаем sender для нового сообщения
+          // Только сообщения этого диалога
+          if (payload.new.carrier_id !== carrierId) return
+
           const { data: senderData } = await supabase
             .from('users')
             .select('id, name, role')
@@ -147,7 +172,6 @@ export default function ChatPage() {
           }
 
           setMessages(prev => {
-            // Не добавляем дубли
             if (prev.some(m => m.id === newMsg.id)) return prev
             return [...prev, newMsg]
           })
@@ -157,10 +181,10 @@ export default function ChatPage() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [user, orderId, scrollToBottom])
+  }, [user, orderId, carrierId, scrollToBottom])
 
   async function sendMessage() {
-    if (!text.trim() || !user || sending) return
+    if (!text.trim() || !user || sending || !carrierId) return
     setSending(true)
 
     const supabase = createClient()
@@ -170,13 +194,13 @@ export default function ChatPage() {
     const { error } = await supabase.from('messages').insert({
       order_id: orderId,
       sender_id: user.id,
+      carrier_id: carrierId,
       text: msgText,
     })
 
     if (error) {
-      setText(msgText) // вернуть текст при ошибке
+      setText(msgText)
     } else if (otherParty) {
-      // Email уведомление собеседнику если он не онлайн
       fetch('/api/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -198,7 +222,6 @@ export default function ChatPage() {
       sendMessage()
     }
   }
-
 
   if (loading || userLoading) {
     return (
@@ -272,7 +295,6 @@ export default function ChatPage() {
               </div>
             )}
           </div>
-          {/* Кнопка раскрыть карточку заявки */}
           <button
             onClick={() => setOrderCardOpen(v => !v)}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors font-medium shrink-0"
@@ -316,16 +338,15 @@ export default function ChatPage() {
                 <div className="font-medium text-blue-700">{formatPrice(order.price, order.is_negotiable)}</div>
               </div>
               <div className="bg-gray-50 rounded-xl p-2">
-                <div className="text-gray-400 mb-0.5">Дата погрузки/выгрузки</div>
+                <div className="text-gray-400 mb-0.5">Дата</div>
                 <div className="font-medium text-gray-800">{formatDate(order.ready_date)}</div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Chat container with visual border */}
+        {/* Chat container */}
         <div className="flex-1 flex flex-col min-h-0 bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto space-y-3 p-4 min-h-0">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm">
@@ -402,5 +423,13 @@ export default function ChatPage() {
         </div>
       </div>
     </AppLayout>
+  )
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense>
+      <ChatContent />
+    </Suspense>
   )
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Plus, Search, X, Filter } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderCard } from '@/components/orders/OrderCard'
@@ -78,6 +79,7 @@ function matchesSearch(order: Order, q: string): boolean {
 export default function DashboardPage() {
   const { user, loading: userLoading } = useUser()
   const { t } = useLanguage()
+  const router = useRouter()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('active')
@@ -100,6 +102,13 @@ export default function DashboardPage() {
     expired:   t.dashboard.expired,
     all:       'Все заявки',
   }
+
+  // Перевозчикам здесь делать нечего — редиректим в ленту
+  useEffect(() => {
+    if (!userLoading && user?.role === 'carrier') {
+      router.replace('/feed')
+    }
+  }, [user, userLoading, router])
 
   async function fetchOrders() {
     if (!user) return

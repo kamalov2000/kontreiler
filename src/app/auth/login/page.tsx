@@ -23,7 +23,11 @@ export default function LoginPage() {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
-      toast.error('Неверный email или пароль')
+      if (error.message === 'Email not confirmed') {
+        toast.error('Email не подтверждён — проверьте почту и перейдите по ссылке')
+      } else {
+        toast.error('Неверный email или пароль')
+      }
       setLoading(false)
       return
     }

@@ -45,13 +45,17 @@ function matchesOrderSearch(order: Order, q: string): boolean {
     return num.endsWith('-' + padded) || shortNum.endsWith('-' + padded)
   }
 
+  const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label?.toLowerCase() || ''
+
   return (
     num.toLowerCase().includes(ql) ||
     shortNum.includes(ql) ||
     (order.from_city?.toLowerCase().includes(ql) ?? false) ||
     (order.to_city?.toLowerCase().includes(ql) ?? false) ||
     (order.via_city?.toLowerCase().includes(ql) ?? false) ||
-    (order.notes?.toLowerCase().includes(ql) ?? false)
+    (order.notes?.toLowerCase().includes(ql) ?? false) ||
+    containerLabel.includes(ql) ||
+    (order.container_type?.toLowerCase().includes(ql) ?? false)
   )
 }
 
