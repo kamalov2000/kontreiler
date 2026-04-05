@@ -24,7 +24,6 @@ export function Navbar() {
   const links: { href: string; label: string; badge?: number }[] = isClient
     ? [
         { href: '/dashboard', label: t.nav.myOrders },
-        { href: '/orders/new', label: t.nav.newOrder },
         { href: '/trucks', label: t.nav.findTruck },
         { href: '/stats', label: t.nav.stats },
       ]

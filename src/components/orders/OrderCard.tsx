@@ -54,14 +54,12 @@ function ExpiryCountdown({ expiresAt }: { expiresAt: string }) {
   )
 }
 
-function VatBadge({ vatType, t }: { vatType: string; t: { vatNone: string; vatVat20: string; vatVat0: string } }) {
-  if (vatType === 'none') return null
-  const label = vatType === 'vat20' ? t.vatVat20 : t.vatVat0
-  return (
-    <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-gray-500 text-xs">
-      {label}
-    </span>
-  )
+function vatInlineLabel(vatType: string): string {
+  if (vatType === 'vat20') return 'с НДС 20%'
+  if (vatType === 'vat15') return 'с НДС 15%'
+  if (vatType === 'vat5')  return 'с НДС 5%'
+  if (vatType === 'vat0')  return 'НДС 0%'
+  return 'Без НДС'
 }
 
 export function OrderCard({ order, showResponses, actions, extra, bidData }: OrderCardProps) {
@@ -158,11 +156,11 @@ export function OrderCard({ order, showResponses, actions, extra, bidData }: Ord
             Начальная ставка: {order.auction_start_price?.toLocaleString('ru-RU')} ₽
           </span>
         ) : (
-          <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium">
-            {formatPrice(order.price, order.is_negotiable)}
+          <span className="flex flex-col px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium">
+            <span>{formatPrice(order.price, order.is_negotiable)}</span>
+            <span className="text-xs text-blue-500 font-normal">{vatInlineLabel(order.vat_type)}</span>
           </span>
         )}
-        <VatBadge vatType={order.vat_type} t={t.order} />
         {/* Пункт 9: дата + время погрузки */}
         <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-gray-600 text-sm">
           {formatDateWithTime(order.ready_date, order.ready_time)}

@@ -151,7 +151,11 @@ export default function MyResponsesPage() {
                   <div className="font-medium text-gray-900">{client?.name}</div>
                   {client?.city && <div className="text-sm text-gray-500">{client.city}</div>}
                   <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    {revealedPhones.has(order.id) ? (
+                    {order.hide_phone ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-500 text-sm">
+                        Клиент общается только через чат
+                      </span>
+                    ) : revealedPhones.has(order.id) ? (
                       <a
                         href={`tel:${client?.phone}`}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"

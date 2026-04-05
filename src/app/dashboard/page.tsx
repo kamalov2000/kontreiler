@@ -210,7 +210,8 @@ export default function DashboardPage() {
     if (tab === 'active') {
       if (['closed', 'cancelled', 'expired'].includes(effStatus)) return false
     } else if (tab === 'all') {
-      // Все заявки — дополнительные фильтры
+      // Все заявки — закрытые только если явно выбраны в фильтре (они в Архиве)
+      if (!allFilterStatus && effStatus === 'closed') return false
       if (allFilterStatus && effStatus !== allFilterStatus) return false
       if (allFilterContainer && o.container_type !== allFilterContainer) return false
       if (allFilterFrom && !o.from_city?.toLowerCase().includes(allFilterFrom.toLowerCase())) return false

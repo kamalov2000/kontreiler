@@ -69,6 +69,7 @@ function NewOrderForm() {
   const [arrivalTime, setArrivalTime] = useState('')
 
   const [requiresGenset, setRequiresGenset] = useState(false)
+  const [hidePhone, setHidePhone] = useState(false)
   const [notes, setNotes] = useState(params.get('notes') || '')
 
   const [loading, setLoading] = useState(false)
@@ -128,6 +129,7 @@ function NewOrderForm() {
       is_negotiable: isAuctionFormat ? false : isNegotiable,
       is_urgent: format === 'urgent',
       vat_type: vatType,
+      hide_phone: hidePhone,
       weight_gross: weightGross ? parseInt(weightGross) : null,
       weight_net:   weightNet   ? parseInt(weightNet)   : null,
       requires_genset: requiresGenset,
@@ -157,8 +159,10 @@ function NewOrderForm() {
   const minAuctionEnd = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16)
 
   const formatOptions: { value: OrderFormat; label: string; hint: string }[] = [
-    { value: 'regular', label: t.order.formatRegular, hint: '' },
-    { value: 'urgent',  label: t.order.formatUrgent,  hint: t.order.urgentHint },
+    { value: 'regular',   label: t.order.formatRegular,   hint: '' },
+    { value: 'urgent',    label: t.order.formatUrgent,    hint: t.order.urgentHint },
+    { value: 'reduction', label: t.order.formatReduction, hint: t.order.formatReductionHint },
+    { value: 'auction',   label: t.order.formatAuction,   hint: t.order.formatAuctionHint },
   ]
 
   return (
@@ -278,18 +282,6 @@ function NewOrderForm() {
               </div>
             </div>
 
-            {/* Время подачи транспорта */}
-            <div>
-              <Input
-                id="arrivalTime"
-                type="time"
-                label={`Во сколько ждёте машину на погрузке (${t.common.optional})`}
-                value={arrivalTime}
-                onChange={e => setArrivalTime(e.target.value)}
-              />
-              <p className="text-xs text-gray-400 mt-1">Укажите желаемое время подачи транспорта</p>
-            </div>
-
             {/* Срок действия — дата+время вручную (пункт 7) */}
             <div>
               <Input
@@ -312,7 +304,7 @@ function NewOrderForm() {
               <div className="mb-2 px-3 py-2 rounded-lg bg-gray-50 text-xs text-gray-500">
                 Вес контейнера ({containerType}): <strong className="text-gray-700">{tarWeight.toLocaleString('ru-RU')} кг</strong>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 items-end">
                 <Input
                   id="weightGross"
                   type="number"
@@ -339,7 +331,7 @@ function NewOrderForm() {
             {/* Формат заявки */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">{t.order.format}</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {formatOptions.map(opt => (
                   <label
                     key={opt.value}
@@ -491,7 +483,7 @@ function NewOrderForm() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">{t.order.vatType}</label>
               <div className="flex gap-2 flex-wrap">
-                {(['none', 'vat20', 'vat0'] as VatType[]).map(v => (
+                {(['none', 'vat5', 'vat15', 'vat20', 'vat0'] as VatType[]).map(v => (
                   <label key={v} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm ${
                     vatType === v
                       ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium'
@@ -505,11 +497,25 @@ function NewOrderForm() {
                       onChange={() => setVatType(v)}
                       className="sr-only"
                     />
-                    {v === 'none' ? t.order.vatNone : v === 'vat20' ? t.order.vatVat20 : t.order.vatVat0}
+                    {v === 'none' ? t.order.vatNone : v === 'vat5' ? t.order.vatVat5 : v === 'vat15' ? t.order.vatVat15 : v === 'vat20' ? t.order.vatVat20 : t.order.vatVat0}
                   </label>
                 ))}
               </div>
             </div>
+
+            {/* Скрыть номер телефона */}
+            <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
+              <input
+                type="checkbox"
+                checked={hidePhone}
+                onChange={e => setHidePhone(e.target.checked)}
+                className="w-4 h-4 mt-0.5 rounded border-gray-300 text-blue-600"
+              />
+              <div>
+                <div className="text-sm font-medium text-gray-900">Общаться только через чат (скрыть номер телефона)</div>
+                <div className="text-xs text-gray-500 mt-0.5">Перевозчики не будут видеть ваш номер — только кнопку чата</div>
+              </div>
+            </label>
 
             {/* Особые условия */}
             <div>

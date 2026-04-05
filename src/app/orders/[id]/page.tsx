@@ -497,9 +497,11 @@ export default function OrderDetailPage() {
   const canEdit   = isOwner && order.status === 'active'
   const today     = new Date().toISOString().split('T')[0]
 
-  const vatLabel = order.vat_type === 'vat20' ? t.order.vatVat20
-    : order.vat_type === 'vat0' ? t.order.vatVat0
-    : t.order.vatNone
+  const vatLabel = order.vat_type === 'vat20' ? 'с НДС 20%'
+    : order.vat_type === 'vat15' ? 'с НДС 15%'
+    : order.vat_type === 'vat5'  ? 'с НДС 5%'
+    : order.vat_type === 'vat0'  ? 'НДС 0%'
+    : 'Без НДС'
 
   return (
     <AppLayout>
@@ -1045,10 +1047,10 @@ export default function OrderDetailPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">{t.order.vatType}</label>
                 <div className="flex gap-2 flex-wrap">
-                  {(['none', 'vat20', 'vat0'] as VatType[]).map(v => (
+                  {(['none', 'vat5', 'vat15', 'vat20', 'vat0'] as VatType[]).map(v => (
                     <label key={v} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm ${editVatType === v ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                       <input type="radio" name="editVatType" value={v} checked={editVatType === v} onChange={() => setEditVatType(v)} className="sr-only" />
-                      {v === 'none' ? t.order.vatNone : v === 'vat20' ? t.order.vatVat20 : t.order.vatVat0}
+                      {v === 'none' ? t.order.vatNone : v === 'vat5' ? t.order.vatVat5 : v === 'vat15' ? t.order.vatVat15 : v === 'vat20' ? t.order.vatVat20 : t.order.vatVat0}
                     </label>
                   ))}
                 </div>

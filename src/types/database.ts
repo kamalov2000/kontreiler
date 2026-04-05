@@ -1,6 +1,6 @@
 export type UserRole = 'client' | 'carrier'
 export type ContainerType = '20ft' | '40ft' | '40HC' | '45ft' | '20REF' | '40REF' | '20TC' | '40TC'
-export type VatType = 'none' | 'vat20' | 'vat0'
+export type VatType = 'none' | 'vat5' | 'vat15' | 'vat20' | 'vat0'
 export type OrderFormat = 'regular' | 'urgent' | 'reduction' | 'auction'
 export type OrderStatus = 'active' | 'matched' | 'in_transit' | 'delivered' | 'closed' | 'cancelled' | 'expired'
 
@@ -61,6 +61,7 @@ export interface Order {
   vat_type: VatType
   requires_genset: boolean
   notes: string | null
+  hide_phone: boolean
   agreed_price: number | null
   order_number: string | null
   status: OrderStatus

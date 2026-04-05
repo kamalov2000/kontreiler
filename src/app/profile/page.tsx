@@ -107,6 +107,12 @@ export default function ProfilePage() {
       update.inn = inn.trim() || null
       update.license_number = licenseNumber.trim() || null
     }
+    if (user.role === 'client') {
+      if (!companyName.trim()) { toast.error('Укажите название компании'); setSaving(false); return }
+      if (!inn.trim() || !/^\d{10}$|^\d{12}$/.test(inn.trim())) { toast.error('ИНН должен содержать 10 или 12 цифр'); setSaving(false); return }
+      update.company_name = companyName.trim()
+      update.inn = inn.trim()
+    }
     const { error } = await supabase
       .from('users')
       .update(update)
@@ -237,6 +243,30 @@ export default function ProfilePage() {
               onChange={e => setCity(e.target.value)}
               required
             />
+            {user?.role === 'client' && (
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">Реквизиты компании</p>
+                <div className="space-y-3">
+                  <Input
+                    id="client_company_name"
+                    label="Название компании"
+                    value={companyName}
+                    onChange={e => setCompanyName(e.target.value)}
+                    placeholder="ООО Ромашка"
+                    required
+                  />
+                  <Input
+                    id="client_inn"
+                    label="ИНН"
+                    value={inn}
+                    onChange={e => setInn(e.target.value)}
+                    placeholder="1234567890"
+                    maxLength={12}
+                    required
+                  />
+                </div>
+              </div>
+            )}
             {user?.role === 'carrier' && (
               <>
                 <div className="border-t border-gray-100 pt-4">
