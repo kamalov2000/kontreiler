@@ -66,7 +66,6 @@ function NewOrderForm() {
   const [auctionUseStep, setAuctionUseStep] = useState(false)
   const [auctionAutoWinner, setAuctionAutoWinner] = useState(true)
   const [auctionAutoExtend, setAuctionAutoExtend] = useState(true)
-  const [arrivalTime, setArrivalTime] = useState('')
 
   const [requiresGenset, setRequiresGenset] = useState(false)
   const [hidePhone, setHidePhone] = useState(false)
@@ -134,7 +133,7 @@ function NewOrderForm() {
       weight_net:   weightNet   ? parseInt(weightNet)   : null,
       requires_genset: requiresGenset,
       notes: notes.trim() || null,
-      arrival_time: arrivalTime || null,
+      arrival_time: null,
       auction_start_price: isAuctionFormat ? parseInt(auctionStartPrice) : null,
       auction_end_time: isAuctionFormat ? new Date(auctionEndTime).toISOString() : null,
       auction_min_price: isAuctionFormat && auctionMinPrice ? parseInt(auctionMinPrice) : null,
