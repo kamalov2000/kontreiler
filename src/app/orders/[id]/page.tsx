@@ -6,7 +6,7 @@ import Link from 'next/link'
 import {
   ArrowLeft, Phone, User, ArrowRight, CheckCircle,
   MoreVertical, X, Edit2, Copy, RotateCcw, Ban, Star, Banknote,
-  MapPin, Timer, Zap, Weight, TrendingDown, TrendingUp,
+  MapPin, Timer, Zap, Weight, TrendingDown, TrendingUp, FileText,
 } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderDocuments } from '@/components/orders/OrderDocuments'
@@ -135,6 +135,7 @@ export default function OrderDetailPage() {
   const [bidAmount, setBidAmount] = useState('')
   const [bidLoading, setBidLoading] = useState(false)
   const [stops, setStops] = useState<OrderStop[]>([])
+  const [downloadingContract, setDownloadingContract] = useState(false)
 
   const isOwner = user?.id === order?.client_id
 
@@ -288,6 +289,30 @@ export default function OrderDetailPage() {
       setEditOpen(false)
     }
     setSaving(false)
+  }
+
+  async function handleDownloadContract() {
+    if (!order) return
+    setDownloadingContract(true)
+    try {
+      const res = await fetch(`/api/generate-contract?order_id=${order.id}`)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Ошибка генерации договора')
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `dogovor-${order.order_number || order.id.slice(0, 8)}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Ошибка при скачивании договора')
+    } finally {
+      setDownloadingContract(false)
+    }
   }
 
   async function revertStatus() {
@@ -885,6 +910,16 @@ export default function OrderDetailPage() {
               >
                 💬 Открыть чат
               </Link>
+              {(isOwner || user?.id === order.accepted_carrier_id) && (
+                <button
+                  onClick={handleDownloadContract}
+                  disabled={downloadingContract}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+                >
+                  <FileText size={14} />
+                  {downloadingContract ? 'Генерация...' : 'Договор-заявка PDF'}
+                </button>
+              )}
             </div>
           </div>
         )}

@@ -19,6 +19,19 @@ export interface User {
   inn: string | null
   license_number: string | null
   onboarding_completed: boolean
+  // Расширенные реквизиты компании
+  kpp: string | null
+  ogrn: string | null
+  legal_address: string | null
+  actual_address: string | null
+  bank_name: string | null
+  bank_account: string | null
+  bank_corr_account: string | null
+  bank_bik: string | null
+  signatory_name: string | null
+  signatory_position: string | null
+  signatory_basis: string | null
+  default_obligations: string | null
 }
 
 export interface CompanyMember {
