@@ -18,6 +18,16 @@ export interface User {
   company_name: string | null
   inn: string | null
   license_number: string | null
+  onboarding_completed: boolean
+}
+
+export interface CompanyMember {
+  id: string
+  owner_id: string
+  name: string
+  position: string | null
+  phone: string | null
+  created_at: string
 }
 
 export interface Bid {

@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Package, ArrowRight } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
-
-const STORAGE_KEY = 'welcome_shown_v1'
+import { createClient } from '@/lib/supabase/client'
 
 export function WelcomeModal() {
   const { user, loading } = useUser()
@@ -14,22 +13,27 @@ export function WelcomeModal() {
 
   useEffect(() => {
     if (loading || !user) return
-    const shown = localStorage.getItem(STORAGE_KEY)
-    if (!shown) setVisible(true)
+    if (!user.onboarding_completed) setVisible(true)
   }, [user, loading])
 
-  function handleStart() {
-    localStorage.setItem(STORAGE_KEY, '1')
+  async function markDone() {
+    if (!user) return
+    const supabase = createClient()
+    await supabase.from('users').update({ onboarding_completed: true }).eq('id', user.id)
+  }
+
+  async function handleStart() {
+    await markDone()
     setVisible(false)
     if (user?.role === 'carrier') {
-      router.push('/profile')
+      router.push('/feed')
     } else {
       router.push('/orders/new')
     }
   }
 
-  function handleSkip() {
-    localStorage.setItem(STORAGE_KEY, '1')
+  async function handleSkip() {
+    await markDone()
     setVisible(false)
   }
 
@@ -41,12 +45,12 @@ export function WelcomeModal() {
     ? [
         { icon: '👤', text: 'Заполните профиль — укажите телефон, город и компанию' },
         { icon: '📋', text: 'Смотрите ленту заявок — обновляется в реальном времени' },
-        { icon: '✅', text: 'Откликайтесь на подходящие — клиент увидит вас сразу' },
+        { icon: '✅', text: 'Откликайтесь на подходящие — зарабатывайте' },
       ]
     : [
         { icon: '📦', text: 'Разместите заявку — укажите маршрут, тип контейнера и дату' },
-        { icon: '🔔', text: 'Перевозчики увидят её и начнут откликаться' },
-        { icon: '🤝', text: 'Выберите лучшего — обсудите детали в чате' },
+        { icon: '🔔', text: 'Перевозчики откликнутся — вы увидите предложения сразу' },
+        { icon: '🤝', text: 'Выберите лучшего и отслеживайте рейс' },
       ]
 
   return (
@@ -81,7 +85,7 @@ export function WelcomeModal() {
             onClick={handleStart}
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
           >
-            {isCarrier ? 'Заполнить профиль' : 'Разместить заявку'}
+            Начать
             <ArrowRight size={16} />
           </button>
           <button

@@ -9,10 +9,10 @@ import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { createClient } from '@/lib/supabase/client'
-import { SavedRoute, Review } from '@/types/database'
+import { SavedRoute, Review, CompanyMember } from '@/types/database'
 import { toast } from 'sonner'
 import { normalizePhone, formatDateTime } from '@/lib/utils'
-import { User, Shield, CheckCircle, Trash2, Plus, MapPin, Star, Mail } from 'lucide-react'
+import { User, Shield, CheckCircle, Trash2, Plus, MapPin, Star, Mail, Users, Building2 } from 'lucide-react'
 import { CONTAINER_TYPES } from '@/lib/cities'
 import { RatingBadge } from '@/components/ui/RatingBadge'
 
@@ -27,7 +27,6 @@ export default function ProfilePage() {
   const [inn, setInn] = useState('')
   const [licenseNumber, setLicenseNumber] = useState('')
   const [saving, setSaving] = useState(false)
-
   const [resending, setResending] = useState(false)
 
   // Saved routes (carrier only)
@@ -41,6 +40,13 @@ export default function ProfilePage() {
   const [myRating, setMyRating] = useState<{ avg: number; count: number } | null>(null)
   const [myReviews, setMyReviews] = useState<(Review & { reviewer?: { name: string | null } })[]>([])
 
+  // Company members
+  const [members, setMembers] = useState<CompanyMember[]>([])
+  const [memberName, setMemberName] = useState('')
+  const [memberPosition, setMemberPosition] = useState('')
+  const [memberPhone, setMemberPhone] = useState('')
+  const [addingMember, setAddingMember] = useState(false)
+
   useEffect(() => {
     if (user) {
       setName(user.name || '')
@@ -50,7 +56,6 @@ export default function ProfilePage() {
       setInn(user.inn || '')
       setLicenseNumber(user.license_number || '')
     }
-    // Fetch email from auth session
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
       if (data.user?.email) setEmail(data.user.email)
@@ -68,14 +73,23 @@ export default function ProfilePage() {
     setSavedRoutes((data || []) as SavedRoute[])
   }, [user])
 
-  useEffect(() => {
-    fetchSavedRoutes()
-  }, [fetchSavedRoutes])
+  const fetchMembers = useCallback(async () => {
+    if (!user) return
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('company_members')
+      .select('*')
+      .eq('owner_id', user.id)
+      .order('created_at', { ascending: true })
+    setMembers((data || []) as CompanyMember[])
+  }, [user])
+
+  useEffect(() => { fetchSavedRoutes() }, [fetchSavedRoutes])
+  useEffect(() => { fetchMembers() }, [fetchMembers])
 
   useEffect(() => {
     if (!user) return
     const supabase = createClient()
-
     supabase
       .from('user_avg_ratings')
       .select('avg_rating, review_count')
@@ -84,7 +98,6 @@ export default function ProfilePage() {
       .then(({ data }) => {
         if (data) setMyRating({ avg: data.avg_rating, count: data.review_count })
       })
-
     supabase
       .from('reviews')
       .select('*, reviewer:users!reviewer_id(name)')
@@ -95,6 +108,20 @@ export default function ProfilePage() {
         if (data) setMyReviews(data as (Review & { reviewer?: { name: string | null } })[])
       })
   }, [user])
+
+  // Profile completion percentage
+  function calcCompletion(): number {
+    if (!user) return 0
+    if (user.role === 'client') {
+      const fields = [name, phone, city, companyName, inn]
+      const filled = fields.filter(f => f && f.trim() !== '').length
+      return Math.round((filled / fields.length) * 100)
+    } else {
+      const fields = [name, phone, city, companyName, inn, licenseNumber]
+      const filled = fields.filter(f => f && f.trim() !== '').length
+      return Math.round((filled / fields.length) * 100)
+    }
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
@@ -113,10 +140,7 @@ export default function ProfilePage() {
       update.company_name = companyName.trim()
       update.inn = inn.trim()
     }
-    const { error } = await supabase
-      .from('users')
-      .update(update)
-      .eq('id', user.id)
+    const { error } = await supabase.from('users').update(update).eq('id', user.id)
     if (error) {
       toast.error(t.profile.saveError)
     } else {
@@ -169,6 +193,37 @@ export default function ProfilePage() {
     setSavedRoutes(prev => prev.filter(r => r.id !== id))
   }
 
+  async function handleAddMember() {
+    if (!user || !memberName.trim()) {
+      toast.error('Укажите имя сотрудника')
+      return
+    }
+    setAddingMember(true)
+    const supabase = createClient()
+    const { error } = await supabase.from('company_members').insert({
+      owner_id: user.id,
+      name: memberName.trim(),
+      position: memberPosition.trim() || null,
+      phone: memberPhone.trim() || null,
+    })
+    if (error) {
+      toast.error('Ошибка при добавлении сотрудника')
+    } else {
+      toast.success('Сотрудник добавлен')
+      setMemberName('')
+      setMemberPosition('')
+      setMemberPhone('')
+      fetchMembers()
+    }
+    setAddingMember(false)
+  }
+
+  async function handleDeleteMember(id: string) {
+    const supabase = createClient()
+    await supabase.from('company_members').delete().eq('id', id)
+    setMembers(prev => prev.filter(m => m.id !== id))
+  }
+
   if (loading) {
     return (
       <AppLayout>
@@ -179,10 +234,31 @@ export default function ProfilePage() {
     )
   }
 
+  const completion = calcCompletion()
+
   return (
     <AppLayout>
       <div className="max-w-md">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">{t.profile.title}</h1>
+
+        {/* Profile completion */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700">Профиль заполнен на</span>
+            <span className={`text-sm font-bold ${completion === 100 ? 'text-green-600' : completion >= 60 ? 'text-amber-600' : 'text-red-500'}`}>
+              {completion}%
+            </span>
+          </div>
+          <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
+            <div
+              className={`h-2 rounded-full transition-all duration-500 ${completion === 100 ? 'bg-green-500' : completion >= 60 ? 'bg-amber-400' : 'bg-red-400'}`}
+              style={{ width: `${completion}%` }}
+            />
+          </div>
+          {completion < 100 && (
+            <p className="text-xs text-gray-400 mt-2">Заполните все поля для полного профиля</p>
+          )}
+        </div>
 
         {/* Profile form */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-4">
@@ -243,9 +319,14 @@ export default function ProfilePage() {
               onChange={e => setCity(e.target.value)}
               required
             />
+
+            {/* Client: company details */}
             {user?.role === 'client' && (
               <div className="border-t border-gray-100 pt-4">
-                <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">Реквизиты компании</p>
+                <div className="flex items-center gap-2 mb-3">
+                  <Building2 size={14} className="text-gray-400" />
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Реквизиты компании</p>
+                </div>
                 <div className="space-y-3">
                   <Input
                     id="client_company_name"
@@ -267,37 +348,41 @@ export default function ProfilePage() {
                 </div>
               </div>
             )}
+
+            {/* Carrier: company details */}
             {user?.role === 'carrier' && (
-              <>
-                <div className="border-t border-gray-100 pt-4">
-                  <p className="text-xs text-gray-500 mb-3 font-medium uppercase tracking-wide">Реквизиты перевозчика</p>
-                  <div className="space-y-3">
-                    <Input
-                      id="company_name"
-                      label="Название компании / ИП"
-                      value={companyName}
-                      onChange={e => setCompanyName(e.target.value)}
-                      placeholder="ООО Транс-Логистик"
-                    />
-                    <Input
-                      id="inn"
-                      label="ИНН"
-                      value={inn}
-                      onChange={e => setInn(e.target.value)}
-                      placeholder="1234567890"
-                      maxLength={12}
-                    />
-                    <Input
-                      id="license_number"
-                      label="Номер лицензии"
-                      value={licenseNumber}
-                      onChange={e => setLicenseNumber(e.target.value)}
-                      placeholder="АВ 123456"
-                    />
-                  </div>
+              <div className="border-t border-gray-100 pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Building2 size={14} className="text-gray-400" />
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Реквизиты перевозчика</p>
                 </div>
-              </>
+                <div className="space-y-3">
+                  <Input
+                    id="company_name"
+                    label="Название компании / ИП"
+                    value={companyName}
+                    onChange={e => setCompanyName(e.target.value)}
+                    placeholder="ООО Транс-Логистик"
+                  />
+                  <Input
+                    id="inn"
+                    label="ИНН"
+                    value={inn}
+                    onChange={e => setInn(e.target.value)}
+                    placeholder="1234567890"
+                    maxLength={12}
+                  />
+                  <Input
+                    id="license_number"
+                    label="Номер лицензии"
+                    value={licenseNumber}
+                    onChange={e => setLicenseNumber(e.target.value)}
+                    placeholder="АВ 123456"
+                  />
+                </div>
+              </div>
             )}
+
             <Button type="submit" loading={saving} className="w-full">
               {t.profile.saveChanges}
             </Button>
@@ -319,6 +404,73 @@ export default function ProfilePage() {
             </Button>
           </div>
         )}
+
+        {/* Company members */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Users size={18} className="text-blue-500" />
+            <span className="font-semibold text-gray-900">Сотрудники компании</span>
+          </div>
+
+          {members.length === 0 ? (
+            <p className="text-sm text-gray-400 mb-4">Сотрудники не добавлены</p>
+          ) : (
+            <div className="space-y-2 mb-4">
+              {members.map(m => (
+                <div key={m.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-50 border border-gray-100">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900">{m.name}</div>
+                    <div className="text-xs text-gray-400 flex gap-2 flex-wrap">
+                      {m.position && <span>{m.position}</span>}
+                      {m.phone && <span>{m.phone}</span>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteMember(m.id)}
+                    className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="border-t border-gray-100 pt-4 space-y-3">
+            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Добавить сотрудника</div>
+            <Input
+              id="memberName"
+              label="Имя"
+              value={memberName}
+              onChange={e => setMemberName(e.target.value)}
+              placeholder="Иванов Иван"
+            />
+            <Input
+              id="memberPosition"
+              label="Должность"
+              value={memberPosition}
+              onChange={e => setMemberPosition(e.target.value)}
+              placeholder="Менеджер"
+            />
+            <Input
+              id="memberPhone"
+              type="tel"
+              label="Телефон"
+              value={memberPhone}
+              onChange={e => setMemberPhone(e.target.value)}
+              placeholder="+7 900 000 00 00"
+            />
+            <Button
+              onClick={handleAddMember}
+              loading={addingMember}
+              variant="secondary"
+              className="w-full"
+            >
+              <Plus size={16} className="mr-1.5" />
+              Добавить сотрудника
+            </Button>
+          </div>
+        </div>
 
         {/* Saved routes (carriers only) */}
         {user?.role === 'carrier' && (
