@@ -11,9 +11,9 @@ import { Select } from '@/components/ui/Select'
 import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
-import { Truck, ContainerType } from '@/types/database'
+import { Truck, TruckContainerType } from '@/types/database'
 import { formatDate, formatPrice } from '@/lib/utils'
-import { CONTAINER_TYPES } from '@/lib/cities'
+import { TRUCK_CONTAINER_TYPES } from '@/lib/cities'
 import { toast } from 'sonner'
 import { TRUCK_STATUS_LABEL, TRUCK_STATUS_CLASS } from '@/lib/status'
 
@@ -29,7 +29,7 @@ export default function MyTrucksPage() {
   const [editTruck, setEditTruck] = useState<Truck | null>(null)
   const [editFrom, setEditFrom] = useState('')
   const [editTo, setEditTo] = useState('')
-  const [editContainer, setEditContainer] = useState<ContainerType>('20ft')
+  const [editContainer, setEditContainer] = useState<TruckContainerType>('20ft')
   const [editDate, setEditDate] = useState('')
   const [editPrice, setEditPrice] = useState('')
   const [editNegotiable, setEditNegotiable] = useState(false)
@@ -91,7 +91,7 @@ export default function MyTrucksPage() {
     setEditTruck(truck)
     setEditFrom(truck.from_city)
     setEditTo(truck.to_city)
-    setEditContainer(truck.container_type as ContainerType)
+    setEditContainer(truck.container_type as TruckContainerType)
     setEditDate(truck.available_date)
     setEditPrice(truck.price ? String(truck.price) : '')
     setEditNegotiable(truck.is_negotiable)
@@ -285,8 +285,8 @@ export default function MyTrucksPage() {
               <Select
                 label="Тип контейнера"
                 value={editContainer}
-                onChange={e => setEditContainer(e.target.value as ContainerType)}
-                options={CONTAINER_TYPES.map(c => ({ value: c.value, label: c.label }))}
+                onChange={e => setEditContainer(e.target.value as TruckContainerType)}
+                options={TRUCK_CONTAINER_TYPES.map(c => ({ value: c.value, label: c.label }))}
               />
               <Input
                 label="Дата готовности"
@@ -351,7 +351,7 @@ function TruckCard({
   onEdit?: (truck: Truck) => void
   onDuplicate?: (truck: Truck) => void
 }) {
-  const containerLabel = CONTAINER_TYPES.find(c => c.value === truck.container_type)?.label
+  const containerLabel = TRUCK_CONTAINER_TYPES.find(c => c.value === truck.container_type)?.label || truck.container_type
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 

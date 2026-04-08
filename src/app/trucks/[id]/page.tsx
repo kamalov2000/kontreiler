@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Truck, TruckResponse } from '@/types/database'
 import { formatDate, formatDateTime, formatPrice, maskPhone, formatPhone } from '@/lib/utils'
-import { CONTAINER_TYPES } from '@/lib/cities'
+import { TRUCK_CONTAINER_TYPES } from '@/lib/cities'
 import { TRUCK_STATUS_LABEL, TRUCK_STATUS_CLASS } from '@/lib/status'
 import { toast } from 'sonner'
 
@@ -128,7 +128,7 @@ export default function TruckDetailPage() {
 
   if (!truck) return null
 
-  const containerLabel = CONTAINER_TYPES.find(c => c.value === truck.container_type)?.label
+  const containerLabel = TRUCK_CONTAINER_TYPES.find(c => c.value === truck.container_type)?.label
   const isOwnTruck = isCarrier && truck.carrier_id === user?.id
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const carrier = (truck as any).carrier
@@ -243,7 +243,7 @@ export default function TruckDetailPage() {
               </div>
             ) : (
               <Button onClick={() => setShowForm(true)} className="w-full">
-                Хочу этот рейс
+                Откликнуться на рейс
               </Button>
             )}
           </div>

@@ -13,7 +13,7 @@ import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { Modal } from '@/components/ui/Modal'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
-import { CONTAINER_TYPES } from '@/lib/cities'
+import { TRUCK_CONTAINER_TYPES } from '@/lib/cities'
 import { SavedRoute } from '@/types/database'
 import { toast } from 'sonner'
 
@@ -142,7 +142,7 @@ function NewTruckForm() {
               label="Тип контейнера"
               value={containerType}
               onChange={e => setContainerType(e.target.value)}
-              options={CONTAINER_TYPES.map(c => ({ value: c.value, label: c.label }))}
+              options={TRUCK_CONTAINER_TYPES.map(c => ({ value: c.value, label: c.label }))}
               placeholder="Выберите тип"
               error={errors.containerType}
             />

@@ -76,6 +76,26 @@ export function formatOrderNumber(num: string | null | undefined): string {
   return num.replace(/^(.+)-\d{4}-(\d+)$/, '$1-$2')
 }
 
+// Возвращает метку "через N дней" / "сегодня" / "вчера (просрочено)" для даты погрузки
+export function readyDateBadge(readyDate: string): { label: string; color: 'green' | 'amber' | 'red' } | null {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const date = new Date(readyDate + 'T00:00:00')
+  const diffDays = Math.round((date.getTime() - today.getTime()) / 86400000)
+
+  function pluralDay(n: number): string {
+    const abs = Math.abs(n)
+    if (abs % 10 === 1 && abs % 100 !== 11) return 'день'
+    if ([2, 3, 4].includes(abs % 10) && ![12, 13, 14].includes(abs % 100)) return 'дня'
+    return 'дней'
+  }
+
+  if (diffDays > 0) return { label: `через ${diffDays} ${pluralDay(diffDays)}`, color: 'green' }
+  if (diffDays === 0) return { label: 'сегодня', color: 'amber' }
+  if (diffDays === -1) return { label: 'вчера (просрочено)', color: 'red' }
+  return { label: `${Math.abs(diffDays)} дней назад (просрочено)`, color: 'red' }
+}
+
 // Форматирует дату погрузки с опциональным временем: "30 марта 2026, 14:30"
 export function formatDateWithTime(date: string, time?: string | null): string {
   const d = new Date(date + 'T00:00:00')

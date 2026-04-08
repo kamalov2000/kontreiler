@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { ArrowRight, AlertCircle, MessageSquare, Zap, TrendingDown, TrendingUp } from 'lucide-react'
-import { Order } from '@/types/database'
-import { formatDateWithTime, formatPrice, formatOrderNumber } from '@/lib/utils'
-import { CONTAINER_TYPES } from '@/lib/cities'
+import { Order, OrderStop } from '@/types/database'
+import { formatDateWithTime, formatPrice, formatOrderNumber, readyDateBadge } from '@/lib/utils'
+import { CONTAINER_TYPES, CONTAINER_TARE_WEIGHT, CONTAINER_UNIT_TARE } from '@/lib/cities'
 import { cn } from '@/lib/utils'
 import { ORDER_STATUS_CLASS } from '@/lib/status'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -15,6 +15,7 @@ interface OrderCardProps {
   actions?: React.ReactNode
   extra?: React.ReactNode
   bidData?: { best_amount: number | null; participant_count: number; bid_count: number } | null
+  stops?: OrderStop[]
 }
 
 // Обратный отсчёт с секундами (пункты 6, 7, 8)
@@ -55,14 +56,14 @@ function ExpiryCountdown({ expiresAt }: { expiresAt: string }) {
 }
 
 function vatInlineLabel(vatType: string): string {
-  if (vatType === 'vat20') return 'с НДС 20%'
+  if (vatType === 'vat20') return 'с НДС 22%'
   if (vatType === 'vat15') return 'с НДС 15%'
   if (vatType === 'vat5')  return 'с НДС 5%'
   if (vatType === 'vat0')  return 'НДС 0%'
   return 'Без НДС'
 }
 
-export function OrderCard({ order, showResponses, actions, extra, bidData }: OrderCardProps) {
+export function OrderCard({ order, showResponses, actions, extra, bidData, stops }: OrderCardProps) {
   const { t } = useLanguage()
   const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label || order.container_type
   const isAuctionFormat = order.format === 'reduction' || order.format === 'auction'
@@ -127,6 +128,19 @@ export function OrderCard({ order, showResponses, actions, extra, bidData }: Ord
         </div>
       </div>
 
+      {/* Дополнительные точки (над маршрутом) */}
+      {stops && stops.length > 0 && (
+        <div className="mb-2 flex flex-col gap-1">
+          {stops.map((s, i) => (
+            <div key={s.id} className="flex items-start gap-1.5 text-xs text-gray-500">
+              <span className="mt-0.5 w-4 h-4 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center font-bold shrink-0">{i + 1}</span>
+              <span className="font-medium text-gray-700">{s.address}</span>
+              {s.comment && <span className="text-gray-400">— {s.comment}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Маршрут */}
       <div className="flex items-center gap-1.5 mb-3 flex-wrap">
         <span className="font-semibold text-gray-900 text-base sm:text-lg">{order.from_city}</span>
@@ -161,10 +175,18 @@ export function OrderCard({ order, showResponses, actions, extra, bidData }: Ord
             <span className="text-xs text-blue-500 font-normal">{vatInlineLabel(order.vat_type)}</span>
           </span>
         )}
-        {/* Пункт 9: дата + время погрузки */}
-        <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-gray-600 text-sm">
-          {formatDateWithTime(order.ready_date, order.ready_time)}
-        </span>
+        {/* Плановая дата погрузки/выгрузки с отсчётом дней */}
+        {(() => {
+          const badge = readyDateBadge(order.ready_date)
+          const badgeColor = badge?.color === 'red' ? 'text-red-600' : badge?.color === 'amber' ? 'text-amber-600' : 'text-green-600'
+          return (
+            <span className="flex flex-col px-2.5 py-1 rounded-lg bg-gray-100 text-gray-600 text-sm">
+              <span className="text-[10px] text-gray-400 leading-tight">Плановая дата</span>
+              <span>{formatDateWithTime(order.ready_date, order.ready_time)}</span>
+              {badge && <span className={`text-xs font-medium leading-tight ${badgeColor}`}>{badge.label}</span>}
+            </span>
+          )
+        })()}
       </div>
 
       {/* Пункты 6 + 8: статус + таймер в одной строке */}
@@ -183,14 +205,29 @@ export function OrderCard({ order, showResponses, actions, extra, bidData }: Ord
         )}
       </div>
 
-      {/* Пункт 3: вес — показываем "Вес груза с контейнером: X кг" */}
-      {(order.weight_gross || order.weight_net) && (
-        <div className="mb-3 flex gap-3 text-xs text-gray-500">
-          {order.weight_gross && (
-            <span>Вес с контейнером: <strong className="text-gray-700">{order.weight_gross.toLocaleString('ru-RU')} кг</strong></span>
-          )}
-          {order.weight_net && (
-            <span>Нетто: <strong className="text-gray-700">{order.weight_net.toLocaleString('ru-RU')} кг</strong></span>
+      {/* Вес груза с контейнером */}
+      {(order.weight_gross || order.weight_net || order.weight_gross_2 || order.weight_net_2) && (
+        <div className="mb-3 flex flex-col gap-1 text-xs text-gray-500">
+          {order.container_type === '20DC2' ? (
+            <>
+              {order.weight_gross && (
+                <span>Конт. 1 с тарой: <strong className="text-gray-700">{(order.weight_gross + (CONTAINER_UNIT_TARE['20DC2'] ?? 2200)).toLocaleString('ru-RU')} кг</strong>
+                  {order.weight_net && <> · нетто: <strong>{order.weight_net.toLocaleString('ru-RU')} кг</strong></>}</span>
+              )}
+              {order.weight_gross_2 && (
+                <span>Конт. 2 с тарой: <strong className="text-gray-700">{(order.weight_gross_2 + (CONTAINER_UNIT_TARE['20DC2'] ?? 2200)).toLocaleString('ru-RU')} кг</strong>
+                  {order.weight_net_2 && <> · нетто: <strong>{order.weight_net_2.toLocaleString('ru-RU')} кг</strong></>}</span>
+              )}
+            </>
+          ) : (
+            <div className="flex gap-3">
+              {order.weight_gross && (
+                <span>Вес груза с контейнером: <strong className="text-gray-700">{(order.weight_gross + (CONTAINER_TARE_WEIGHT[order.container_type] ?? 0)).toLocaleString('ru-RU')} кг</strong></span>
+              )}
+              {order.weight_net && (
+                <span>Нетто: <strong className="text-gray-700">{order.weight_net.toLocaleString('ru-RU')} кг</strong></span>
+              )}
+            </div>
           )}
         </div>
       )}

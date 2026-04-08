@@ -94,6 +94,12 @@ export const CONTAINER_TYPES = [
   { value: '40REF', label: '40 REF (рефрижератор)' },
   { value: '20TC',  label: '20 TC (танк-контейнер)' },
   { value: '40TC',  label: '40 TC (танк-контейнер)' },
+  { value: '20DC2', label: '20DC×2 (два 20-футовых)' },
+] as const
+
+export const TRUCK_CONTAINER_TYPES = [
+  ...CONTAINER_TYPES,
+  { value: 'any', label: 'Любой контейнер' },
 ] as const
 
 export const REF_CONTAINER_TYPES = new Set(['20REF', '40REF'])
@@ -108,4 +114,10 @@ export const CONTAINER_TARE_WEIGHT: Record<string, number> = {
   '40REF': 4500,
   '20TC':  2700,
   '40TC':  4200,
+  '20DC2': 4400,  // два по 2200
+}
+
+// Тара одного контейнера в пачке (для 20DC×2 — 2200 на единицу)
+export const CONTAINER_UNIT_TARE: Record<string, number> = {
+  '20DC2': 2200,
 }

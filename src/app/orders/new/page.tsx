@@ -14,6 +14,7 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT } from '@/lib/cities'
 import { ContainerType, VatType, OrderFormat } from '@/types/database'
 import { toast } from 'sonner'
+import { Calculator, Plus, Trash2, X } from 'lucide-react'
 
 // Дефолтный expires_at: 7 дней от сейчас в формате datetime-local
 function defaultExpiresAt(): string {
@@ -50,9 +51,30 @@ function NewOrderForm() {
   const [isNegotiable, setIsNegotiable] = useState(params.get('negotiable') === '1')
   const [vatType, setVatType] = useState<VatType>('none')
 
-  // Weight
+  // Weight (container 1)
   const [weightGross, setWeightGross] = useState('')
   const [weightNet, setWeightNet] = useState('')
+  // Weight (container 2 — only for 20DC2)
+  const [weightGross2, setWeightGross2] = useState('')
+  const [weightNet2, setWeightNet2] = useState('')
+  // Простой транспорта
+  const [downtimeRate, setDowntimeRate] = useState('')
+
+  // Дополнительные точки маршрута
+  const [hasExtraStops, setHasExtraStops] = useState(false)
+  const [stops, setStops] = useState<Array<{ address: string; comment: string }>>([{ address: '', comment: '' }])
+
+  // Калькулятор ставки
+  const [calcOpen, setCalcOpen] = useState(false)
+  const [calcMethod, setCalcMethod] = useState<1 | 2 | 3 | 4>(1)
+  const [calcSubmission, setCalcSubmission] = useState('')
+  const [calcKm, setCalcKm] = useState('')
+  const [calcRateKm, setCalcRateKm] = useState('')
+  const [calcUseOverload, setCalcUseOverload] = useState(false)
+  const [calcOverload, setCalcOverload] = useState('')
+  const [calcUseExtraStop, setCalcUseExtraStop] = useState(false)
+  const [calcExtraStop, setCalcExtraStop] = useState('')
+  const [calcMarket, setCalcMarket] = useState('')
 
   // Format (replaces is_urgent checkbox)
   const [format, setFormat] = useState<OrderFormat>(
@@ -77,6 +99,7 @@ function NewOrderForm() {
   const isDuplicate = params.has('from')
   const isRefContainer = REF_CONTAINER_TYPES.has(containerType)
   const isAuctionFormat = format === 'reduction' || format === 'auction'
+  const is20DC2 = containerType === '20DC2'
   const tarWeight = CONTAINER_TARE_WEIGHT[containerType] ?? 0
 
   function handleContainerChange(v: ContainerType) {
@@ -111,7 +134,7 @@ function NewOrderForm() {
     setLoading(true)
 
     const supabase = createClient()
-    const { error } = await supabase.from('orders').insert({
+    const { data: inserted, error } = await supabase.from('orders').insert({
       client_id: user.id,
       format,
       from_city: fromCity,
@@ -131,6 +154,9 @@ function NewOrderForm() {
       hide_phone: hidePhone,
       weight_gross: weightGross ? parseInt(weightGross) : null,
       weight_net:   weightNet   ? parseInt(weightNet)   : null,
+      weight_gross_2: is20DC2 && weightGross2 ? parseInt(weightGross2) : null,
+      weight_net_2:   is20DC2 && weightNet2   ? parseInt(weightNet2)   : null,
+      downtime_rate: downtimeRate ? parseInt(downtimeRate) : null,
       requires_genset: requiresGenset,
       notes: notes.trim() || null,
       arrival_time: null,
@@ -141,12 +167,27 @@ function NewOrderForm() {
       auction_step: isAuctionFormat && auctionUseStep && auctionStep ? parseInt(auctionStep) : null,
       auction_auto_winner: isAuctionFormat ? auctionAutoWinner : true,
       auction_auto_extend: isAuctionFormat ? auctionAutoExtend : true,
-    })
+    }).select('id').single()
 
-    if (error) {
+    if (error || !inserted) {
       toast.error(t.order.error)
       setLoading(false)
       return
+    }
+
+    // Вставить дополнительные точки
+    if (hasExtraStops) {
+      const validStops = stops.filter(s => s.address.trim())
+      if (validStops.length > 0) {
+        await supabase.from('order_stops').insert(
+          validStops.map((s, i) => ({
+            order_id: inserted.id,
+            address: s.address.trim(),
+            comment: s.comment.trim() || null,
+            sort_order: i,
+          }))
+        )
+      }
     }
 
     toast.success(t.order.posted)
@@ -233,6 +274,61 @@ function NewOrderForm() {
               />
             </div>
 
+            {/* Дополнительные точки маршрута */}
+            <div>
+              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={hasExtraStops}
+                  onChange={e => setHasExtraStops(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                />
+                <div>
+                  <div className="text-sm font-medium text-gray-900">Есть дополнительные точки</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Промежуточные адреса погрузки / выгрузки</div>
+                </div>
+              </label>
+              {hasExtraStops && (
+                <div className="mt-3 space-y-3">
+                  {stops.map((stop, i) => (
+                    <div key={i} className="p-3 rounded-xl border border-gray-200 space-y-2 relative">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-gray-500">Точка {i + 1}</span>
+                        {stops.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setStops(prev => prev.filter((_, idx) => idx !== i))}
+                            className="p-1 text-red-400 hover:text-red-600 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                      <Input
+                        label="Адрес"
+                        value={stop.address}
+                        onChange={e => setStops(prev => prev.map((s, idx) => idx === i ? { ...s, address: e.target.value } : s))}
+                        placeholder="Улица, склад, терминал..."
+                      />
+                      <Input
+                        label={`Комментарий (${t.common.optional})`}
+                        value={stop.comment}
+                        onChange={e => setStops(prev => prev.map((s, idx) => idx === i ? { ...s, comment: e.target.value } : s))}
+                        placeholder="Погрузка, выгрузка, таможня..."
+                      />
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setStops(prev => [...prev, { address: '', comment: '' }])}
+                    className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                  >
+                    <Plus size={16} /> Добавить точку
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Тип контейнера */}
             <Select
               id="containerType"
@@ -295,36 +391,49 @@ function NewOrderForm() {
               <p className="text-xs text-gray-400 mt-1">Укажите дату и время истечения заявки</p>
             </div>
 
-            {/* Вес груза (пункт 3) */}
+            {/* Вес груза */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 Вес груза <span className="text-gray-400 font-normal">({t.common.optional})</span>
               </label>
               <div className="mb-2 px-3 py-2 rounded-lg bg-gray-50 text-xs text-gray-500">
-                Вес контейнера ({containerType}): <strong className="text-gray-700">{tarWeight.toLocaleString('ru-RU')} кг</strong>
+                {is20DC2
+                  ? <>Тара каждого контейнера: <strong className="text-gray-700">2 200 кг</strong> · Итого тара: <strong className="text-gray-700">4 400 кг</strong></>
+                  : <>Вес контейнера ({containerType}): <strong className="text-gray-700">{tarWeight.toLocaleString('ru-RU')} кг</strong></>
+                }
               </div>
-              <div className="grid grid-cols-2 gap-3 items-end">
-                <Input
-                  id="weightGross"
-                  type="number"
-                  label={t.order.weightGross}
-                  value={weightGross}
-                  onChange={e => setWeightGross(e.target.value)}
-                  placeholder="кг"
-                  min="0"
-                />
-                <Input
-                  id="weightNet"
-                  type="number"
-                  label={t.order.weightNet}
-                  value={weightNet}
-                  onChange={e => { setWeightNet(e.target.value); setErrors(p => ({ ...p, weightNet: '' })) }}
-                  placeholder="кг"
-                  min="0"
-                  error={errors.weightNet}
-                />
-              </div>
-              <p className="text-xs text-gray-400 mt-1.5">{t.order.weightHint}</p>
+
+              {is20DC2 ? (
+                <div className="space-y-3">
+                  <div>
+                    <div className="text-xs text-gray-500 font-medium mb-1.5">Контейнер 1</div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input id="weightGross" type="number" label={t.order.weightGross} value={weightGross}
+                        onChange={e => setWeightGross(e.target.value)} placeholder="кг" min="0" />
+                      <Input id="weightNet" type="number" label={t.order.weightNet} value={weightNet}
+                        onChange={e => { setWeightNet(e.target.value); setErrors(p => ({ ...p, weightNet: '' })) }}
+                        placeholder="кг" min="0" error={errors.weightNet} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 font-medium mb-1.5">Контейнер 2</div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input id="weightGross2" type="number" label={t.order.weightGross} value={weightGross2}
+                        onChange={e => setWeightGross2(e.target.value)} placeholder="кг" min="0" />
+                      <Input id="weightNet2" type="number" label={t.order.weightNet} value={weightNet2}
+                        onChange={e => setWeightNet2(e.target.value)} placeholder="кг" min="0" />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 items-end">
+                  <Input id="weightGross" type="number" label={t.order.weightGross} value={weightGross}
+                    onChange={e => setWeightGross(e.target.value)} placeholder="кг" min="0" />
+                  <Input id="weightNet" type="number" label={t.order.weightNet} value={weightNet}
+                    onChange={e => { setWeightNet(e.target.value); setErrors(p => ({ ...p, weightNet: '' })) }}
+                    placeholder="кг" min="0" error={errors.weightNet} />
+                </div>
+              )}
             </div>
 
             {/* Формат заявки */}
@@ -448,7 +557,16 @@ function NewOrderForm() {
             {/* Ставка + НДС — скрываем для аукционов */}
             {!isAuctionFormat && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">{t.order.rate}</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">{t.order.rate}</label>
+                  <button
+                    type="button"
+                    onClick={() => setCalcOpen(true)}
+                    className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 transition-colors px-2 py-1 rounded-lg hover:bg-blue-50"
+                  >
+                    <Calculator size={13} /> Рассчитать ставку
+                  </button>
+                </div>
                 <div className="flex items-center gap-3 mb-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
@@ -532,12 +650,119 @@ function NewOrderForm() {
               />
             </div>
 
+            {/* Простой транспорта */}
+            <div>
+              <Input
+                id="downtimeRate"
+                type="number"
+                label={`Простой транспорта (₽/час) — ${t.common.optional}`}
+                value={downtimeRate}
+                onChange={e => setDowntimeRate(e.target.value)}
+                placeholder="например: 500"
+                min="0"
+              />
+              <p className="text-xs text-gray-400 mt-1">Указывается после выполнения перевозки</p>
+            </div>
+
             <Button type="submit" loading={loading} className="w-full" size="lg">
               {t.order.post}
             </Button>
           </form>
         </div>
       </div>
+      {/* Калькулятор ставки */}
+      {calcOpen && (() => {
+        const sub = parseInt(calcSubmission) || 0
+        const km  = parseFloat(calcKm) || 0
+        const rateKm = parseFloat(calcRateKm) || 0
+        const overload  = calcUseOverload  ? (parseInt(calcOverload)  || 0) : 0
+        const extraStop = calcUseExtraStop ? (parseInt(calcExtraStop) || 0) : 0
+
+        let total = 0
+        if (calcMethod === 1) total = sub + km * rateKm * 2 + overload + extraStop
+        if (calcMethod === 2) total = sub + km * rateKm     + overload + extraStop
+        if (calcMethod === 3) total = sub + km * rateKm     + overload + extraStop
+        if (calcMethod === 4) total = parseInt(calcMarket) || 0
+
+        const methodLabels = ['', 'Составная (туда-обратно)', 'Составная (в один конец)', 'МКАДный', 'Рыночная']
+        const kmLabel = calcMethod === 3 ? 'Км от МКАД' : 'Расстояние (км)'
+
+        return (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between p-5 border-b border-gray-100">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Calculator size={18} className="text-blue-600" /> Калькулятор ставки
+                </h2>
+                <button onClick={() => setCalcOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="p-5 space-y-4">
+                {/* Метод */}
+                <div>
+                  <div className="text-sm font-medium text-gray-700 mb-2">Метод расчёта</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([1, 2, 3, 4] as const).map(m => (
+                      <label key={m} className={`flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer text-sm transition-colors ${calcMethod === m ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                        <input type="radio" name="calcMethod" checked={calcMethod === m} onChange={() => setCalcMethod(m)} className="sr-only" />
+                        {methodLabels[m]}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {calcMethod !== 4 ? (
+                  <>
+                    <Input label="Подача (₽)" type="number" value={calcSubmission} onChange={e => setCalcSubmission(e.target.value)} placeholder="0" min="0" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input label={kmLabel} type="number" value={calcKm} onChange={e => setCalcKm(e.target.value)} placeholder="0" min="0" />
+                      <Input label="Ставка за км (₽/км)" type="number" value={calcRateKm} onChange={e => setCalcRateKm(e.target.value)} placeholder="0" min="0" />
+                    </div>
+                    {calcMethod === 1 && (
+                      <p className="text-xs text-gray-400">Км × ставку × 2 (туда и обратно)</p>
+                    )}
+                    <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                      <input type="checkbox" checked={calcUseOverload} onChange={e => setCalcUseOverload(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
+                      Перегруз
+                      {calcUseOverload && (
+                        <Input label="" type="number" value={calcOverload} onChange={e => setCalcOverload(e.target.value)} placeholder="₽" min="0" />
+                      )}
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                      <input type="checkbox" checked={calcUseExtraStop} onChange={e => setCalcUseExtraStop(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
+                      Доп. точка
+                      {calcUseExtraStop && (
+                        <Input label="" type="number" value={calcExtraStop} onChange={e => setCalcExtraStop(e.target.value)} placeholder="₽" min="0" />
+                      )}
+                    </label>
+                  </>
+                ) : (
+                  <Input label="Рыночная ставка (₽)" type="number" value={calcMarket} onChange={e => setCalcMarket(e.target.value)} placeholder="0" min="0" />
+                )}
+
+                {/* Итог */}
+                {total > 0 && (
+                  <div className="px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-between">
+                    <span className="text-sm text-blue-700">Итого:</span>
+                    <span className="text-lg font-bold text-blue-800">{total.toLocaleString('ru-RU')} ₽</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-3 p-5 border-t border-gray-100">
+                <Button
+                  onClick={() => { if (total > 0) { setPrice(String(total)); setIsNegotiable(false); setCalcOpen(false) } }}
+                  disabled={total <= 0}
+                  className="flex-1"
+                >
+                  Применить
+                </Button>
+                <Button variant="secondary" onClick={() => setCalcOpen(false)}>Отмена</Button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </AppLayout>
   )
 }

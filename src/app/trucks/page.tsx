@@ -11,7 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Truck } from '@/types/database'
 import { formatDate, formatPrice } from '@/lib/utils'
-import { CONTAINER_TYPES } from '@/lib/cities'
+import { TRUCK_CONTAINER_TYPES } from '@/lib/cities'
 import { RatingBadge } from '@/components/ui/RatingBadge'
 
 function TrucksContent() {
@@ -143,7 +143,7 @@ function TrucksContent() {
               label="Тип контейнера"
               value={typeFilter}
               onChange={e => applyFilter('type', e.target.value)}
-              options={CONTAINER_TYPES.map(c => ({ value: c.value, label: c.label }))}
+              options={TRUCK_CONTAINER_TYPES.map(c => ({ value: c.value, label: c.label }))}
               placeholder="Любой тип"
             />
             {hasFilters && (
@@ -169,7 +169,7 @@ function TrucksContent() {
         ) : (
           <div className="space-y-3">
             {trucks.map(truck => {
-              const containerLabel = CONTAINER_TYPES.find(c => c.value === truck.container_type)?.label
+              const containerLabel = TRUCK_CONTAINER_TYPES.find(c => c.value === truck.container_type)?.label || truck.container_type
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const carrier = (truck as any).carrier
 

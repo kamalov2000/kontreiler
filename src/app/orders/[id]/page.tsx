@@ -17,9 +17,9 @@ import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType } from '@/types/database'
-import { formatDateWithTime, formatDateTime, formatPrice, formatPhone, maskPhone, formatOrderNumber } from '@/lib/utils'
-import { CONTAINER_TYPES, REF_CONTAINER_TYPES } from '@/lib/cities'
+import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop } from '@/types/database'
+import { formatDateWithTime, formatDateTime, formatPrice, formatPhone, maskPhone, formatOrderNumber, readyDateBadge } from '@/lib/utils'
+import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT, CONTAINER_UNIT_TARE } from '@/lib/cities'
 import { toast } from 'sonner'
 import { ORDER_STATUS_CLASS } from '@/lib/status'
 import { cn } from '@/lib/utils'
@@ -134,6 +134,7 @@ export default function OrderDetailPage() {
   const [bids, setBids] = useState<(Bid & { carrier?: { name: string | null } })[]>([])
   const [bidAmount, setBidAmount] = useState('')
   const [bidLoading, setBidLoading] = useState(false)
+  const [stops, setStops] = useState<OrderStop[]>([])
 
   const isOwner = user?.id === order?.client_id
 
@@ -148,6 +149,13 @@ export default function OrderDetailPage() {
 
       if (!orderData) { router.push('/dashboard'); return }
       setOrder(orderData as Order)
+
+      const { data: stopsData } = await supabase
+        .from('order_stops')
+        .select('*')
+        .eq('order_id', id)
+        .order('sort_order', { ascending: true })
+      setStops((stopsData || []) as OrderStop[])
 
       if (orderData.format === 'reduction' || orderData.format === 'auction') {
         const { data: bidsData } = await supabase
@@ -497,7 +505,7 @@ export default function OrderDetailPage() {
   const canEdit   = isOwner && order.status === 'active'
   const today     = new Date().toISOString().split('T')[0]
 
-  const vatLabel = order.vat_type === 'vat20' ? 'с НДС 20%'
+  const vatLabel = order.vat_type === 'vat20' ? 'с НДС 22%'
     : order.vat_type === 'vat15' ? 'с НДС 15%'
     : order.vat_type === 'vat5'  ? 'с НДС 5%'
     : order.vat_type === 'vat0'  ? 'НДС 0%'
@@ -611,6 +619,22 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
+          {/* Дополнительные точки над маршрутом */}
+          {stops.length > 0 && (
+            <div className="mb-3 space-y-1.5">
+              <div className="text-xs text-gray-500 font-medium">Дополнительные точки:</div>
+              {stops.map((s, i) => (
+                <div key={s.id} className="flex items-start gap-2 text-sm">
+                  <span className="mt-0.5 w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</span>
+                  <div>
+                    <span className="font-medium text-gray-800">{s.address}</span>
+                    {s.comment && <span className="text-gray-500"> — {s.comment}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Маршрут цепочкой А → Б → В с адресами */}
           <div className="mb-4">
             <div className="flex items-start gap-0 flex-col sm:flex-row sm:items-center">
@@ -690,19 +714,36 @@ export default function OrderDetailPage() {
                 <div className="text-xs text-gray-400 mt-0.5">{vatLabel}</div>
               </div>
             )}
-            {/* Пункт 9: дата + время погрузки */}
+            {/* Плановая дата погрузки/выгрузки */}
             <div className="p-3 rounded-xl bg-gray-50">
-              <div className="text-xs text-gray-500 mb-0.5">Дата погрузки/выгрузки</div>
+              <div className="text-xs text-gray-500 mb-0.5">Плановая дата погрузки/выгрузки</div>
               <div className="font-semibold text-gray-900 text-sm">{formatDateWithTime(order.ready_date, order.ready_time)}</div>
+              {(() => {
+                const badge = readyDateBadge(order.ready_date)
+                if (!badge) return null
+                const colorClass = badge.color === 'red' ? 'text-red-600' : badge.color === 'amber' ? 'text-amber-600' : 'text-green-600'
+                return <div className={`text-xs font-medium mt-0.5 ${colorClass}`}>{badge.label}</div>
+              })()}
               {order.arrival_time && (
                 <div className="text-xs text-gray-500 mt-0.5">Прибытие ТС: {order.arrival_time.slice(0, 5)}</div>
               )}
             </div>
-            {(order.weight_gross || order.weight_net) && (
+            {(order.weight_gross || order.weight_net || order.weight_gross_2 || order.weight_net_2) && (
               <div className="p-3 rounded-xl bg-gray-50">
                 <div className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Weight size={11} /> Вес</div>
-                {order.weight_gross && <div className="text-xs text-gray-700">Брутто: <strong>{order.weight_gross.toLocaleString('ru-RU')} кг</strong></div>}
-                {order.weight_net   && <div className="text-xs text-gray-700">Нетто: <strong>{order.weight_net.toLocaleString('ru-RU')} кг</strong></div>}
+                {order.container_type === '20DC2' ? (
+                  <>
+                    {order.weight_gross && <div className="text-xs text-gray-700">Конт. 1 с тарой: <strong>{(order.weight_gross + (CONTAINER_UNIT_TARE['20DC2'] ?? 2200)).toLocaleString('ru-RU')} кг</strong></div>}
+                    {order.weight_net   && <div className="text-xs text-gray-700">Конт. 1 нетто: <strong>{order.weight_net.toLocaleString('ru-RU')} кг</strong></div>}
+                    {order.weight_gross_2 && <div className="text-xs text-gray-700 mt-1">Конт. 2 с тарой: <strong>{(order.weight_gross_2 + (CONTAINER_UNIT_TARE['20DC2'] ?? 2200)).toLocaleString('ru-RU')} кг</strong></div>}
+                    {order.weight_net_2   && <div className="text-xs text-gray-700">Конт. 2 нетто: <strong>{order.weight_net_2.toLocaleString('ru-RU')} кг</strong></div>}
+                  </>
+                ) : (
+                  <>
+                    {order.weight_gross && <div className="text-xs text-gray-700">Вес груза с контейнером: <strong>{(order.weight_gross + (CONTAINER_TARE_WEIGHT[order.container_type] ?? 0)).toLocaleString('ru-RU')} кг</strong></div>}
+                    {order.weight_net   && <div className="text-xs text-gray-700">Нетто: <strong>{order.weight_net.toLocaleString('ru-RU')} кг</strong></div>}
+                  </>
+                )}
               </div>
             )}
             {order.expires_at && (
@@ -721,6 +762,14 @@ export default function OrderDetailPage() {
               <span className="text-sm font-medium text-green-800">
                 Договорная цена: {order.agreed_price.toLocaleString('ru-RU')} ₽
               </span>
+            </div>
+          )}
+
+          {/* Простой транспорта */}
+          {order.downtime_rate && (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-gray-50 border border-gray-100 mb-3">
+              <span className="text-sm text-gray-600">Простой транспорта:</span>
+              <span className="text-sm font-semibold text-gray-900">{order.downtime_rate.toLocaleString('ru-RU')} ₽/час</span>
             </div>
           )}
 

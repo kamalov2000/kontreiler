@@ -1,5 +1,6 @@
 export type UserRole = 'client' | 'carrier'
-export type ContainerType = '20ft' | '40ft' | '40HC' | '45ft' | '20REF' | '40REF' | '20TC' | '40TC'
+export type ContainerType = '20ft' | '40ft' | '40HC' | '45ft' | '20REF' | '40REF' | '20TC' | '40TC' | '20DC2'
+export type TruckContainerType = ContainerType | 'any'
 export type VatType = 'none' | 'vat5' | 'vat15' | 'vat20' | 'vat0'
 export type OrderFormat = 'regular' | 'urgent' | 'reduction' | 'auction'
 export type OrderStatus = 'active' | 'matched' | 'in_transit' | 'delivered' | 'closed' | 'cancelled' | 'expired'
@@ -56,6 +57,9 @@ export interface Order {
   is_urgent: boolean
   weight_gross: number | null
   weight_net: number | null
+  weight_gross_2: number | null
+  weight_net_2: number | null
+  downtime_rate: number | null
   ready_time: string | null
   was_expired: boolean
   vat_type: VatType
@@ -102,12 +106,21 @@ export interface Notification {
   created_at: string
 }
 
+export interface OrderStop {
+  id: string
+  order_id: string
+  address: string
+  comment: string | null
+  sort_order: number
+  created_at: string
+}
+
 export interface Truck {
   id: string
   carrier_id: string
   from_city: string
   to_city: string
-  container_type: ContainerType
+  container_type: TruckContainerType
   available_date: string
   price: number | null
   is_negotiable: boolean
