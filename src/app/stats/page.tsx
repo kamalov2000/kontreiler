@@ -209,11 +209,9 @@ export default function StatsPage() {
 
         setCarrierStats({ total_trips, total_sum, avg_rating, rating_count, top_routes, monthly })
       }
-
-      setLoading(false)
     }
 
-    fetchStats()
+    fetchStats().finally(() => setLoading(false))
   }, [user, userLoading])
 
   if (userLoading || loading) {
@@ -236,6 +234,12 @@ export default function StatsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Моя статистика</h1>
         </div>
 
+        {user?.role === 'client' && !clientStats && (
+          <div className="text-center py-12 text-gray-400">
+            <Package size={40} className="mx-auto mb-3 opacity-40" />
+            <p>Нет данных для отображения</p>
+          </div>
+        )}
         {user?.role === 'client' && clientStats && (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
@@ -285,6 +289,12 @@ export default function StatsPage() {
           </>
         )}
 
+        {user?.role === 'carrier' && !carrierStats && (
+          <div className="text-center py-12 text-gray-400">
+            <Package size={40} className="mx-auto mb-3 opacity-40" />
+            <p>Нет данных для отображения</p>
+          </div>
+        )}
         {user?.role === 'carrier' && carrierStats && (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
