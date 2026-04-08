@@ -39,7 +39,7 @@ export async function POST(req: Request) {
           to: clientAuth.user.email,
           subject: `Новый отклик на заявку ${order.from_city} → ${order.to_city}`,
           html: `<p>Перевозчик <strong>${carrier.name}</strong> откликнулся на вашу заявку <strong>${order.from_city} → ${order.to_city}</strong>.</p>
-                 <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/orders/${orderId}">Открыть заявку →</a></p>`,
+                 <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://kontreiler.vercel.app'}/orders/${orderId}">Открыть заявку →</a></p>`,
         })
       }
     }
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
           to: carrierAuth.user.email,
           subject: `Ваш отклик принят: ${order.from_city} → ${order.to_city}`,
           html: `<p>Клиент принял ваш отклик на заявку <strong>${order.from_city} → ${order.to_city}</strong>.</p>
-                 <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/orders/${orderId}">Перейти к заявке →</a></p>`,
+                 <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://kontreiler.vercel.app'}/orders/${orderId}">Перейти к заявке →</a></p>`,
         })
       }
     }
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
           to: recipientAuth.user.email,
           subject: `Новое сообщение в чате: ${order.from_city} → ${order.to_city}`,
           html: `<p><strong>${sender.name}</strong> написал вам в чате по заявке <strong>${order.from_city} → ${order.to_city}</strong>.</p>
-                 <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/orders/${orderId}/chat">Открыть чат →</a></p>`,
+                 <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://kontreiler.vercel.app'}/orders/${orderId}/chat">Открыть чат →</a></p>`,
         })
       }
     }
@@ -104,7 +104,7 @@ export async function POST(req: Request) {
           to: carrierAuth.user.email,
           subject: `Рейс завершён: ${order.from_city} → ${order.to_city}`,
           html: `<p>Клиент подтвердил доставку по заявке <strong>${order.from_city} → ${order.to_city}</strong>. Рейс завершён.</p>
-                 <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/orders/${orderId}">Открыть заявку →</a></p>`,
+                 <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://kontreiler.vercel.app'}/orders/${orderId}">Открыть заявку →</a></p>`,
         })
       }
     }

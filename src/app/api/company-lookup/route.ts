@@ -9,7 +9,7 @@ const STUB = {
   director_name: 'Иванов Иван Иванович',
   director_position: 'Генеральный директор',
   _stub: true,
-  _hint: 'Задайте переменную окружения DADATA_API_KEY для реальных данных из DaData',
+  _hint: 'Задайте переменную окружения DADATA_API_KEY (и опционально DADATA_SECRET_KEY) для реальных данных',
 }
 
 export async function GET(req: Request) {
@@ -25,22 +25,33 @@ export async function GET(req: Request) {
     return NextResponse.json({ ...STUB, inn })
   }
 
+  const secretKey = process.env.DADATA_SECRET_KEY
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    Authorization: `Token ${apiKey}`,
+  }
+
+  // X-Secret используется для clean-методов DaData; для suggestions — опционально, но добавляем если задан
+  if (secretKey) {
+    headers['X-Secret'] = secretKey
+  }
+
   try {
     const res = await fetch(
       'https://suggestions.dadata.ru/suggestions/api/4_1/rs/findById/party',
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          Authorization: `Token ${apiKey}`,
-        },
+        headers,
         body: JSON.stringify({ query: inn, count: 1 }),
       }
     )
 
     if (!res.ok) {
-      return NextResponse.json({ error: 'Ошибка запроса к DaData' }, { status: 502 })
+      const text = await res.text().catch(() => '')
+      console.error('[DADATA ERROR]', res.status, text)
+      return NextResponse.json({ error: `DaData: ${res.status} ${res.statusText}` }, { status: 502 })
     }
 
     const data = await res.json()
@@ -60,7 +71,8 @@ export async function GET(req: Request) {
       director_name: s.data.management?.name ?? null,
       director_position: s.data.management?.post ?? null,
     })
-  } catch {
+  } catch (err) {
+    console.error('[DADATA FETCH ERROR]', err)
     return NextResponse.json({ error: 'Ошибка соединения с DaData' }, { status: 503 })
   }
 }
