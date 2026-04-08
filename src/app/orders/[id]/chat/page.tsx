@@ -278,7 +278,8 @@ function ChatContent() {
             {otherParty && (
               <div className="text-xs text-gray-500">
                 Чат с {otherParty.name}
-                {otherParty.phone && (
+                {/* Скрываем телефон клиента перевозчику если hide_phone=true */}
+                {otherParty.phone && !(order?.hide_phone && order?.client_id !== user?.id) && (
                   phoneRevealed ? (
                     <a href={`tel:${otherParty.phone}`} className="ml-2 text-blue-600 hover:underline">
                       {formatPhone(otherParty.phone)}
@@ -291,6 +292,9 @@ function ChatContent() {
                       {maskPhone(otherParty.phone)}
                     </button>
                   )
+                )}
+                {order?.hide_phone && order?.client_id !== user?.id && (
+                  <span className="ml-2 text-gray-400 italic">телефон скрыт клиентом</span>
                 )}
               </div>
             )}
