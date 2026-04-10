@@ -86,6 +86,7 @@ export default function DashboardPage() {
   const [archivingId, setArchivingId] = useState<string | null>(null)
   const [unreadMap, setUnreadMap] = useState<Record<string, number>>({})
   const [search, setSearch] = useState('')
+  const [stopOrders, setStopOrders] = useState<Set<string>>(new Set())
 
   // Фильтры вкладки "Все заявки"
   const [allFilterStatus, setAllFilterStatus] = useState('')
@@ -126,7 +127,22 @@ export default function DashboardPage() {
         response_count: o.responses?.[0]?.count ?? 0,
       }))
       // Пункт 11: убираем торги (reduction/auction) из "Мои заявки"
-      setOrders(mapped.filter((o: Order) => o.format !== 'reduction' && o.format !== 'auction'))
+      const filtered = mapped.filter((o: Order) => o.format !== 'reduction' && o.format !== 'auction')
+      setOrders(filtered)
+
+      // Load which orders have additional stops
+      const orderIds = filtered.map((o: Order) => o.id)
+      if (orderIds.length > 0) {
+        const { data: stopsData } = await supabase
+          .from('order_stops')
+          .select('order_id')
+          .in('order_id', orderIds)
+        if (stopsData && stopsData.length > 0) {
+          setStopOrders(new Set(stopsData.map((s: { order_id: string }) => s.order_id)))
+        } else {
+          setStopOrders(new Set())
+        }
+      }
     }
     setLoading(false)
   }
@@ -417,6 +433,7 @@ export default function DashboardPage() {
                 key={order.id}
                 order={order}
                 showResponses={true}
+                hasStops={stopOrders.has(order.id)}
                 actions={
                   <>
                     {isMatched && (

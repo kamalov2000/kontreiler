@@ -67,6 +67,7 @@ function FeedContent() {
 
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [stopOrders, setStopOrders] = useState<Set<string>>(new Set())
   const [respondingTo, setRespondingTo] = useState<Order | null>(null)
   const [message, setMessage] = useState('')
   const [responding, setResponding] = useState(false)
@@ -119,6 +120,20 @@ function FeedContent() {
     )
     setOrders(loaded)
     setLoading(false)
+
+    // Load which orders have additional stops
+    const orderIds = loaded.map(o => o.id)
+    if (orderIds.length > 0) {
+      const { data: stopsData } = await supabase
+        .from('order_stops')
+        .select('order_id')
+        .in('order_id', orderIds)
+      if (stopsData && stopsData.length > 0) {
+        setStopOrders(new Set(stopsData.map(s => s.order_id)))
+      } else {
+        setStopOrders(new Set())
+      }
+    }
 
     const clientIds = loaded.map(o => o.client_id).filter((v, i, a) => a.indexOf(v) === i)
     if (clientIds.length > 0) {
@@ -344,6 +359,7 @@ function FeedContent() {
               <OrderCard
                 key={order.id}
                 order={order}
+                hasStops={stopOrders.has(order.id)}
                 extra={clientRating ? <RatingBadge avg={clientRating.avg} count={clientRating.count} /> : undefined}
                 actions={
                   <>

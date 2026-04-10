@@ -137,6 +137,14 @@ export default function OrderDetailPage() {
   const [stops, setStops] = useState<OrderStop[]>([])
   const [downloadingContract, setDownloadingContract] = useState(false)
 
+  // Edit modal — stops
+  const [editStops, setEditStops] = useState<{id?: string; address: string; comment: string}[]>([])
+
+  // Carrier respond
+  const [respondOpen, setRespondOpen] = useState(false)
+  const [respondMessage, setRespondMessage] = useState('')
+  const [respondLoading, setRespondLoading] = useState(false)
+
   const isOwner = user?.id === order?.client_id
 
   useEffect(() => {
@@ -233,6 +241,7 @@ export default function OrderDetailPage() {
     setEditWeightGross(order.weight_gross ? String(order.weight_gross) : '')
     setEditWeightNet(order.weight_net ? String(order.weight_net) : '')
     setEditExpiresAt(order.expires_at ? order.expires_at.slice(0, 16) : '')
+    setEditStops(stops.map(s => ({ id: s.id, address: s.address, comment: s.comment || '' })))
     setEditOpen(true)
     setMenuOpen(false)
   }
@@ -272,6 +281,28 @@ export default function OrderDetailPage() {
     if (error) {
       toast.error('Ошибка при сохранении')
     } else {
+      // Update stops: delete old, insert new
+      await supabase.from('order_stops').delete().eq('order_id', order.id)
+      const validStops = editStops.filter(s => s.address.trim())
+      if (validStops.length > 0) {
+        await supabase.from('order_stops').insert(
+          validStops.map((s, i) => ({
+            order_id: order.id,
+            address: s.address.trim(),
+            comment: s.comment.trim() || null,
+            sort_order: i,
+          }))
+        )
+      }
+      setStops(validStops.map((s, i) => ({
+        id: s.id || `temp-${i}`,
+        order_id: order.id,
+        address: s.address.trim(),
+        comment: s.comment.trim() || null,
+        sort_order: i,
+        created_at: new Date().toISOString(),
+      })))
+
       toast.success('Заявка обновлена')
       setOrder(prev => prev ? {
         ...prev,
@@ -313,6 +344,42 @@ export default function OrderDetailPage() {
     } finally {
       setDownloadingContract(false)
     }
+  }
+
+  async function handleRespond() {
+    if (!user || !order) return
+    setRespondLoading(true)
+    const supabase = createClient()
+    const { error } = await supabase.from('responses').insert({
+      order_id: order.id,
+      carrier_id: user.id,
+      message: respondMessage.trim() || null,
+    })
+    if (error) {
+      if (error.code === '23505') {
+        toast.error('Вы уже откликались на эту заявку')
+      } else {
+        toast.error('Ошибка при отклике')
+      }
+    } else {
+      toast.success('Отклик отправлен!')
+      setResponses(prev => [...prev, {
+        id: crypto.randomUUID(),
+        order_id: order.id,
+        carrier_id: user.id,
+        message: respondMessage.trim() || null,
+        created_at: new Date().toISOString(),
+        carrier: { ...user },
+      } as Response & { carrier: typeof user }])
+      setRespondOpen(false)
+      setRespondMessage('')
+      fetch('/api/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'new_response', orderId: order.id, carrierId: user.id }),
+      }).catch(() => {})
+    }
+    setRespondLoading(false)
   }
 
   async function revertStatus() {
@@ -982,6 +1049,24 @@ export default function OrderDetailPage() {
           </div>
         )}
 
+        {/* Кнопка «Откликнуться» для перевозчика */}
+        {user?.role === 'carrier' && !isOwner && order.status === 'active' && (
+          responses.some(r => r.carrier_id === user.id) ? (
+            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-2xl p-4 mb-4">
+              <CheckCircle size={18} className="text-green-600 shrink-0" />
+              <span className="text-green-800 text-sm font-medium">Вы уже откликнулись на этот рейс</span>
+            </div>
+          ) : (
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-4">
+              <p className="text-sm font-semibold text-blue-900 mb-1">Хотите взять этот рейс?</p>
+              <p className="text-xs text-blue-700 mb-3">Откликнитесь — клиент увидит ваш отклик и свяжется с вами.</p>
+              <Button onClick={() => setRespondOpen(true)} className="w-full sm:w-auto">
+                Откликнуться на рейс
+              </Button>
+            </div>
+          )
+        )}
+
         {/* Отклики */}
         <h2 className="text-lg font-semibold text-gray-900 mb-3">
           Отклики ({responses.length})
@@ -1163,6 +1248,52 @@ export default function OrderDetailPage() {
                 value={editExpiresAt}
                 onChange={e => setEditExpiresAt(e.target.value)}
               />
+              {/* Дополнительные точки маршрута */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium text-gray-700">Доп. точки маршрута</label>
+                  <button
+                    type="button"
+                    onClick={() => setEditStops(prev => [...prev, { address: '', comment: '' }])}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  >
+                    + Добавить точку
+                  </button>
+                </div>
+                {editStops.length === 0 && (
+                  <p className="text-xs text-gray-400 py-1">Нет дополнительных точек</p>
+                )}
+                <div className="space-y-2">
+                  {editStops.map((s, i) => (
+                    <div key={i} className="bg-gray-50 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-gray-600">Точка {i + 1}</span>
+                        <button
+                          type="button"
+                          onClick={() => setEditStops(prev => prev.filter((_, j) => j !== i))}
+                          className="text-xs text-red-500 hover:text-red-700"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Адрес"
+                        value={s.address}
+                        onChange={e => setEditStops(prev => prev.map((x, j) => j === i ? { ...x, address: e.target.value } : x))}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Комментарий (необязательно)"
+                        value={s.comment}
+                        onChange={e => setEditStops(prev => prev.map((x, j) => j === i ? { ...x, comment: e.target.value } : x))}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
             <div className="flex gap-3 p-5 border-t border-gray-100">
               <Button onClick={saveEdit} loading={saving} className="flex-1">Сохранить</Button>
@@ -1225,6 +1356,36 @@ export default function OrderDetailPage() {
                 </Button>
                 <Button variant="secondary" onClick={() => setShowReviewModal(false)}>Позже</Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Respond modal for carrier */}
+      {respondOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-900">Откликнуться на рейс</h2>
+              <button onClick={() => setRespondOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-gray-600">
+                Добавьте сообщение для клиента — необязательно, но повышает шансы.
+              </p>
+              <textarea
+                value={respondMessage}
+                onChange={e => setRespondMessage(e.target.value)}
+                placeholder="Например: готов выехать завтра утром, всё подходит"
+                rows={3}
+                maxLength={500}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+            </div>
+            <div className="flex gap-3 p-5 border-t border-gray-100">
+              <Button onClick={handleRespond} loading={respondLoading} className="flex-1">Откликнуться</Button>
+              <Button variant="secondary" onClick={() => setRespondOpen(false)}>Отмена</Button>
             </div>
           </div>
         </div>

@@ -210,9 +210,9 @@ export default function ProfilePage() {
       if (data.director_position) setSignatoryPosition(data.director_position)
       setExtOpen(true)
       if (data._stub) {
-        toast.info('Заглушка: ' + data._hint)
+        toast.warning('Тестовый режим: поле заполнено примерными данными. Для реальных данных добавьте DADATA_API_KEY в переменные окружения.')
       } else {
-        toast.success(`Данные загружены: ${data.short_name || data.name}`)
+        toast.success(`✅ Данные загружены: ${data.short_name || data.name}`)
       }
     } finally {
       setLookingUp(false)

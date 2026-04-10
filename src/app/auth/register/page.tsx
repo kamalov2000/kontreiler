@@ -42,7 +42,20 @@ export default function RegisterPage() {
       },
     })
     if (error || !data.user) {
-      toast.error(error?.message || 'Ошибка регистрации')
+      const msg = error?.message || ''
+      let ruMsg = 'Ошибка регистрации'
+      if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists') || msg.toLowerCase().includes('user already')) {
+        ruMsg = 'Этот email уже зарегистрирован. Попробуйте войти или восстановить пароль.'
+      } else if (msg.toLowerCase().includes('password') && msg.toLowerCase().includes('least')) {
+        ruMsg = 'Пароль должен содержать не менее 6 символов'
+      } else if (msg.toLowerCase().includes('invalid email')) {
+        ruMsg = 'Некорректный email'
+      } else if (msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('too many')) {
+        ruMsg = 'Слишком много попыток. Попробуйте позже.'
+      } else if (msg) {
+        ruMsg = msg
+      }
+      toast.error(ruMsg)
       setLoading(false)
       return
     }

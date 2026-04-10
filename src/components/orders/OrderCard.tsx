@@ -16,6 +16,7 @@ interface OrderCardProps {
   extra?: React.ReactNode
   bidData?: { best_amount: number | null; participant_count: number; bid_count: number } | null
   stops?: OrderStop[]
+  hasStops?: boolean
 }
 
 // Обратный отсчёт с секундами (пункты 6, 7, 8)
@@ -63,7 +64,7 @@ function vatInlineLabel(vatType: string): string {
   return 'Без НДС'
 }
 
-export function OrderCard({ order, showResponses, actions, extra, bidData, stops }: OrderCardProps) {
+export function OrderCard({ order, showResponses, actions, extra, bidData, stops, hasStops }: OrderCardProps) {
   const { t } = useLanguage()
   const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label || order.container_type
   const isAuctionFormat = order.format === 'reduction' || order.format === 'auction'
@@ -129,7 +130,7 @@ export function OrderCard({ order, showResponses, actions, extra, bidData, stops
       </div>
 
       {/* Дополнительные точки (над маршрутом) */}
-      {stops && stops.length > 0 && (
+      {stops && stops.length > 0 ? (
         <div className="mb-2 flex flex-col gap-1">
           {stops.map((s, i) => (
             <div key={s.id} className="flex items-start gap-1.5 text-xs text-gray-500">
@@ -139,7 +140,13 @@ export function OrderCard({ order, showResponses, actions, extra, bidData, stops
             </div>
           ))}
         </div>
-      )}
+      ) : hasStops ? (
+        <div className="mb-2">
+          <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+            📍 Есть доп. точки маршрута
+          </span>
+        </div>
+      ) : null}
 
       {/* Маршрут */}
       <div className="flex items-center gap-1.5 mb-3 flex-wrap">
