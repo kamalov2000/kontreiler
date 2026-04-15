@@ -104,6 +104,15 @@ export const TRUCK_CONTAINER_TYPES = [
 
 export const REF_CONTAINER_TYPES = new Set(['20REF', '40REF'])
 
+// Типы прицепов / платформ
+export const TRAILER_TYPES = [
+  { value: 'platform_20', label: 'Площадка под 20 фут' },
+  { value: 'platform_40', label: 'Площадка под 40 фут' },
+  { value: 'platform_45', label: 'Площадка под 45 фут' },
+  { value: 'sliding',     label: 'Раздвижной полуприцеп' },
+  { value: 'coupling',    label: 'Сцепка (несколько прицепов)' },
+] as const
+
 // Собственный вес контейнера (тара), кг
 export const CONTAINER_TARE_WEIGHT: Record<string, number> = {
   '20ft':  2200,

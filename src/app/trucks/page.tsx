@@ -11,7 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Truck } from '@/types/database'
 import { formatDate, formatPrice } from '@/lib/utils'
-import { TRUCK_CONTAINER_TYPES } from '@/lib/cities'
+import { TRUCK_CONTAINER_TYPES, TRAILER_TYPES } from '@/lib/cities'
 import { RatingBadge } from '@/components/ui/RatingBadge'
 
 function TrucksContent() {
@@ -200,6 +200,21 @@ function TrucksContent() {
                     <span className="px-2.5 py-1 rounded-lg bg-green-50 text-green-700 text-sm">
                       Готов {formatDate(truck.available_date)}
                     </span>
+                    {truck.trailer_type && (
+                      <span className="px-2.5 py-1 rounded-lg bg-gray-50 text-gray-600 text-sm border border-gray-100">
+                        {TRAILER_TYPES.find(t => t.value === truck.trailer_type)?.label || truck.trailer_type}
+                      </span>
+                    )}
+                    {truck.payload && (
+                      <span className="px-2.5 py-1 rounded-lg bg-gray-50 text-gray-600 text-sm border border-gray-100">
+                        до {truck.payload} т
+                      </span>
+                    )}
+                    {truck.long_distance && (
+                      <span className="px-2.5 py-1 rounded-lg bg-green-50 text-green-700 text-xs font-medium border border-green-100">
+                        🛣️ Дальние рейсы
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     {carrier && (

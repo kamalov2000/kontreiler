@@ -13,7 +13,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Truck, TruckContainerType } from '@/types/database'
 import { formatDate, formatPrice } from '@/lib/utils'
-import { TRUCK_CONTAINER_TYPES } from '@/lib/cities'
+import { TRUCK_CONTAINER_TYPES, TRAILER_TYPES } from '@/lib/cities'
 import { toast } from 'sonner'
 import { TRUCK_STATUS_LABEL, TRUCK_STATUS_CLASS } from '@/lib/status'
 
@@ -33,6 +33,9 @@ export default function MyTrucksPage() {
   const [editDate, setEditDate] = useState('')
   const [editPrice, setEditPrice] = useState('')
   const [editNegotiable, setEditNegotiable] = useState(false)
+  const [editPayload, setEditPayload] = useState('')
+  const [editTrailerType, setEditTrailerType] = useState('')
+  const [editLongDistance, setEditLongDistance] = useState(false)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -95,6 +98,9 @@ export default function MyTrucksPage() {
     setEditDate(truck.available_date)
     setEditPrice(truck.price ? String(truck.price) : '')
     setEditNegotiable(truck.is_negotiable)
+    setEditPayload(truck.payload ? String(truck.payload) : '')
+    setEditTrailerType(truck.trailer_type || '')
+    setEditLongDistance(truck.long_distance ?? false)
   }
 
   async function saveEdit() {
@@ -110,6 +116,9 @@ export default function MyTrucksPage() {
         available_date: editDate,
         price: editNegotiable ? null : (parseInt(editPrice) || null),
         is_negotiable: editNegotiable,
+        payload: editPayload ? parseInt(editPayload) : null,
+        trailer_type: editTrailerType || null,
+        long_distance: editLongDistance,
       })
       .eq('id', editTruck.id)
 
@@ -125,6 +134,9 @@ export default function MyTrucksPage() {
         available_date: editDate,
         price: editNegotiable ? null : (parseInt(editPrice) || null),
         is_negotiable: editNegotiable,
+        payload: editPayload ? parseInt(editPayload) : null,
+        trailer_type: editTrailerType || null,
+        long_distance: editLongDistance,
       } : t))
       setEditTruck(null)
     }
@@ -288,6 +300,22 @@ export default function MyTrucksPage() {
                 onChange={e => setEditContainer(e.target.value as TruckContainerType)}
                 options={TRUCK_CONTAINER_TYPES.map(c => ({ value: c.value, label: c.label }))}
               />
+              <Select
+                label="Тип прицепа / платформы"
+                value={editTrailerType}
+                onChange={e => setEditTrailerType(e.target.value)}
+                options={TRAILER_TYPES.map(t => ({ value: t.value, label: t.label }))}
+                placeholder="Не указан"
+              />
+              <Input
+                label="Грузоподъёмность (тонн)"
+                type="number"
+                value={editPayload}
+                onChange={e => setEditPayload(e.target.value)}
+                placeholder="Например: 22"
+                min="1"
+                max="100"
+              />
               <Input
                 label="Дата готовности"
                 type="date"
@@ -295,6 +323,18 @@ export default function MyTrucksPage() {
                 onChange={e => setEditDate(e.target.value)}
                 min={today}
               />
+              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={editLongDistance}
+                  onChange={e => setEditLongDistance(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                />
+                <div>
+                  <div className="text-sm font-medium text-gray-900">🛣️ Готов к дальним рейсам</div>
+                  <div className="text-xs text-gray-500">Межрегиональные и дальние маршруты</div>
+                </div>
+              </label>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Ставка</label>
                 <label className="flex items-center gap-2 mb-2 cursor-pointer">
@@ -387,6 +427,21 @@ function TruckCard({
             <span className="px-2.5 py-1 rounded-lg bg-gray-50 text-gray-600">
               Готов: {formatDate(truck.available_date)}
             </span>
+            {truck.trailer_type && (
+              <span className="px-2.5 py-1 rounded-lg bg-gray-50 text-gray-600 border border-gray-100">
+                {TRAILER_TYPES.find(t => t.value === truck.trailer_type)?.label || truck.trailer_type}
+              </span>
+            )}
+            {truck.payload && (
+              <span className="px-2.5 py-1 rounded-lg bg-gray-50 text-gray-600 border border-gray-100">
+                до {truck.payload} т
+              </span>
+            )}
+            {truck.long_distance && (
+              <span className="px-2.5 py-1 rounded-lg bg-green-50 text-green-700 text-xs font-medium border border-green-100">
+                🛣️ Дальние рейсы
+              </span>
+            )}
           </div>
         </div>
 

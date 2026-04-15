@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Truck, TruckResponse } from '@/types/database'
 import { formatDate, formatDateTime, formatPrice, maskPhone, formatPhone } from '@/lib/utils'
-import { TRUCK_CONTAINER_TYPES } from '@/lib/cities'
+import { TRUCK_CONTAINER_TYPES, TRAILER_TYPES } from '@/lib/cities'
 import { TRUCK_STATUS_LABEL, TRUCK_STATUS_CLASS } from '@/lib/status'
 import { toast } from 'sonner'
 
@@ -170,6 +170,26 @@ export default function TruckDetailPage() {
               <div className="text-xs text-gray-500 mb-0.5">Готов</div>
               <div className="font-medium text-gray-900">{formatDate(truck.available_date)}</div>
             </div>
+            {truck.trailer_type && (
+              <div className="p-3 rounded-xl bg-gray-50">
+                <div className="text-xs text-gray-500 mb-0.5">Тип прицепа</div>
+                <div className="font-medium text-gray-900">
+                  {TRAILER_TYPES.find(t => t.value === truck.trailer_type)?.label || truck.trailer_type}
+                </div>
+              </div>
+            )}
+            {truck.payload && (
+              <div className="p-3 rounded-xl bg-gray-50">
+                <div className="text-xs text-gray-500 mb-0.5">Грузоподъёмность</div>
+                <div className="font-medium text-gray-900">{truck.payload} т</div>
+              </div>
+            )}
+            {truck.long_distance && (
+              <div className="p-3 rounded-xl bg-green-50 border border-green-100">
+                <div className="text-xs text-green-600 mb-0.5">Дальние рейсы</div>
+                <div className="font-medium text-green-800">🛣️ Готов</div>
+              </div>
+            )}
           </div>
 
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}

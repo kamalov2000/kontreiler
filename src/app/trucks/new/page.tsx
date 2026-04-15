@@ -13,7 +13,7 @@ import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { Modal } from '@/components/ui/Modal'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
-import { TRUCK_CONTAINER_TYPES } from '@/lib/cities'
+import { TRUCK_CONTAINER_TYPES, TRAILER_TYPES } from '@/lib/cities'
 import { SavedRoute } from '@/types/database'
 import { toast } from 'sonner'
 
@@ -29,6 +29,9 @@ function NewTruckForm() {
   const [price, setPrice] = useState(params.get('price') || '')
   const [isNegotiable, setIsNegotiable] = useState(params.get('negotiable') === '1')
   const [notes, setNotes] = useState(params.get('notes') || '')
+  const [payload, setPayload] = useState(params.get('payload') || '')
+  const [trailerType, setTrailerType] = useState(params.get('trailer') || '')
+  const [longDistance, setLongDistance] = useState(params.get('long') === '1')
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -75,6 +78,9 @@ function NewTruckForm() {
       price: isNegotiable ? null : (price ? Number(price) : null),
       is_negotiable: isNegotiable,
       notes: notes.trim() || null,
+      payload: payload ? Number(payload) : null,
+      trailer_type: trailerType || null,
+      long_distance: longDistance,
     })
 
     if (error) {
@@ -146,6 +152,22 @@ function NewTruckForm() {
               placeholder="Выберите тип"
               error={errors.containerType}
             />
+            <Select
+              label="Тип прицепа / платформы"
+              value={trailerType}
+              onChange={e => setTrailerType(e.target.value)}
+              options={TRAILER_TYPES.map(t => ({ value: t.value, label: t.label }))}
+              placeholder="Выберите тип прицепа"
+            />
+            <Input
+              label="Грузоподъёмность (тонн)"
+              type="number"
+              value={payload}
+              onChange={e => setPayload(e.target.value)}
+              placeholder="Например: 22"
+              min="1"
+              max="100"
+            />
             <Input
               label="Дата готовности"
               type="date"
@@ -157,6 +179,20 @@ function NewTruckForm() {
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                id="longDistance"
+                type="checkbox"
+                checked={longDistance}
+                onChange={e => setLongDistance(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600"
+              />
+              <div>
+                <div className="text-sm font-medium text-gray-900">🛣️ Готов к дальним рейсам</div>
+                <div className="text-xs text-gray-500">Межрегиональные и дальние маршруты</div>
+              </div>
+            </label>
+            <div className="h-px bg-gray-100" />
             <div className="flex items-center gap-3">
               <input
                 id="negotiable"

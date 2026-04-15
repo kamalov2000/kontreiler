@@ -151,6 +151,10 @@ export interface Truck {
   truck_number: string | null
   status: TruckStatus
   created_at: string
+  // новые параметры
+  payload: number | null           // грузоподъёмность, тонн
+  trailer_type: string | null      // тип прицепа
+  long_distance: boolean           // готовность к дальним рейсам
   // joined
   carrier?: User
 }
