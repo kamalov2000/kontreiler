@@ -151,6 +151,10 @@ export default function MyTrucksPage() {
       date: truck.available_date,
       ...(truck.price ? { price: String(truck.price) } : {}),
       ...(truck.is_negotiable ? { negotiable: '1' } : {}),
+      ...(truck.payload ? { payload: String(truck.payload) } : {}),
+      ...(truck.trailer_type ? { trailer: truck.trailer_type } : {}),
+      ...(truck.long_distance ? { long: '1' } : {}),
+      ...(truck.notes ? { notes: truck.notes } : {}),
     })
     router.push(`/trucks/new?${qs}`)
   }
