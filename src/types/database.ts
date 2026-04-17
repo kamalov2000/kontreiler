@@ -93,6 +93,10 @@ export interface Order {
   order_number: string | null
   status: OrderStatus
   created_at: string
+  // трекинг
+  tracking_enabled: boolean
+  tracking_status: string | null
+  tracking_updated_at: string | null
   // joined
   client?: User
   responses?: Response[]

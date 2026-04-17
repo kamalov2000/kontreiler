@@ -20,6 +20,7 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop } from '@/types/database'
 import { formatDateWithTime, formatDateTime, formatPrice, formatPhone, maskPhone, formatOrderNumber, readyDateBadge } from '@/lib/utils'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT, CONTAINER_UNIT_TARE } from '@/lib/cities'
+import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
 import { toast } from 'sonner'
 import { ORDER_STATUS_CLASS } from '@/lib/status'
 import { cn } from '@/lib/utils'
@@ -655,12 +656,13 @@ export default function OrderDetailPage() {
 
             {/* Кнопки действий */}
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              {isOwner && order.status === 'matched' && (
+              {/* Если трекинг НЕ включён — клиент управляет статусами вручную */}
+              {isOwner && !order.tracking_enabled && order.status === 'matched' && (
                 <Button size="sm" loading={statusChanging} onClick={() => changeStatus('in_transit')}>
                   В пути
                 </Button>
               )}
-              {isOwner && order.status === 'in_transit' && (
+              {isOwner && !order.tracking_enabled && order.status === 'in_transit' && (
                 <Button size="sm" loading={statusChanging} onClick={() => changeStatus('delivered')}>
                   Доставлено
                 </Button>
@@ -988,6 +990,67 @@ export default function OrderDetailPage() {
                 </button>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Трекинг рейса */}
+        {order.tracking_enabled && (isOwner || user?.id === order.accepted_carrier_id) && ['matched', 'in_transit', 'delivered'].includes(order.status) && (
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <MapPin size={16} className="text-blue-600" />
+                <span className="font-semibold text-gray-900">Трекинг рейса</span>
+                {order.tracking_status && (
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                    {TRACKING_STEPS[getTrackingStepIndex(order.tracking_status)]?.shortLabel}
+                  </span>
+                )}
+              </div>
+              <Link
+                href={`/orders/${order.id}/tracking`}
+                className="text-sm text-blue-600 hover:underline font-medium flex items-center gap-1"
+              >
+                Открыть трекинг →
+              </Link>
+            </div>
+
+            {/* Mini-timeline */}
+            {order.tracking_status ? (
+              <div className="flex items-center gap-1 overflow-x-auto pb-1">
+                {TRACKING_STEPS.map((step, idx) => {
+                  const currentIdx = getTrackingStepIndex(order.tracking_status)
+                  const isDone = currentIdx >= idx
+                  const isCurrent = currentIdx === idx
+                  return (
+                    <div key={step.value} className="flex items-center gap-1 shrink-0">
+                      <div className={cn(
+                        'w-7 h-7 rounded-full flex items-center justify-center text-xs border-2 transition-all',
+                        isDone && !isCurrent ? 'bg-blue-600 border-blue-600 text-white' :
+                        isCurrent ? 'bg-white border-blue-600 ring-2 ring-blue-100 text-blue-700' :
+                        'bg-white border-gray-200 text-gray-300'
+                      )} title={step.label}>
+                        {isDone && !isCurrent ? '✓' : isCurrent ? <span>{step.icon}</span> : <span className="text-[9px]">{idx + 1}</span>}
+                      </div>
+                      {idx < TRACKING_STEPS.length - 1 && (
+                        <div className={cn('w-3 h-0.5', isDone ? 'bg-blue-400' : 'bg-gray-200')} />
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : order.status === 'matched' ? (
+              <p className="text-sm text-gray-400">
+                {user?.id === order.accepted_carrier_id
+                  ? '👆 Откройте трекинг и нажмите «Начать рейс»'
+                  : 'Ожидаем начала рейса от перевозчика...'}
+              </p>
+            ) : null}
+
+            {order.tracking_updated_at && order.tracking_status && (
+              <div className="mt-2 text-xs text-gray-400">
+                Обновлено: {formatDateTime(order.tracking_updated_at)}
+              </div>
+            )}
           </div>
         )}
 

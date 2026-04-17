@@ -60,6 +60,9 @@ function NewOrderForm() {
   // Простой транспорта
   const [downtimeRate, setDowntimeRate] = useState('')
 
+  // Трекинг рейса
+  const [trackingEnabled, setTrackingEnabled] = useState(false)
+
   // Дополнительные точки маршрута
   const [hasExtraStops, setHasExtraStops] = useState(false)
   const [stops, setStops] = useState<Array<{ address: string; comment: string }>>([{ address: '', comment: '' }])
@@ -157,6 +160,7 @@ function NewOrderForm() {
       weight_gross_2: is20DC2 && weightGross2 ? parseInt(weightGross2) : null,
       weight_net_2:   is20DC2 && weightNet2   ? parseInt(weightNet2)   : null,
       downtime_rate: downtimeRate ? parseInt(downtimeRate) : null,
+      tracking_enabled: trackingEnabled,
       requires_genset: requiresGenset,
       notes: notes.trim() || null,
       arrival_time: null,
@@ -663,6 +667,22 @@ function NewOrderForm() {
               />
               <p className="text-xs text-gray-400 mt-1">Указывается после выполнения перевозки</p>
             </div>
+
+            {/* Трекинг рейса */}
+            <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
+              <input
+                type="checkbox"
+                checked={trackingEnabled}
+                onChange={e => setTrackingEnabled(e.target.checked)}
+                className="w-4 h-4 mt-0.5 rounded border-gray-300 text-blue-600"
+              />
+              <div>
+                <div className="text-sm font-medium text-gray-900">📍 Онлайн-трекинг рейса</div>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  Перевозчик будет отмечать этапы поездки (7 шагов), вы увидите статус в реальном времени
+                </div>
+              </div>
+            </label>
 
             <Button type="submit" loading={loading} className="w-full" size="lg">
               {t.order.post}

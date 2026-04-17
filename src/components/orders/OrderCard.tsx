@@ -5,6 +5,7 @@ import { ArrowRight, AlertCircle, MessageSquare, Zap, TrendingDown, TrendingUp }
 import { Order, OrderStop } from '@/types/database'
 import { formatDateWithTime, formatPrice, formatOrderNumber, readyDateBadge } from '@/lib/utils'
 import { CONTAINER_TYPES, CONTAINER_TARE_WEIGHT, CONTAINER_UNIT_TARE } from '@/lib/cities'
+import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
 import { cn } from '@/lib/utils'
 import { ORDER_STATUS_CLASS } from '@/lib/status'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -196,11 +197,10 @@ export function OrderCard({ order, showResponses, actions, extra, bidData, stops
         })()}
       </div>
 
-      {/* Пункты 6 + 8: статус + таймер в одной строке */}
-      <div className="flex items-center gap-2 mb-3">
+      {/* Пункты 6 + 8: статус + таймер + трекинг в одной строке */}
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
         {showStatusBadge && (
           <span className={cn('px-2.5 py-1 rounded-lg text-xs font-medium shrink-0', statusClass)}>
-            {/* Пункт 1: жирный красный текст для просроченных */}
             {effectiveStatus === 'expired'
               ? <strong className="text-red-700 font-black">ПРОСРОЧЕНА</strong>
               : statusLabel
@@ -209,6 +209,21 @@ export function OrderCard({ order, showResponses, actions, extra, bidData, stops
         )}
         {showTimer && order.expires_at && (
           <ExpiryCountdown expiresAt={order.expires_at} />
+        )}
+        {/* Трекинг-бейдж */}
+        {order.tracking_enabled && order.tracking_status && (() => {
+          const idx = getTrackingStepIndex(order.tracking_status)
+          const step = TRACKING_STEPS[idx]
+          return step ? (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
+              📍 {step.shortLabel}
+            </span>
+          ) : null
+        })()}
+        {order.tracking_enabled && !order.tracking_status && ['matched', 'in_transit'].includes(order.status) && (
+          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 text-xs border border-gray-100">
+            📍 Трекинг ожидает
+          </span>
         )}
       </div>
 
