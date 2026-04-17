@@ -216,6 +216,23 @@ export default function OrderDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
+  // Realtime: обновляем трекинг и статус заказа в реальном времени
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`order-detail-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+        filter: `id=eq.${id}`,
+      }, (payload) => {
+        setOrder(prev => prev ? { ...prev, ...payload.new } : prev)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [id])
+
   useEffect(() => {
     if (!menuOpen) return
     function handler(e: MouseEvent) {
