@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, X, Filter } from 'lucide-react'
+import { Plus, Search, X, Filter, Download } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderCard } from '@/components/orders/OrderCard'
 import { Button } from '@/components/ui/Button'
@@ -214,17 +214,26 @@ export default function DashboardPage() {
     return () => clearInterval(timer)
   }, [])
 
+  // Вычисляем эффективный статус: учитываем expires_at и ready_date
+  function getEffStatus(o: Order): string {
+    if (o.status !== 'active') return o.status
+    if (o.expires_at && new Date(o.expires_at).getTime() <= now) return 'expired'
+    // Если дата погрузки/выгрузки прошла — тоже считаем просроченной
+    if (o.ready_date) {
+      const endOfReadyDay = new Date(o.ready_date)
+      endOfReadyDay.setDate(endOfReadyDay.getDate() + 1)
+      if (endOfReadyDay.getTime() <= now) return 'expired'
+    }
+    return 'active'
+  }
+
   // Фильтрация по вкладкам
   const filtered = orders.filter(o => {
-    // Определяем эффективный статус (пункт 8)
-    const effStatus = (
-      o.status === 'active' &&
-      o.expires_at &&
-      new Date(o.expires_at).getTime() <= now
-    ) ? 'expired' : o.status
+    const effStatus = getEffStatus(o)
 
     if (tab === 'active') {
-      if (['closed', 'cancelled', 'expired'].includes(effStatus)) return false
+      // Активные: без закрытых, отменённых, просроченных и доставленных
+      if (['closed', 'cancelled', 'expired', 'delivered'].includes(effStatus)) return false
     } else if (tab === 'all') {
       // Все заявки — закрытые только если явно выбраны в фильтре (они в Архиве)
       if (!allFilterStatus && effStatus === 'closed') return false
@@ -240,15 +249,9 @@ export default function DashboardPage() {
     return matchesSearch(o, search)
   })
 
-  const activeCount   = orders.filter(o => {
-    const eff = (o.status === 'active' && o.expires_at && new Date(o.expires_at).getTime() <= now) ? 'expired' : o.status
-    return !['closed', 'cancelled', 'expired'].includes(eff)
-  }).length
+  const activeCount   = orders.filter(o => !['closed', 'cancelled', 'expired', 'delivered'].includes(getEffStatus(o))).length
   const cancelledCount = orders.filter(o => o.status === 'cancelled').length
-  const expiredCount   = orders.filter(o => {
-    const eff = (o.status === 'active' && o.expires_at && new Date(o.expires_at).getTime() <= now) ? 'expired' : o.status
-    return eff === 'expired'
-  }).length
+  const expiredCount   = orders.filter(o => getEffStatus(o) === 'expired').length
 
   const emptyMessage: Record<Tab, React.ReactNode> = {
     active:    <><p className="mb-4">{t.dashboard.noActive}</p><Link href="/orders/new"><Button>{t.dashboard.postFirst}</Button></Link></>,
@@ -260,16 +263,47 @@ export default function DashboardPage() {
 
   const hasAllFilters = !!(allFilterStatus || allFilterContainer || allFilterFrom || allFilterTo || allFilterDate)
 
+  async function exportToExcel() {
+    const { utils, writeFile } = await import('xlsx')
+    const rows = filtered.map(o => ({
+      'Номер заявки': formatOrderNumber(o.order_number || ''),
+      'Статус': getEffStatus(o),
+      'Откуда': o.from_city,
+      'Через': o.via_city || '',
+      'Куда': o.to_city,
+      'Контейнер': CONTAINER_TYPES.find(c => c.value === o.container_type)?.label || o.container_type,
+      'Дата погрузки': o.ready_date,
+      'Ставка': o.is_negotiable ? 'Договорная' : (o.price ? `${o.price} ₽` : ''),
+      'НДС': o.vat_type,
+      'Вес брутто': o.weight_gross || '',
+      'Вес нетто': o.weight_net || '',
+      'Особые условия': o.notes || '',
+      'Создана': new Date(o.created_at).toLocaleDateString('ru-RU'),
+    }))
+    const ws = utils.json_to_sheet(rows)
+    const wb = utils.book_new()
+    utils.book_append_sheet(wb, ws, 'Заявки')
+    writeFile(wb, `zaявки_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
+
   return (
     <AppLayout>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">{t.dashboard.title}</h1>
-        <Link href="/orders/new">
-          <Button size="md">
-            <Plus size={16} className="mr-1" />
-            {t.dashboard.newOrder}
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          {filtered.length > 0 && (
+            <Button variant="secondary" size="md" onClick={exportToExcel}>
+              <Download size={15} className="mr-1" />
+              Excel
+            </Button>
+          )}
+          <Link href="/orders/new">
+            <Button size="md">
+              <Plus size={16} className="mr-1" />
+              {t.dashboard.newOrder}
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -421,11 +455,7 @@ export default function DashboardPage() {
           {filtered.map(order => {
             const unread = unreadMap[order.id] || 0
             const isMatched = order.status === 'matched'
-            const effStatus = (
-              order.status === 'active' &&
-              order.expires_at &&
-              new Date(order.expires_at).getTime() <= now
-            ) ? 'expired' : order.status
+            const effStatus = getEffStatus(order)
             const isExpired = effStatus === 'expired'
 
             return (

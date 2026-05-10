@@ -62,6 +62,8 @@ function NewOrderForm() {
 
   // Трекинг рейса
   const [trackingEnabled, setTrackingEnabled] = useState(false)
+  // Только для контрагентов
+  const [counterpartiesOnly, setCounterpartiesOnly] = useState(false)
 
   // Дополнительные точки маршрута
   const [hasExtraStops, setHasExtraStops] = useState(false)
@@ -161,6 +163,7 @@ function NewOrderForm() {
       weight_net_2:   is20DC2 && weightNet2   ? parseInt(weightNet2)   : null,
       downtime_rate: downtimeRate ? parseInt(downtimeRate) : null,
       tracking_enabled: trackingEnabled,
+      counterparties_only: counterpartiesOnly,
       requires_genset: requiresGenset,
       notes: notes.trim() || null,
       arrival_time: null,
@@ -680,6 +683,22 @@ function NewOrderForm() {
                 <div className="text-sm font-medium text-gray-900">📍 Онлайн-трекинг рейса</div>
                 <div className="text-xs text-gray-500 mt-0.5">
                   Перевозчик будет отмечать этапы поездки (7 шагов), вы увидите статус в реальном времени
+                </div>
+              </div>
+            </label>
+
+            {/* Только для контрагентов */}
+            <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl border border-green-200 bg-green-50/50 hover:bg-green-50 transition-colors">
+              <input
+                type="checkbox"
+                checked={counterpartiesOnly}
+                onChange={e => setCounterpartiesOnly(e.target.checked)}
+                className="w-4 h-4 mt-0.5 rounded border-gray-300 text-green-600"
+              />
+              <div>
+                <div className="text-sm font-medium text-gray-900">👥 Только для моих контрагентов</div>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  Заявку увидят только перевозчики из вашего списка контрагентов
                 </div>
               </div>
             </label>

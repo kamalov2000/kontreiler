@@ -97,6 +97,8 @@ export interface Order {
   tracking_enabled: boolean
   tracking_status: string | null
   tracking_updated_at: string | null
+  // контрагенты
+  counterparties_only: boolean
   // joined
   client?: User
   responses?: Response[]
@@ -195,6 +197,15 @@ export interface Review {
   created_at: string
   reviewer?: User
   reviewee?: User
+}
+
+export interface Counterparty {
+  id: string
+  owner_id: string
+  counterparty_id: string
+  note: string | null
+  created_at: string
+  counterparty?: User
 }
 
 export interface SavedRoute {

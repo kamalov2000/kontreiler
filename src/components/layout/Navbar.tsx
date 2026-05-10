@@ -25,6 +25,7 @@ export function Navbar() {
     ? [
         { href: '/dashboard', label: t.nav.myOrders },
         { href: '/trucks', label: t.nav.findTruck },
+        { href: '/counterparties', label: 'Контрагенты' },
         { href: '/stats', label: t.nav.stats },
       ]
     : isCarrier
@@ -32,6 +33,7 @@ export function Navbar() {
         { href: '/feed', label: t.nav.feed },
         { href: '/my-responses', label: t.nav.myResponses },
         { href: '/my-trucks', label: t.nav.myTrucks },
+        { href: '/counterparties', label: 'Контрагенты' },
         { href: '/stats', label: t.nav.stats },
       ]
     : []

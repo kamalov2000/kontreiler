@@ -72,14 +72,16 @@ export async function middleware(request: NextRequest) {
   // Маршруты доступны обоим ролям
   const isChatRoute = /^\/orders\/[^/]+\/chat/.test(pathname)
     || /^\/trucks\/[^/]+\/chat/.test(pathname)
+  const isTrackingRoute = /^\/orders\/[^/]+\/tracking/.test(pathname)
   const isTruckDetail   = /^\/trucks\/[^/]+$/.test(pathname)
   const isOrderDetail   = /^\/orders\/[^/]+$/.test(pathname)   // детали заявки
 
   if (
     pathname === '/stats' ||
     pathname === '/profile' ||
+    pathname === '/counterparties' ||
     pathname.startsWith('/auctions') ||
-    isChatRoute || isTruckDetail || isOrderDetail
+    isChatRoute || isTrackingRoute || isTruckDetail || isOrderDetail
   ) {
     return supabaseResponse
   }

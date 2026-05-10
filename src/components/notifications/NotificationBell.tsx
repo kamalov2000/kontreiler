@@ -2,22 +2,41 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell } from 'lucide-react'
+import { Bell, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Notification } from '@/types/database'
-import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 const TYPE_LABEL: Record<string, string> = {
-  new_response:       'Новый отклик на заявку',
-  new_message:        'Новое сообщение',
-  new_truck_response: 'Отклик на ваш рейс',
-  new_truck_message:  'Новое сообщение по рейсу',
-  response_accepted:  '✓ Ваш отклик принят!',
-  order_delivered:    '✓ Груз доставлен!',
-  trip_done:          '✓ Рейс выполнен',
-  order_cancelled:    '⚠ Заявка отменена или статус откатан',
+  new_response:       '🔔 Новый отклик на заявку',
+  new_message:        '💬 Новое сообщение в чате',
+  new_truck_response: '🚛 Отклик на ваш рейс',
+  new_truck_message:  '💬 Сообщение по рейсу',
+  response_accepted:  '✅ Ваш отклик принят!',
+  order_delivered:    '✅ Груз доставлен!',
+  trip_done:          '✅ Рейс выполнен',
+  order_cancelled:    '⚠️ Заявка отменена',
+  order_changed:      '✏️ Заявка изменена клиентом',
+  review_request:     '⭐ Оставьте отзыв',
+  auction_won:        '🏆 Вы победили в торгах!',
+  auction_ended:      '🔔 Торги завершены',
+}
+
+function formatNotifDate(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMin < 1) return 'только что'
+  if (diffMin < 60) return `${diffMin} мин назад`
+  if (diffHours < 24) return `${diffHours} ч назад`
+  if (diffDays === 1) return `вчера в ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+  return d.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
 
 export function NotificationBell() {
@@ -26,6 +45,7 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const isFirstLoad = useRef(true)
 
   // Загрузка + Realtime подписка
   useEffect(() => {
@@ -37,8 +57,11 @@ export function NotificationBell() {
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-      .limit(20)
-      .then(({ data }) => setNotifications((data || []) as Notification[]))
+      .limit(50)
+      .then(({ data }) => {
+        setNotifications((data || []) as Notification[])
+        isFirstLoad.current = false
+      })
 
     const channel = supabase
       .channel(`notif-${user.id}`)
@@ -51,7 +74,21 @@ export function NotificationBell() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          setNotifications(prev => [payload.new as Notification, ...prev].slice(0, 20))
+          const notif = payload.new as Notification
+          setNotifications(prev => [notif, ...prev].slice(0, 50))
+
+          // Push-toast при новом уведомлении (если панель закрыта)
+          if (!isFirstLoad.current) {
+            const label = TYPE_LABEL[notif.type] ?? '🔔 Уведомление'
+            toast(label, {
+              description: formatNotifDate(notif.created_at),
+              action: {
+                label: 'Открыть',
+                onClick: () => router.push(notif.link),
+              },
+              duration: 6000,
+            })
+          }
         }
       )
       .on(
@@ -71,7 +108,7 @@ export function NotificationBell() {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [user])
+  }, [user, router])
 
   // Закрытие по клику вне
   useEffect(() => {
@@ -84,6 +121,8 @@ export function NotificationBell() {
   }, [open])
 
   const unreadCount = notifications.filter(n => !n.is_read).length
+  const unreadNotifs = notifications.filter(n => !n.is_read)
+  const readNotifs = notifications.filter(n => n.is_read)
 
   async function handleClick(n: Notification) {
     setOpen(false)
@@ -120,70 +159,107 @@ export function NotificationBell() {
       >
         <Bell size={18} />
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 leading-none">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 leading-none animate-pulse">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-80 bg-white border border-gray-200 rounded-2xl shadow-xl overflow-hidden z-50">
+        <div className="absolute right-0 top-full mt-2 w-96 bg-white border border-gray-200 rounded-2xl shadow-2xl overflow-hidden z-50">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50">
             <span className="font-semibold text-sm text-gray-900">
               Уведомления
               {unreadCount > 0 && (
-                <span className="ml-2 px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 text-xs font-bold">
+                <span className="ml-2 px-2 py-0.5 rounded-full bg-red-500 text-white text-xs font-bold">
                   {unreadCount}
                 </span>
               )}
             </span>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                className="text-xs text-blue-600 hover:underline"
-              >
-                Прочитать все
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="text-xs text-blue-600 hover:underline font-medium"
+                >
+                  Прочитать все
+                </button>
+              )}
+              <button onClick={() => setOpen(false)} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
+                <X size={14} />
               </button>
-            )}
+            </div>
           </div>
 
           {/* List */}
-          <div className="max-h-[360px] overflow-y-auto divide-y divide-gray-50">
+          <div className="max-h-[480px] overflow-y-auto">
             {notifications.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-gray-400 text-sm">
-                <Bell size={28} className="mb-2 opacity-30" />
+              <div className="flex flex-col items-center justify-center py-12 text-gray-400 text-sm">
+                <Bell size={32} className="mb-2 opacity-20" />
                 Нет уведомлений
               </div>
             ) : (
-              notifications.map(n => (
-                <button
-                  key={n.id}
-                  onClick={() => handleClick(n)}
-                  className={cn(
-                    'w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors',
-                    !n.is_read && 'bg-blue-50/60'
-                  )}
-                >
-                  <div className="flex items-start gap-2.5">
-                    {!n.is_read && (
-                      <span className="mt-1.5 w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                    )}
-                    <div className={cn('flex-1 min-w-0', n.is_read && 'pl-4')}>
-                      <div className="text-sm font-medium text-gray-900 leading-snug">
-                        {TYPE_LABEL[n.type] ?? 'Уведомление'}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-0.5">
-                        {formatDateTime(n.created_at)}
-                      </div>
+              <>
+                {/* Непрочитанные */}
+                {unreadNotifs.length > 0 && (
+                  <div>
+                    <div className="px-4 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide bg-blue-50/40 border-b border-blue-50">
+                      Новые
                     </div>
+                    {unreadNotifs.map(n => (
+                      <NotifRow key={n.id} n={n} onClick={() => handleClick(n)} />
+                    ))}
                   </div>
-                </button>
-              ))
+                )}
+                {/* Прочитанные */}
+                {readNotifs.length > 0 && (
+                  <div>
+                    {unreadNotifs.length > 0 && (
+                      <div className="px-4 py-2 text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-50">
+                        Ранее
+                      </div>
+                    )}
+                    {readNotifs.map(n => (
+                      <NotifRow key={n.id} n={n} onClick={() => handleClick(n)} />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
       )}
     </div>
+  )
+}
+
+function NotifRow({ n, onClick }: { n: Notification; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0',
+        !n.is_read && 'bg-blue-50/50'
+      )}
+    >
+      <div className="flex items-start gap-2.5">
+        {!n.is_read && (
+          <span className="mt-1.5 w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+        )}
+        <div className={cn('flex-1 min-w-0', n.is_read && 'pl-4')}>
+          <div className="text-sm font-medium text-gray-900 leading-snug">
+            {TYPE_LABEL[n.type] ?? '🔔 Уведомление'}
+          </div>
+          <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+            <span>{formatNotifDate(n.created_at)}</span>
+            <span className="text-gray-200">·</span>
+            <span className="text-[11px] text-gray-300">
+              {new Date(n.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+        </div>
+      </div>
+    </button>
   )
 }

@@ -46,6 +46,20 @@ function ChatContent() {
     bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' })
   }, [])
 
+  // Задача 11: помечаем new_message уведомления прочитанными при открытии чата
+  useEffect(() => {
+    if (!user || !orderId) return
+    const supabase = createClient()
+    supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', user.id)
+      .eq('type', 'new_message')
+      .like('link', `/orders/${orderId}/chat%`)
+      .eq('is_read', false)
+      .then(() => {})
+  }, [user, orderId])
+
   useEffect(() => {
     if (userLoading || !user) return
     const currentUser = user

@@ -197,7 +197,7 @@ export function OrderCard({ order, showResponses, actions, extra, bidData, stops
         })()}
       </div>
 
-      {/* Пункты 6 + 8: статус + таймер + трекинг в одной строке */}
+      {/* Статус + таймер + трекинг в одной строке */}
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         {showStatusBadge && (
           <span className={cn('px-2.5 py-1 rounded-lg text-xs font-medium shrink-0', statusClass)}>
@@ -210,7 +210,7 @@ export function OrderCard({ order, showResponses, actions, extra, bidData, stops
         {showTimer && order.expires_at && (
           <ExpiryCountdown expiresAt={order.expires_at} />
         )}
-        {/* Трекинг-бейдж */}
+        {/* Трекинг-бейдж: текущий этап */}
         {order.tracking_enabled && order.tracking_status && (() => {
           const idx = getTrackingStepIndex(order.tracking_status)
           const step = TRACKING_STEPS[idx]
@@ -223,6 +223,12 @@ export function OrderCard({ order, showResponses, actions, extra, bidData, stops
         {order.tracking_enabled && !order.tracking_status && ['matched', 'in_transit'].includes(order.status) && (
           <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 text-xs border border-gray-100">
             📍 Трекинг ожидает
+          </span>
+        )}
+        {/* Предупреждение об онлайн трекинге для перевозчика (видно в ленте ещё до принятия) */}
+        {order.tracking_enabled && order.status === 'active' && (
+          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200">
+            📡 Требуется онлайн трекинг
           </span>
         )}
       </div>

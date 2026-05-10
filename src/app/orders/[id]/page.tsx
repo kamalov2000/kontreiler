@@ -6,10 +6,11 @@ import Link from 'next/link'
 import {
   ArrowLeft, Phone, User, ArrowRight, CheckCircle,
   MoreVertical, X, Edit2, Copy, RotateCcw, Ban, Star, Banknote,
-  MapPin, Timer, Zap, Weight, TrendingDown, TrendingUp, FileText,
+  MapPin, Timer, Zap, Weight, TrendingDown, TrendingUp, FileText, Navigation,
 } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderDocuments } from '@/components/orders/OrderDocuments'
+import { TrackingDrawer } from '@/components/orders/TrackingDrawer'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -145,6 +146,9 @@ export default function OrderDetailPage() {
   const [respondOpen, setRespondOpen] = useState(false)
   const [respondMessage, setRespondMessage] = useState('')
   const [respondLoading, setRespondLoading] = useState(false)
+
+  // Tracking drawer
+  const [trackingDrawerOpen, setTrackingDrawerOpen] = useState(false)
 
   const isOwner = user?.id === order?.client_id
 
@@ -335,6 +339,18 @@ export default function OrderDetailPage() {
         weight_net: editWeightNet ? parseInt(editWeightNet) : null,
         expires_at: editExpiresAt ? new Date(editExpiresAt).toISOString() : null,
       } : prev)
+
+      // Задача 8: Уведомить принятого перевозчика об изменении заявки
+      if (order.accepted_carrier_id) {
+        const supabase2 = createClient()
+        await supabase2.from('notifications').insert({
+          user_id: order.accepted_carrier_id,
+          type: 'order_changed',
+          link: `/orders/${order.id}`,
+          is_read: false,
+        })
+      }
+
       setEditOpen(false)
     }
     setSaving(false)
@@ -1010,64 +1026,75 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        {/* Трекинг рейса */}
+        {/* Трекинг рейса — задача 5, 10 */}
         {order.tracking_enabled && (isOwner || user?.id === order.accepted_carrier_id) && ['matched', 'in_transit', 'delivered'].includes(order.status) && (
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5 mb-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className={cn(
+            'border rounded-2xl shadow-sm p-5 mb-6',
+            order.status === 'in_transit' ? 'bg-blue-50 border-blue-200' :
+            order.status === 'delivered' ? 'bg-green-50 border-green-200' :
+            'bg-white border-gray-100'
+          )}>
+            <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <MapPin size={16} className="text-blue-600" />
+                <Navigation size={16} className="text-blue-600" />
                 <span className="font-semibold text-gray-900">Трекинг рейса</span>
-                {order.tracking_status && (
-                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                    {TRACKING_STEPS[getTrackingStepIndex(order.tracking_status)]?.shortLabel}
+                {order.tracking_status ? (
+                  <span className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-full font-semibold">
+                    {TRACKING_STEPS[getTrackingStepIndex(order.tracking_status)]?.shortLabel ?? order.tracking_status}
                   </span>
-                )}
+                ) : order.status === 'matched' ? (
+                  <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-medium">Ожидает старта</span>
+                ) : null}
               </div>
-              <Link
-                href={`/orders/${order.id}/tracking`}
-                className="text-sm text-blue-600 hover:underline font-medium flex items-center gap-1"
+              <button
+                onClick={() => setTrackingDrawerOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
               >
-                Открыть трекинг →
-              </Link>
+                <Navigation size={14} />
+                {user?.id === order.accepted_carrier_id && !order.tracking_status && order.status === 'matched'
+                  ? '🚛 Начать рейс'
+                  : 'Трекинг'}
+              </button>
             </div>
 
             {/* Mini-timeline */}
             {order.tracking_status ? (
-              <div className="flex items-center gap-1 overflow-x-auto pb-1">
-                {TRACKING_STEPS.map((step, idx) => {
-                  const currentIdx = getTrackingStepIndex(order.tracking_status)
-                  const isDone = currentIdx >= idx
-                  const isCurrent = currentIdx === idx
-                  return (
-                    <div key={step.value} className="flex items-center gap-1 shrink-0">
-                      <div className={cn(
-                        'w-7 h-7 rounded-full flex items-center justify-center text-xs border-2 transition-all',
-                        isDone && !isCurrent ? 'bg-blue-600 border-blue-600 text-white' :
-                        isCurrent ? 'bg-white border-blue-600 ring-2 ring-blue-100 text-blue-700' :
-                        'bg-white border-gray-200 text-gray-300'
-                      )} title={step.label}>
-                        {isDone && !isCurrent ? '✓' : isCurrent ? <span>{step.icon}</span> : <span className="text-[9px]">{idx + 1}</span>}
+              <>
+                <div className="flex items-center gap-1 overflow-x-auto pb-1 mb-2">
+                  {TRACKING_STEPS.map((step, idx) => {
+                    const currentIdx = getTrackingStepIndex(order.tracking_status)
+                    const isDone = currentIdx >= idx
+                    const isCurrent = currentIdx === idx
+                    return (
+                      <div key={step.value} className="flex items-center gap-1 shrink-0">
+                        <div className={cn(
+                          'w-7 h-7 rounded-full flex items-center justify-center text-xs border-2 transition-all',
+                          isDone && !isCurrent ? 'bg-blue-600 border-blue-600 text-white' :
+                          isCurrent ? 'bg-white border-blue-600 ring-2 ring-blue-100 text-blue-700' :
+                          'bg-white border-gray-200 text-gray-300'
+                        )} title={step.label}>
+                          {isDone && !isCurrent ? '✓' : isCurrent ? <span>{step.icon}</span> : <span className="text-[9px]">{idx + 1}</span>}
+                        </div>
+                        {idx < TRACKING_STEPS.length - 1 && (
+                          <div className={cn('w-3 h-0.5', isDone ? 'bg-blue-400' : 'bg-gray-200')} />
+                        )}
                       </div>
-                      {idx < TRACKING_STEPS.length - 1 && (
-                        <div className={cn('w-3 h-0.5', isDone ? 'bg-blue-400' : 'bg-gray-200')} />
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+                    )
+                  })}
+                </div>
+                {order.tracking_updated_at && (
+                  <div className="text-xs text-gray-400">
+                    Обновлено: {formatDateTime(order.tracking_updated_at)}
+                  </div>
+                )}
+              </>
             ) : order.status === 'matched' ? (
-              <p className="text-sm text-gray-400">
+              <p className="text-sm text-gray-500">
                 {user?.id === order.accepted_carrier_id
-                  ? '👆 Откройте трекинг и нажмите «Начать рейс»'
+                  ? '👆 Нажмите «Начать рейс» чтобы запустить трекинг'
                   : 'Ожидаем начала рейса от перевозчика...'}
               </p>
             ) : null}
-
-            {order.tracking_updated_at && order.tracking_status && (
-              <div className="mt-2 text-xs text-gray-400">
-                Обновлено: {formatDateTime(order.tracking_updated_at)}
-              </div>
-            )}
           </div>
         )}
 
@@ -1440,6 +1467,18 @@ export default function OrderDetailPage() {
           </div>
         </div>
       )}
+      {/* Tracking Drawer — задача 5 */}
+      {order.tracking_enabled && (
+        <TrackingDrawer
+          open={trackingDrawerOpen}
+          onClose={() => setTrackingDrawerOpen(false)}
+          order={order}
+          isAcceptedCarrier={user?.id === order.accepted_carrier_id}
+          isOwner={isOwner}
+          onOrderUpdate={(updates) => setOrder(prev => prev ? { ...prev, ...updates } : prev)}
+        />
+      )}
+
       {/* Respond modal for carrier */}
       {respondOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">

@@ -72,6 +72,8 @@ function FeedContent() {
   const [message, setMessage] = useState('')
   const [responding, setResponding] = useState(false)
   const [myResponses, setMyResponses] = useState<Set<string>>(new Set())
+  // Клиенты, у которых этот перевозчик в контрагентах
+  const [myClientCounterparties, setMyClientCounterparties] = useState<Set<string>>(new Set())
   const [showFilters, setShowFilters] = useState(false)
   const [numberSearch, setNumberSearch] = useState('')
   const [clientRatings, setClientRatings] = useState<Record<string, { avg: number; count: number }>>({})
@@ -113,11 +115,18 @@ function FeedContent() {
     if (typeFilter) query = query.eq('container_type', typeFilter)
 
     const { data } = await query
-    // Фильтруем просроченные по времени (на случай если cron ещё не обработал)
+    // Фильтруем просроченные по времени (expires_at и ready_date)
     const now = Date.now()
-    const loaded = ((data || []) as Order[]).filter(o =>
-      !o.expires_at || new Date(o.expires_at).getTime() > now
-    )
+    const loaded = ((data || []) as Order[]).filter(o => {
+      if (o.expires_at && new Date(o.expires_at).getTime() <= now) return false
+      // Также скрываем заявки с прошедшей датой погрузки/выгрузки
+      if (o.ready_date) {
+        const endOfReadyDay = new Date(o.ready_date)
+        endOfReadyDay.setDate(endOfReadyDay.getDate() + 1)
+        if (endOfReadyDay.getTime() <= now) return false
+      }
+      return true
+    })
     setOrders(loaded)
     setLoading(false)
 
@@ -178,6 +187,15 @@ function FeedContent() {
     if (user) {
       fetchMyResponses()
       fetchSavedRoutes()
+      // Загружаем клиентов у которых мы в контрагентах
+      const supabase = createClient()
+      supabase
+        .from('counterparties')
+        .select('owner_id')
+        .eq('counterparty_id', user.id)
+        .then(({ data }) => {
+          if (data) setMyClientCounterparties(new Set(data.map((d: { owner_id: string }) => d.owner_id)))
+        })
     }
   }, [fetchOrders, fetchMyResponses, fetchSavedRoutes, user])
 
@@ -351,11 +369,22 @@ function FeedContent() {
       ) : (
         <div className="space-y-4">
           {orders
-            .filter(o => matchesOrderSearch(o, numberSearch))
+            .filter(o => {
+              // Скрываем заявки "только для контрагентов" если не являемся контрагентом
+              if (o.counterparties_only && !myClientCounterparties.has(o.client_id)) return false
+              return matchesOrderSearch(o, numberSearch)
+            })
             .map(order => {
             const alreadyResponded = myResponses.has(order.id)
             const clientRating = clientRatings[order.client_id]
+            const isCounterpartyOrder = myClientCounterparties.has(order.client_id)
             return (
+              <div key={order.id} className={isCounterpartyOrder ? 'ring-2 ring-green-400 rounded-2xl' : ''}>
+              {isCounterpartyOrder && (
+                <div className="bg-green-500 text-white text-xs font-semibold px-3 py-1 rounded-t-2xl flex items-center gap-1.5">
+                  ✅ Ваш контрагент — приоритетная заявка
+                </div>
+              )}
               <OrderCard
                 key={order.id}
                 order={order}
@@ -381,6 +410,7 @@ function FeedContent() {
                   </>
                 }
               />
+              </div>
             )
           })}
         </div>
