@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, X, Filter, Download } from 'lucide-react'
+import { Plus, Search, X, Filter, Download, Upload } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderCard } from '@/components/orders/OrderCard'
+import { OrderImportModal } from '@/components/orders/OrderImportModal'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { createClient } from '@/lib/supabase/client'
@@ -87,6 +88,7 @@ export default function DashboardPage() {
   const [unreadMap, setUnreadMap] = useState<Record<string, number>>({})
   const [search, setSearch] = useState('')
   const [stopOrders, setStopOrders] = useState<Set<string>>(new Set())
+  const [importOpen, setImportOpen] = useState(false)
 
   // Фильтры вкладки "Все заявки"
   const [allFilterStatus, setAllFilterStatus] = useState('')
@@ -297,6 +299,10 @@ export default function DashboardPage() {
               Excel
             </Button>
           )}
+          <Button variant="secondary" size="md" onClick={() => setImportOpen(true)}>
+            <Upload size={15} className="mr-1" />
+            Импорт
+          </Button>
           <Link href="/orders/new">
             <Button size="md">
               <Plus size={16} className="mr-1" />
@@ -514,6 +520,15 @@ export default function DashboardPage() {
             )
           })}
         </div>
+      )}
+
+      {user && (
+        <OrderImportModal
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          userId={user.id}
+          onImported={fetchOrders}
+        />
       )}
     </AppLayout>
   )

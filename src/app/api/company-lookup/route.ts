@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
 const STUB = {
   name: 'ООО «Пример Компания»',
@@ -13,6 +14,13 @@ const STUB = {
 }
 
 export async function GET(req: Request) {
+  // Только для авторизованных — иначе внешний ключ DaData можно расходовать анонимно
+  const supabaseAuth = await createClient()
+  const { data: { user } } = await supabaseAuth.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 })
+  }
+
   const { searchParams } = new URL(req.url)
   const inn = searchParams.get('inn')?.trim()
 

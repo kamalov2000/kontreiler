@@ -27,6 +27,9 @@ CREATE TRIGGER on_auth_user_created
 
 -- INSERT policy — fallback для случая когда триггер отработал без данных
 -- и фронт делает повторный upsert
+-- (policy уже создаётся в init.sql — пересоздаём идемпотентно, чтобы миграции
+--  реплеились с нуля через `supabase db reset`)
+DROP POLICY IF EXISTS "Users can insert own profile" ON users;
 CREATE POLICY "Users can insert own profile"
   ON users FOR INSERT
   WITH CHECK (auth.uid() = id);

@@ -57,11 +57,19 @@ function TruckChatContent() {
       let resolvedClientId: string | null = null
 
       if (isCarrier) {
-        // Перевозчик: берём client из ?client= или из первого отклика
+        // Перевозчик: берём client из ?client= (только если этот клиент реально
+        // откликнулся на рейс) либо из первого отклика
         const paramClient = searchParams.get('client')
         if (paramClient) {
-          resolvedClientId = paramClient
-        } else {
+          const { data: respCheck } = await supabase
+            .from('truck_responses')
+            .select('client_id')
+            .eq('truck_id', truckId)
+            .eq('client_id', paramClient)
+            .maybeSingle()
+          if (respCheck) resolvedClientId = respCheck.client_id
+        }
+        if (!resolvedClientId) {
           // maybeSingle — не бросает 406 если нет откликов
           const { data: firstResp } = await supabase
             .from('truck_responses')

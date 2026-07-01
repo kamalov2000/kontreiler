@@ -81,12 +81,14 @@ export function NotificationBell() {
           if (!isFirstLoad.current) {
             const label = TYPE_LABEL[notif.type] ?? '🔔 Уведомление'
             toast(label, {
-              description: formatNotifDate(notif.created_at),
+              description: notif.message
+                ? `${notif.message}\n${formatNotifDate(notif.created_at)}`
+                : formatNotifDate(notif.created_at),
               action: {
                 label: 'Открыть',
                 onClick: () => router.push(notif.link),
               },
-              duration: 6000,
+              duration: notif.message ? 10000 : 6000,
             })
           }
         }
@@ -251,6 +253,11 @@ function NotifRow({ n, onClick }: { n: Notification; onClick: () => void }) {
           <div className="text-sm font-medium text-gray-900 leading-snug">
             {TYPE_LABEL[n.type] ?? '🔔 Уведомление'}
           </div>
+          {n.message && (
+            <div className="text-xs text-gray-600 mt-1 whitespace-pre-line bg-gray-50 rounded-lg px-2 py-1.5 border border-gray-100">
+              {n.message}
+            </div>
+          )}
           <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
             <span>{formatNotifDate(n.created_at)}</span>
             <span className="text-gray-200">·</span>

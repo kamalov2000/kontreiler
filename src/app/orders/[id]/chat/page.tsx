@@ -46,19 +46,10 @@ function ChatContent() {
     bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' })
   }, [])
 
-  // Задача 11: помечаем new_message уведомления прочитанными при открытии чата
-  useEffect(() => {
-    if (!user || !orderId) return
-    const supabase = createClient()
-    supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('user_id', user.id)
-      .eq('type', 'new_message')
-      .like('link', `/orders/${orderId}/chat%`)
-      .eq('is_read', false)
-      .then(() => {})
-  }, [user, orderId])
+  // Задача 11: уведомление о новом сообщении в чате НЕ гасится при открытии чата.
+  // Оно остаётся до тех пор, пока пользователь не откроет колокольчик и не нажмёт
+  // на это уведомление (обрабатывается в NotificationBell). Поэтому здесь мы
+  // намеренно не помечаем new_message уведомления прочитанными.
 
   useEffect(() => {
     if (userLoading || !user) return
@@ -84,11 +75,19 @@ function ChatContent() {
       let resolvedCarrierId: string | null = null
 
       if (isClient) {
-        // Клиент: carrier берём из ?carrier= параметра
+        // Клиент: carrier берём из ?carrier= (только если этот перевозчик реально
+        // откликнулся на заявку) либо из первого отклика
         const paramCarrier = searchParams.get('carrier')
         if (paramCarrier) {
-          resolvedCarrierId = paramCarrier
-        } else {
+          const { data: respCheck } = await supabase
+            .from('responses')
+            .select('carrier_id')
+            .eq('order_id', orderId)
+            .eq('carrier_id', paramCarrier)
+            .maybeSingle()
+          if (respCheck) resolvedCarrierId = respCheck.carrier_id
+        }
+        if (!resolvedCarrierId) {
           // Fallback: первый откликнувшийся
           const { data: firstResp } = await supabase
             .from('responses')
@@ -96,7 +95,7 @@ function ChatContent() {
             .eq('order_id', orderId)
             .order('created_at', { ascending: true })
             .limit(1)
-            .single()
+            .maybeSingle()
           if (firstResp) {
             resolvedCarrierId = firstResp.carrier_id
           }

@@ -123,6 +123,7 @@ export type NotificationType =
   | 'response_accepted'
   | 'order_delivered' | 'trip_done'
   | 'order_cancelled'
+  | 'order_changed'
   | 'review_request'
   | 'auction_won' | 'auction_ended'
 
@@ -133,6 +134,8 @@ export interface Notification {
   link: string
   is_read: boolean
   created_at: string
+  // Задача 8: текст-описание (детали корректировки заявки), может отсутствовать
+  message?: string | null
 }
 
 export interface OrderStop {

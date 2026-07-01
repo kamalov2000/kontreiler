@@ -1,11 +1,24 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
 /**
  * GET /api/test-email?to=email@example.com
  * Тестирует Resend интеграцию — отправляет письмо.
- * Только для dev/проверки, в production скрыть или удалить.
+ * Доступно только в dev-окружении и только авторизованному пользователю,
+ * иначе эндпоинт можно использовать для рассылки писем с вашего домена.
  */
 export async function GET(req: Request) {
+  // В проде эндпоинт отключён — не раскрываем его существование
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Необходима авторизация' }, { status: 401 })
+  }
+
   const { searchParams } = new URL(req.url)
   const to = searchParams.get('to')
 

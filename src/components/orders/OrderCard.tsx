@@ -210,19 +210,19 @@ export function OrderCard({ order, showResponses, actions, extra, bidData, stops
         {showTimer && order.expires_at && (
           <ExpiryCountdown expiresAt={order.expires_at} />
         )}
-        {/* Трекинг-бейдж: текущий этап */}
+        {/* Задача 10: статус рейса (трекинг) — заметно, «с первого взгляда» */}
         {order.tracking_enabled && order.tracking_status && (() => {
           const idx = getTrackingStepIndex(order.tracking_status)
           const step = TRACKING_STEPS[idx]
           return step ? (
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
-              📍 {step.shortLabel}
+            <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 text-white text-xs font-semibold shadow-sm">
+              🚚 Рейс: {step.shortLabel}
             </span>
           ) : null
         })()}
         {order.tracking_enabled && !order.tracking_status && ['matched', 'in_transit'].includes(order.status) && (
-          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 text-xs border border-gray-100">
-            📍 Трекинг ожидает
+          <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-gray-200 text-gray-700 text-xs font-semibold border border-gray-300">
+            ⏸ Рейс не в пути
           </span>
         )}
         {/* Предупреждение об онлайн трекинге для перевозчика (видно в ленте ещё до принятия) */}

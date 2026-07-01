@@ -39,16 +39,18 @@ export default function CounterpartiesPage() {
   }
 
   async function searchUser() {
-    if (!searchEmail.trim()) return
+    // Экранируем спецсимволы PostgREST-фильтра (,()\) чтобы значение поиска
+    // нельзя было использовать для инъекции дополнительных условий в .or()
+    const term = searchEmail.trim().replace(/[(),\\]/g, ' ').trim()
+    if (!term) return
     setSearching(true)
     setSearchResult(null)
     const supabase = createClient()
-    // Ищем по email через auth (нам доступен только users table по условию)
     // Ищем по имени компании или имени пользователя
     const { data } = await supabase
       .from('users')
       .select('id, name, company_name, role, city, inn')
-      .or(`company_name.ilike.%${searchEmail}%,name.ilike.%${searchEmail}%`)
+      .or(`company_name.ilike.%${term}%,name.ilike.%${term}%`)
       .neq('id', user!.id)
       .limit(5)
     setSearching(false)

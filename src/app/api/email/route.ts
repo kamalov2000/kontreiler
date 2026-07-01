@@ -5,6 +5,19 @@ import { sendEmail } from '@/lib/email'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://kontreiler.vercel.app'
+
+// Экранируем пользовательские данные перед вставкой в HTML письма
+// (имена/города — свободный ввод, иначе возможна инъекция разметки/фишинг)
+function esc(v: unknown): string {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 export async function POST(req: Request) {
   try {
     const supabaseAuth = await createClient()
@@ -20,10 +33,12 @@ export async function POST(req: Request) {
     if (type === 'new_response') {
       const { orderId, carrierId } = body
       if (!UUID_RE.test(orderId) || !UUID_RE.test(carrierId)) return NextResponse.json({ ok: true })
+      // Уведомление инициирует сам перевозчик — он и должен быть вызывающим
+      if (authUser.id !== carrierId) return NextResponse.json({ ok: true })
 
       const { data: order } = await supabase
         .from('orders')
-        .select('*, client:users!client_id(name, phone, id)')
+        .select('from_city, to_city, client:users!client_id(id)')
         .eq('id', orderId)
         .single()
       const { data: carrier } = await supabase
@@ -38,8 +53,8 @@ export async function POST(req: Request) {
         await sendEmail({
           to: clientAuth.user.email,
           subject: `Новый отклик на заявку ${order.from_city} → ${order.to_city}`,
-          html: `<p>Перевозчик <strong>${carrier.name}</strong> откликнулся на вашу заявку <strong>${order.from_city} → ${order.to_city}</strong>.</p>
-                 <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://kontreiler.vercel.app'}/orders/${orderId}">Открыть заявку →</a></p>`,
+          html: `<p>Перевозчик <strong>${esc(carrier.name)}</strong> откликнулся на вашу заявку <strong>${esc(order.from_city)} → ${esc(order.to_city)}</strong>.</p>
+                 <p><a href="${APP_URL}/orders/${orderId}">Открыть заявку →</a></p>`,
         })
       }
     }
@@ -49,15 +64,18 @@ export async function POST(req: Request) {
       if (!UUID_RE.test(orderId) || !UUID_RE.test(carrierId)) return NextResponse.json({ ok: true })
 
       const { data: order } = await supabase
-        .from('orders').select('from_city, to_city').eq('id', orderId).single()
+        .from('orders').select('from_city, to_city, client_id').eq('id', orderId).single()
+      // Принимает отклик только владелец заявки
+      if (!order || order.client_id !== authUser.id) return NextResponse.json({ ok: true })
+
       const { data: carrierAuth } = await supabase.auth.admin.getUserById(carrierId)
 
-      if (order && carrierAuth?.user?.email) {
+      if (carrierAuth?.user?.email) {
         await sendEmail({
           to: carrierAuth.user.email,
           subject: `Ваш отклик принят: ${order.from_city} → ${order.to_city}`,
-          html: `<p>Клиент принял ваш отклик на заявку <strong>${order.from_city} → ${order.to_city}</strong>.</p>
-                 <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://kontreiler.vercel.app'}/orders/${orderId}">Перейти к заявке →</a></p>`,
+          html: `<p>Клиент принял ваш отклик на заявку <strong>${esc(order.from_city)} → ${esc(order.to_city)}</strong>.</p>
+                 <p><a href="${APP_URL}/orders/${orderId}">Перейти к заявке →</a></p>`,
         })
       }
     }
@@ -67,6 +85,8 @@ export async function POST(req: Request) {
       if (!UUID_RE.test(orderId) || !UUID_RE.test(senderId) || !UUID_RE.test(recipientId)) {
         return NextResponse.json({ ok: true })
       }
+      // Письмо о сообщении инициирует его отправитель
+      if (authUser.id !== senderId) return NextResponse.json({ ok: true })
 
       const { data: recipient } = await supabase
         .from('users').select('name, last_seen_at').eq('id', recipientId).single()
@@ -85,8 +105,8 @@ export async function POST(req: Request) {
         await sendEmail({
           to: recipientAuth.user.email,
           subject: `Новое сообщение в чате: ${order.from_city} → ${order.to_city}`,
-          html: `<p><strong>${sender.name}</strong> написал вам в чате по заявке <strong>${order.from_city} → ${order.to_city}</strong>.</p>
-                 <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://kontreiler.vercel.app'}/orders/${orderId}/chat">Открыть чат →</a></p>`,
+          html: `<p><strong>${esc(sender.name)}</strong> написал вам в чате по заявке <strong>${esc(order.from_city)} → ${esc(order.to_city)}</strong>.</p>
+                 <p><a href="${APP_URL}/orders/${orderId}/chat">Открыть чат →</a></p>`,
         })
       }
     }
@@ -96,15 +116,18 @@ export async function POST(req: Request) {
       if (!UUID_RE.test(orderId) || !UUID_RE.test(carrierId)) return NextResponse.json({ ok: true })
 
       const { data: order } = await supabase
-        .from('orders').select('from_city, to_city').eq('id', orderId).single()
+        .from('orders').select('from_city, to_city, client_id').eq('id', orderId).single()
+      // Статус меняет только владелец заявки
+      if (!order || order.client_id !== authUser.id) return NextResponse.json({ ok: true })
+
       const { data: carrierAuth } = await supabase.auth.admin.getUserById(carrierId)
 
-      if (order && carrierAuth?.user?.email) {
+      if (carrierAuth?.user?.email) {
         await sendEmail({
           to: carrierAuth.user.email,
           subject: `Рейс завершён: ${order.from_city} → ${order.to_city}`,
-          html: `<p>Клиент подтвердил доставку по заявке <strong>${order.from_city} → ${order.to_city}</strong>. Рейс завершён.</p>
-                 <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://kontreiler.vercel.app'}/orders/${orderId}">Открыть заявку →</a></p>`,
+          html: `<p>Клиент подтвердил доставку по заявке <strong>${esc(order.from_city)} → ${esc(order.to_city)}</strong>. Рейс завершён.</p>
+                 <p><a href="${APP_URL}/orders/${orderId}">Открыть заявку →</a></p>`,
         })
       }
     }
@@ -114,14 +137,17 @@ export async function POST(req: Request) {
       if (!UUID_RE.test(orderId) || !UUID_RE.test(carrierId)) return NextResponse.json({ ok: true })
 
       const { data: order } = await supabase
-        .from('orders').select('from_city, to_city').eq('id', orderId).single()
+        .from('orders').select('from_city, to_city, client_id').eq('id', orderId).single()
+      // Отменяет заявку только её владелец
+      if (!order || order.client_id !== authUser.id) return NextResponse.json({ ok: true })
+
       const { data: carrierAuth } = await supabase.auth.admin.getUserById(carrierId)
 
-      if (order && carrierAuth?.user?.email) {
+      if (carrierAuth?.user?.email) {
         await sendEmail({
           to: carrierAuth.user.email,
           subject: `Заявка отменена: ${order.from_city} → ${order.to_city}`,
-          html: `<p>Клиент отменил заявку <strong>${order.from_city} → ${order.to_city}</strong>, на которую вы откликались.</p>`,
+          html: `<p>Клиент отменил заявку <strong>${esc(order.from_city)} → ${esc(order.to_city)}</strong>, на которую вы откликались.</p>`,
         })
       }
     }

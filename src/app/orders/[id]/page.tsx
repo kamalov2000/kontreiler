@@ -26,16 +26,16 @@ import { toast } from 'sonner'
 import { ORDER_STATUS_CLASS } from '@/lib/status'
 import { cn } from '@/lib/utils'
 
+// Задача 8: после статуса "Доставлено" любые изменения запрещены —
+// поэтому откат из delivered недоступен.
 const PREV_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   matched:    'active',
   in_transit: 'matched',
-  delivered:  'in_transit',
 }
 
 const REVERT_LABEL: Partial<Record<OrderStatus, string>> = {
   matched:    '← Вернуть: "Новая"',
   in_transit: '← Вернуть: "Перевозчик найден"',
-  delivered:  '← Вернуть: "В пути"',
 }
 
 function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
@@ -268,8 +268,54 @@ export default function OrderDetailPage() {
     setMenuOpen(false)
   }
 
+  // Задача 8: человекочитаемый список корректировок для уведомления перевозчику
+  function buildChangeSummary(): string[] {
+    if (!order) return []
+    const changes: string[] = []
+    const priceLabel = (price: number | null, negotiable: boolean) =>
+      negotiable ? 'Договорная' : (price ? `${price.toLocaleString('ru-RU')} ₽` : '—')
+    const containerName = (v: string) => CONTAINER_TYPES.find(c => c.value === v)?.label || v
+
+    if (editFrom !== order.from_city) changes.push(`Откуда: «${order.from_city}» → «${editFrom}»`)
+    if ((editVia || '') !== (order.via_city || '')) changes.push(`Промежуточная точка: «${order.via_city || '—'}» → «${editVia || '—'}»`)
+    if (editTo !== order.to_city) changes.push(`Куда: «${order.to_city}» → «${editTo}»`)
+    if (editContainer !== order.container_type) changes.push(`Контейнер: «${containerName(order.container_type)}» → «${containerName(editContainer)}»`)
+    if (editDate !== order.ready_date) changes.push(`Плановая дата: ${order.ready_date} → ${editDate}`)
+    if ((editReadyTime || '') !== (order.ready_time || '')) changes.push(`Время: «${order.ready_time || '—'}» → «${editReadyTime || '—'}»`)
+
+    const newPrice = editNegotiable ? null : (parseInt(editPrice) || null)
+    if (newPrice !== order.price || editNegotiable !== order.is_negotiable) {
+      changes.push(`Ставка: ${priceLabel(order.price, order.is_negotiable)} → ${priceLabel(newPrice, editNegotiable)}`)
+    }
+    if (editVatType !== (order.vat_type || 'none')) changes.push(`НДС: ${order.vat_type || 'none'} → ${editVatType}`)
+    if (editUrgent !== order.is_urgent) changes.push(editUrgent ? 'Отмечена как срочная' : 'Снята отметка «срочная»')
+    if (editGenset !== order.requires_genset) changes.push(editGenset ? 'Добавлено требование Genset' : 'Снято требование Genset')
+
+    const newGross = editWeightGross ? parseInt(editWeightGross) : null
+    const newNet = editWeightNet ? parseInt(editWeightNet) : null
+    if (newGross !== order.weight_gross) changes.push(`Вес брутто: ${order.weight_gross ?? '—'} → ${newGross ?? '—'} кг`)
+    if (newNet !== order.weight_net) changes.push(`Вес нетто: ${order.weight_net ?? '—'} → ${newNet ?? '—'} кг`)
+
+    const newExpires = editExpiresAt ? new Date(editExpiresAt).toISOString() : null
+    if (newExpires !== order.expires_at) changes.push('Изменён срок действия заявки')
+    if ((editNotes.trim() || null) !== (order.notes || null)) changes.push('Изменены особые условия')
+
+    const oldStops = stops.map(s => `${s.address}|${s.comment || ''}`).join('§')
+    const newStops = editStops.filter(s => s.address.trim()).map(s => `${s.address.trim()}|${s.comment.trim()}`).join('§')
+    if (oldStops !== newStops) changes.push('Изменены дополнительные точки маршрута')
+
+    return changes
+  }
+
   async function saveEdit() {
     if (!order) return
+    // Задача 8: запрет любых изменений после статуса «Доставлено»
+    if (['delivered', 'closed', 'cancelled'].includes(order.status)) {
+      toast.error('Заявку в этом статусе изменить нельзя')
+      setEditOpen(false)
+      return
+    }
+    const changeSummary = buildChangeSummary()
     setSaving(true)
     const supabase = createClient()
     const { error } = await supabase
@@ -340,15 +386,17 @@ export default function OrderDetailPage() {
         expires_at: editExpiresAt ? new Date(editExpiresAt).toISOString() : null,
       } : prev)
 
-      // Задача 8: Уведомить принятого перевозчика об изменении заявки
-      if (order.accepted_carrier_id) {
-        const supabase2 = createClient()
-        await supabase2.from('notifications').insert({
-          user_id: order.accepted_carrier_id,
-          type: 'order_changed',
-          link: `/orders/${order.id}`,
-          is_read: false,
-        })
+      // Задача 8: Уведомить перевозчика(ов) о корректировке заявки с деталями.
+      // Вставку уведомлений делает сервер (service_role) — таблица notifications
+      // защищена RLS и не принимает клиентский INSERT.
+      if (changeSummary.length > 0) {
+        const numLabel = order.order_number ? formatOrderNumber(order.order_number) : order.id.slice(0, 8)
+        const message = `Клиент скорректировал заявку ${numLabel}:\n• ${changeSummary.join('\n• ')}`
+        fetch('/api/orders/notify-change', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: order.id, message }),
+        }).catch(() => {})
       }
 
       setEditOpen(false)
@@ -628,7 +676,9 @@ export default function OrderDetailPage() {
   const canRevert = isOwner && !!PREV_STATUS[order.status]
   const canReopen = isOwner && (order.status === 'closed' || order.status === 'cancelled' || order.status === 'expired')
   const canCancel = isOwner && ['active', 'matched', 'in_transit'].includes(order.status)
-  const canEdit   = isOwner && order.status === 'active'
+  // Задача 8: правки разрешены до «Доставлено» включительно (active/matched/in_transit),
+  // после доставки/закрытия/отмены — запрещены
+  const canEdit   = isOwner && ['active', 'matched', 'in_transit'].includes(order.status)
   const today     = new Date().toISOString().split('T')[0]
 
   const vatLabel = order.vat_type === 'vat20' ? 'с НДС 22%'
@@ -1043,7 +1093,7 @@ export default function OrderDetailPage() {
                     {TRACKING_STEPS[getTrackingStepIndex(order.tracking_status)]?.shortLabel ?? order.tracking_status}
                   </span>
                 ) : order.status === 'matched' ? (
-                  <span className="text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-medium">Ожидает старта</span>
+                  <span className="text-xs bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full font-semibold">⏸ Не в пути</span>
                 ) : null}
               </div>
               <button
