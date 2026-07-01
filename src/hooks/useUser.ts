@@ -29,6 +29,12 @@ export function useUser() {
         .eq('id', authUser.id)
         .single()
 
+      // Свой телефон закрыт column-level RLS в общей выборке — берём через RPC
+      if (data) {
+        const { data: ownPhone } = await supabase.rpc('get_own_phone')
+        if (typeof ownPhone === 'string') data.phone = ownPhone
+      }
+
       setUser(data)
       setLoading(false)
     }

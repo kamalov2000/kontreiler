@@ -7,7 +7,8 @@ import { ArrowLeft, Send, ArrowRight } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Truck, TruckMessage, User } from '@/types/database'
-import { formatDateTime, maskPhone, formatPhone } from '@/lib/utils'
+import { formatDateTime } from '@/lib/utils'
+import { RevealPhone } from '@/components/ui/RevealPhone'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { cn } from '@/lib/utils'
 
@@ -24,7 +25,6 @@ function TruckChatContent() {
   const [sending, setSending] = useState(false)
   const [accessDenied, setAccessDenied] = useState(false)
   const [chatClientId, setChatClientId] = useState<string | null>(null)
-  const [phoneRevealed, setPhoneRevealed] = useState(false)
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -269,22 +269,10 @@ function TruckChatContent() {
               {truck?.to_city}
             </div>
             {otherParty && (
-              <div className="text-xs text-gray-500">
-                Чат с {otherParty.name}
-                {otherParty.phone && (
-                  phoneRevealed ? (
-                    <a href={`tel:${otherParty.phone}`} className="ml-2 text-blue-600 hover:underline">
-                      {formatPhone(otherParty.phone)}
-                    </a>
-                  ) : (
-                    <button
-                      onClick={() => setPhoneRevealed(true)}
-                      className="ml-2 text-blue-600 hover:underline"
-                    >
-                      {maskPhone(otherParty.phone)}
-                    </button>
-                  )
-                )}
+              <div className="text-xs text-gray-500 flex items-center gap-1 flex-wrap">
+                <span>Чат с {otherParty.name}</span>
+                <RevealPhone kind="truck" id={truckId} targetUserId={otherParty.id}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium" />
               </div>
             )}
           </div>

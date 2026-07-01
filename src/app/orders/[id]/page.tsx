@@ -4,13 +4,14 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, Phone, User, ArrowRight, CheckCircle,
+  ArrowLeft, User, ArrowRight, CheckCircle,
   MoreVertical, X, Edit2, Copy, RotateCcw, Ban, Star, Banknote,
   MapPin, Timer, Zap, Weight, TrendingDown, TrendingUp, FileText, Navigation,
 } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderDocuments } from '@/components/orders/OrderDocuments'
 import { TrackingDrawer } from '@/components/orders/TrackingDrawer'
+import { RevealPhone } from '@/components/ui/RevealPhone'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -19,7 +20,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop } from '@/types/database'
-import { formatDateWithTime, formatDateTime, formatPrice, formatPhone, maskPhone, formatOrderNumber, readyDateBadge } from '@/lib/utils'
+import { formatDateWithTime, formatDateTime, formatPrice, formatOrderNumber, readyDateBadge } from '@/lib/utils'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT, CONTAINER_UNIT_TARE } from '@/lib/cities'
 import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
 import { toast } from 'sonner'
@@ -124,8 +125,6 @@ export default function OrderDetailPage() {
   const [pendingCarrierId, setPendingCarrierId] = useState<string | null>(null)
   const [agreedPriceInput, setAgreedPriceInput] = useState('')
 
-  const [carrierPhoneRevealed, setCarrierPhoneRevealed] = useState(false)
-  const [revealedResponsePhones, setRevealedResponsePhones] = useState<Set<string>>(new Set())
   const [showReviewModal, setShowReviewModal] = useState(false)
 
   const [reviewRating, setReviewRating] = useState(0)
@@ -1039,23 +1038,7 @@ export default function OrderDetailPage() {
               <div className="text-sm text-gray-500">{acceptedResponse.carrier.city}</div>
             )}
             <div className="mt-3 flex gap-2 flex-wrap">
-              {acceptedResponse.carrier?.phone && (
-                carrierPhoneRevealed ? (
-                  <a
-                    href={`tel:${acceptedResponse.carrier.phone}`}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
-                  >
-                    <Phone size={14} /> {formatPhone(acceptedResponse.carrier.phone)}
-                  </a>
-                ) : (
-                  <button
-                    onClick={() => setCarrierPhoneRevealed(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
-                  >
-                    <Phone size={14} /> {maskPhone(acceptedResponse.carrier.phone)}
-                  </button>
-                )
-              )}
+              <RevealPhone kind="order" id={order.id} targetUserId={order.accepted_carrier_id} />
               <Link
                 href={`/orders/${order.id}/chat?carrier=${order.accepted_carrier_id}`}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
@@ -1270,21 +1253,7 @@ export default function OrderDetailPage() {
                         <p className="mt-2 text-sm text-gray-700 bg-gray-50 rounded-lg p-2">{r.message}</p>
                       )}
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
-                        {r.carrier?.phone && (revealedResponsePhones.has(r.carrier_id) ? (
-                          <a
-                            href={`tel:${r.carrier.phone}`}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
-                          >
-                            <Phone size={14} /> {formatPhone(r.carrier.phone)}
-                          </a>
-                        ) : (
-                          <button
-                            onClick={() => setRevealedResponsePhones(prev => { const s = new Set(prev); s.add(r.carrier_id); return s })}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
-                          >
-                            <Phone size={14} /> {maskPhone(r.carrier.phone)}
-                          </button>
-                        ))}
+                        {isOwner && <RevealPhone kind="order" id={order.id} targetUserId={r.carrier_id} />}
                         <Link
                           href={`/orders/${order.id}/chat?carrier=${r.carrier_id}`}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors"

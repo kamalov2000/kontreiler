@@ -3,13 +3,14 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, ArrowRight, Phone, MessageCircle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, MessageCircle } from 'lucide-react'
+import { RevealPhone } from '@/components/ui/RevealPhone'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Truck, TruckResponse } from '@/types/database'
-import { formatDate, formatDateTime, formatPrice, maskPhone, formatPhone } from '@/lib/utils'
+import { formatDate, formatDateTime, formatPrice } from '@/lib/utils'
 import { TRUCK_CONTAINER_TYPES, TRAILER_TYPES } from '@/lib/cities'
 import { TRUCK_STATUS_LABEL, TRUCK_STATUS_CLASS } from '@/lib/status'
 import { toast } from 'sonner'
@@ -26,8 +27,6 @@ export default function TruckDetailPage() {
   const [responding, setResponding] = useState(false)
   const [message, setMessage] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [carrierPhoneRevealed, setCarrierPhoneRevealed] = useState(false)
-  const [revealedClientPhones, setRevealedClientPhones] = useState<Set<string>>(new Set())
 
   const isCarrier = user?.role === 'carrier'
   const isClient = user?.role === 'client'
@@ -212,23 +211,10 @@ export default function TruckDetailPage() {
             <div className="text-xs text-gray-500 mb-2">Перевозчик</div>
             <div className="font-semibold text-gray-900">{carrier.name}</div>
             {carrier.city && <div className="text-sm text-gray-500 mt-0.5">{carrier.city}</div>}
-            {carrier.phone && (
-              carrierPhoneRevealed ? (
-                <a
-                  href={`tel:${carrier.phone}`}
-                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
-                >
-                  <Phone size={14} /> {formatPhone(carrier.phone)}
-                </a>
-              ) : (
-                <button
-                  onClick={() => setCarrierPhoneRevealed(true)}
-                  className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
-                >
-                  <Phone size={14} /> {maskPhone(carrier.phone)}
-                </button>
-              )
-            )}
+            <div className="mt-2">
+              <RevealPhone kind="truck" id={truck.id} targetUserId={carrier.id}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors" />
+            </div>
           </div>
         )}
 
@@ -291,23 +277,8 @@ export default function TruckDetailPage() {
                         <p className="mt-2 text-sm text-gray-700 bg-gray-50 rounded-lg p-2">{r.message}</p>
                       )}
                       <div className="mt-2 flex items-center gap-2 flex-wrap">
-                        {client?.phone && (
-                          revealedClientPhones.has(r.id) ? (
-                            <a
-                              href={`tel:${client.phone}`}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
-                            >
-                              <Phone size={14} /> {formatPhone(client.phone)}
-                            </a>
-                          ) : (
-                            <button
-                              onClick={() => setRevealedClientPhones(prev => { const s = new Set(prev); s.add(r.id); return s })}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
-                            >
-                              <Phone size={14} /> {maskPhone(client.phone)}
-                            </button>
-                          )
-                        )}
+                        <RevealPhone kind="truck" id={truck.id} targetUserId={r.client_id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors" />
                         <Link
                           href={`/trucks/${id}/chat?client=${r.client_id}`}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors"

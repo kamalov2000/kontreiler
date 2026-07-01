@@ -7,7 +7,8 @@ import { ArrowLeft, Send, ArrowRight, ChevronDown, ChevronUp } from 'lucide-reac
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Order, User } from '@/types/database'
-import { formatDate, formatDateTime, formatPrice, maskPhone, formatPhone } from '@/lib/utils'
+import { formatDate, formatDateTime, formatPrice } from '@/lib/utils'
+import { RevealPhone } from '@/components/ui/RevealPhone'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { cn } from '@/lib/utils'
 import { ORDER_STATUS_LABEL, ORDER_STATUS_CLASS } from '@/lib/status'
@@ -38,7 +39,6 @@ function ChatContent() {
   const [sending, setSending] = useState(false)
   const [accessDenied, setAccessDenied] = useState(false)
   const [orderCardOpen, setOrderCardOpen] = useState(false)
-  const [phoneRevealed, setPhoneRevealed] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -289,26 +289,10 @@ function ChatContent() {
               )}
             </div>
             {otherParty && (
-              <div className="text-xs text-gray-500">
-                Чат с {otherParty.name}
-                {/* Скрываем телефон клиента перевозчику если hide_phone=true */}
-                {otherParty.phone && !(order?.hide_phone && order?.client_id !== user?.id) && (
-                  phoneRevealed ? (
-                    <a href={`tel:${otherParty.phone}`} className="ml-2 text-blue-600 hover:underline">
-                      {formatPhone(otherParty.phone)}
-                    </a>
-                  ) : (
-                    <button
-                      onClick={() => setPhoneRevealed(true)}
-                      className="ml-2 text-blue-600 hover:underline"
-                    >
-                      {maskPhone(otherParty.phone)}
-                    </button>
-                  )
-                )}
-                {order?.hide_phone && order?.client_id !== user?.id && (
-                  <span className="ml-2 text-gray-400 italic">телефон скрыт клиентом</span>
-                )}
+              <div className="text-xs text-gray-500 flex items-center gap-1 flex-wrap">
+                <span>Чат с {otherParty.name}</span>
+                <RevealPhone kind="order" id={orderId} targetUserId={otherParty.id}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium" />
               </div>
             )}
           </div>

@@ -6,10 +6,11 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Response } from '@/types/database'
-import { formatDateTime, formatPrice, formatPhone, maskPhone } from '@/lib/utils'
+import { formatDateTime, formatPrice } from '@/lib/utils'
 import { CONTAINER_TYPES } from '@/lib/cities'
 import { ORDER_STATUS_LABEL } from '@/lib/status'
-import { ArrowRight, Phone, Search, X } from 'lucide-react'
+import { ArrowRight, Search, X } from 'lucide-react'
+import { RevealPhone } from '@/components/ui/RevealPhone'
 
 type StatusFilter = 'all' | 'accepted' | 'pending' | 'rejected'
 
@@ -18,7 +19,6 @@ export default function MyResponsesPage() {
   const [responses, setResponses] = useState<Response[]>([])
   const [loading, setLoading] = useState(true)
   const [unreadMap, setUnreadMap] = useState<Record<string, number>>({})
-  const [revealedPhones, setRevealedPhones] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
 
@@ -240,27 +240,7 @@ export default function MyResponsesPage() {
                   <div className="font-medium text-gray-900">{client?.name}</div>
                   {client?.city && <div className="text-sm text-gray-500">{client.city}</div>}
                   <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    {order.hide_phone ? (
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-500 text-sm">
-                        Клиент общается только через чат
-                      </span>
-                    ) : revealedPhones.has(order.id) ? (
-                      <a
-                        href={`tel:${client?.phone}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
-                      >
-                        <Phone size={14} />
-                        {formatPhone(client?.phone)}
-                      </a>
-                    ) : (
-                      <button
-                        onClick={() => setRevealedPhones(prev => { const s = new Set(prev); s.add(order.id); return s })}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
-                      >
-                        <Phone size={14} />
-                        {maskPhone(client?.phone)}
-                      </button>
-                    )}
+                    <RevealPhone kind="order" id={order.id} targetUserId={order.client_id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors" />
                     {/* Кнопка "Заявка" — более заметная, синяя */}
                     <Link
                       href={`/orders/${order.id}`}

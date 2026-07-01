@@ -205,16 +205,16 @@ async function main() {
   })
   assert(!!fakeRev, 'RLS: посторонний не может оставить отзыв по чужому заказу', fakeRev?.code)
 
-  // ── Известная проблема безопасности: телефон читается в обход hide_phone ──
-  section('9. Проверка приватности телефона (hide_phone)')
+  // ── Телефон закрыт от прямого чтения (обход hide_phone) ──
+  section('9. Телефон закрыт от чужих (column-level RLS)')
   await admin.from('users').update({ phone: '+79990001122' }).eq('id', client.id)
-  const { data: leaked } = await carrier2.client.from('users').select('phone').eq('id', client.id).single()
-  if (leaked?.phone) {
-    warn('Телефон клиента (hide_phone=true) читается посторонним напрямую из users',
-      'известная проблема RLS — закрывается отдельным фиксом')
-  } else {
-    ok('Телефон недоступен постороннему (RLS закрывает hide_phone)')
-  }
+
+  const { data: leaked, error: leakErr } = await carrier2.client
+    .from('users').select('phone').eq('id', client.id).maybeSingle()
+  assert(!!leakErr || !leaked?.phone, 'Посторонний НЕ может прочитать чужой телефон из users', leakErr?.code)
+
+  const { data: ownPhone } = await client.client.rpc('get_own_phone')
+  assert(ownPhone === '+79990001122', 'Свой телефон доступен владельцу через get_own_phone()')
 
   // ── Приватные реквизиты: банковские данные закрыты RLS ──
   section('10. Приватные реквизиты (user_private) закрыты RLS')
