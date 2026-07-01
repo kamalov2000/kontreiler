@@ -199,6 +199,12 @@ async function main() {
   })
   assert(!revErr, 'Отзыв клиента о перевозчике создан', revErr?.message)
 
+  // RLS: посторонний не может оставить отзыв по чужому заказу (накрутка рейтинга)
+  const { error: fakeRev } = await carrier2.client.from('reviews').insert({
+    order_id: order.id, reviewer_id: carrier2.id, reviewee_id: carrier.id, rating: 1,
+  })
+  assert(!!fakeRev, 'RLS: посторонний не может оставить отзыв по чужому заказу', fakeRev?.code)
+
   // ── Известная проблема безопасности: телефон читается в обход hide_phone ──
   section('9. Проверка приватности телефона (hide_phone)')
   await admin.from('users').update({ phone: '+79990001122' }).eq('id', client.id)
@@ -224,6 +230,25 @@ async function main() {
 
   const { data: usersCols } = await admin.from('users').select('*').eq('id', client.id).single()
   assert(!('bank_account' in (usersCols || {})), 'Банковских полей больше нет в общей таблице users')
+
+  // ── Storage: документы заказа доступны только участникам ──
+  section('11. Документы заказа (Storage) изолированы по участникам')
+  const docPath = `${order.id}/e2e_${Date.now()}.pdf`
+  const pdf = Buffer.from('%PDF-1.4 e2e test')
+  const { error: upErr } = await client.client.storage.from('order-docs')
+    .upload(docPath, pdf, { contentType: 'application/pdf' })
+  assert(!upErr, 'Участник (клиент) загрузил документ', upErr?.message)
+
+  const { data: carrierDl } = await carrier.client.storage.from('order-docs').download(docPath)
+  assert(!!carrierDl, 'Откликнувшийся перевозчик может скачать документ')
+
+  const { data: c2dl, error: c2dlErr } = await carrier2.client.storage.from('order-docs').download(docPath)
+  assert(!c2dl || !!c2dlErr, 'RLS: посторонний НЕ может скачать чужой документ')
+
+  const { data: c2del } = await carrier2.client.storage.from('order-docs').remove([docPath])
+  assert(!c2del || c2del.length === 0, 'RLS: посторонний НЕ может удалить чужой документ')
+
+  await admin.storage.from('order-docs').remove([docPath]).catch(() => {})
 
   await cleanup()
   finish()
