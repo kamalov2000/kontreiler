@@ -5,15 +5,18 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Plus, Search, X, Filter, Download, Upload } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { OrderCard } from '@/components/orders/OrderCard'
 import { OrderImportModal } from '@/components/orders/OrderImportModal'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
+import { RouteInline } from '@/components/ui/RouteInline'
+import { StatusPill } from '@/components/ui/StatusPill'
+import { ContainerMark } from '@/components/ui/ContainerMark'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, ContainerType } from '@/types/database'
-import { formatOrderNumber } from '@/lib/utils'
+import { formatOrderNumber, formatPrice } from '@/lib/utils'
+import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
 import { CONTAINER_TYPES } from '@/lib/cities'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -254,6 +257,11 @@ export default function DashboardPage() {
   const activeCount   = orders.filter(o => !['closed', 'cancelled', 'expired', 'delivered'].includes(getEffStatus(o))).length
   const cancelledCount = orders.filter(o => o.status === 'cancelled').length
   const expiredCount   = orders.filter(o => getEffStatus(o) === 'expired').length
+  const inTransitCount = orders.filter(o => getEffStatus(o) === 'in_transit').length
+  const deliveredCount = orders.filter(o => o.status === 'delivered').length
+  const newResponsesCount = orders
+    .filter(o => getEffStatus(o) === 'active')
+    .reduce((s, o) => s + (o.response_count || 0), 0)
 
   const emptyMessage: Record<Tab, React.ReactNode> = {
     active:    <><p className="mb-4">{t.dashboard.noActive}</p><Link href="/orders/new"><Button>{t.dashboard.postFirst}</Button></Link></>,
@@ -290,8 +298,8 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">{t.dashboard.title}</h1>
+      <div className="flex items-center justify-between mb-5 gap-2 flex-wrap">
+        <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">{t.dashboard.title}</h1>
         <div className="flex items-center gap-2">
           {filtered.length > 0 && (
             <Button variant="secondary" size="md" onClick={exportToExcel}>
@@ -312,49 +320,60 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit mb-6 flex-wrap">
-        {(['active', 'all', 'closed', 'cancelled', 'expired'] as Tab[]).map(tabKey => (
-          <button
-            key={tabKey}
-            onClick={() => setTab(tabKey)}
-            className={cn(
-              'relative px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-              tab === tabKey ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            )}
-          >
-            {TAB_LABEL[tabKey]}
-            {tabKey === 'active' && activeCount > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-blue-100 text-blue-600 text-[10px] font-bold px-1">
-                {activeCount}
-              </span>
-            )}
-            {tabKey === 'cancelled' && cancelledCount > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-red-100 text-red-600 text-[10px] font-bold px-1">
-                {cancelledCount}
-              </span>
-            )}
-            {tabKey === 'expired' && expiredCount > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-orange-100 text-orange-600 text-[10px] font-bold px-1">
-                {expiredCount}
-              </span>
-            )}
-          </button>
+      {/* Статистика */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 border border-hairline rounded-card bg-surface overflow-hidden mb-5">
+        {[
+          { label: 'Активные', value: activeCount, color: 'text-ink' },
+          { label: 'Новые отклики', value: newResponsesCount, color: 'text-accent' },
+          { label: 'В пути', value: inTransitCount, color: 'text-warning' },
+          { label: 'Доставлено', value: deliveredCount, color: 'text-success' },
+        ].map((s, i) => (
+          <div key={s.label} className={cn('flex flex-col gap-1 px-5 py-4', i < 3 && 'sm:border-r border-hairline', i % 2 === 0 && 'border-r sm:border-r', i < 2 && 'border-b sm:border-b-0')}>
+            <span className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">{s.label}</span>
+            <span className={cn('font-mono text-2xl font-medium tabular-nums', s.color)}>{s.value}</span>
+          </div>
         ))}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-5 border-b border-hairline mb-4 flex-wrap">
+        {(['active', 'all', 'closed', 'cancelled', 'expired'] as Tab[]).map(tabKey => {
+          const count = tabKey === 'active' ? activeCount : tabKey === 'cancelled' ? cancelledCount : tabKey === 'expired' ? expiredCount : 0
+          const countColor = tabKey === 'expired' ? 'text-danger' : tabKey === 'cancelled' ? 'text-danger' : 'text-ink-3'
+          return (
+            <button
+              key={tabKey}
+              onClick={() => setTab(tabKey)}
+              className={cn(
+                'relative inline-flex items-center gap-1.5 pb-2.5 -mb-px text-[13px] font-medium transition-colors',
+                tab === tabKey
+                  ? 'text-accent border-b-2 border-accent'
+                  : 'text-ink-3 hover:text-ink border-b-2 border-transparent'
+              )}
+            >
+              {TAB_LABEL[tabKey]}
+              {count > 0 && (
+                <span className={cn('font-mono text-[11px] tabular-nums', tab === tabKey ? 'text-accent' : countColor)}>
+                  {count}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* Поиск */}
       <div className="relative mb-4">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-4 pointer-events-none" />
         <input
           type="text"
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Поиск: город, 00010, КТ-00010, заявка КТ-00010…"
-          className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full h-11 pl-9 pr-3 text-sm rounded-field border border-hairline bg-surface text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent"
         />
         {search && (
-          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+          <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-4 hover:text-ink-2">
             <X size={14} />
           </button>
         )}
@@ -449,76 +468,98 @@ export default function DashboardPage() {
       )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin h-8 w-8 rounded-full border-4 border-blue-600 border-t-transparent" />
+        <div className="border border-hairline rounded-card bg-surface overflow-hidden">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3.5 h-[56px] px-5 border-b border-hairline last:border-0">
+              <span className="w-[84px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+              <span className="flex-1 h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+              <span className="w-[110px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+            </div>
+          ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="border border-hairline rounded-card bg-surface flex flex-col items-center gap-3 text-center py-16 px-6 text-ink-3">
+          <ContainerMark size={28} className="text-ink-4" />
           {emptyMessage[tab]}
         </div>
       ) : (
-        <div className="space-y-4">
-          {filtered.map(order => {
-            const unread = unreadMap[order.id] || 0
-            const isMatched = order.status === 'matched'
-            const effStatus = getEffStatus(order)
-            const isExpired = effStatus === 'expired'
+        <div className="border border-hairline rounded-card bg-surface overflow-x-auto">
+          <div className="min-w-[820px]">
+            {filtered.map(order => {
+              const unread = unreadMap[order.id] || 0
+              const effStatus = getEffStatus(order)
+              const isExpired = effStatus === 'expired'
+              const respCount = order.response_count || 0
+              const isActive = effStatus === 'active'
+              const trackingLabel = order.tracking_enabled && order.tracking_status
+                ? (() => {
+                    const idx = getTrackingStepIndex(order.tracking_status!)
+                    const step = TRACKING_STEPS[idx]
+                    return step ? `${step.shortLabel} · ${idx + 1}/7` : null
+                  })()
+                : null
 
-            return (
-              <OrderCard
-                key={order.id}
-                order={order}
-                showResponses={true}
-                hasStops={stopOrders.has(order.id)}
-                actions={
-                  <>
-                    {isMatched && (
-                      <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-100 text-blue-700 text-xs font-semibold">
-                        {t.dashboard.carrierChosen}
+              return (
+                <div
+                  key={order.id}
+                  onClick={() => router.push(`/orders/${order.id}`)}
+                  className="flex items-center gap-3.5 min-h-[56px] py-2 px-5 border-b border-hairline last:border-0 bg-surface cursor-pointer transition-colors ease-terminal hover:bg-accent-soft hover:shadow-row-active"
+                >
+                  <span className="w-[84px] flex-none font-mono text-[13px] text-ink-3 flex items-center gap-1">
+                    {stopOrders.has(order.id) && <span title="Есть доп. точки" className="text-ink-4">＋</span>}
+                    {order.order_number ? formatOrderNumber(order.order_number) : '—'}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <RouteInline from={order.from_city} to={order.to_city} via={order.via_city} className="flex-1" />
+                  </span>
+                  <StatusPill status={effStatus} className="flex-none" />
+                  <span className="w-[190px] flex-none text-right">
+                    {isActive && respCount > 0 ? (
+                      <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-accent text-white whitespace-nowrap">
+                        {respCount} {t.dashboard.responses.toLowerCase()}
                       </span>
-                    )}
-
-                    {/* Пункт 1: для просроченных — "Отправить в архив" */}
+                    ) : trackingLabel ? (
+                      <span className="font-mono text-[11px] px-2 py-0.5 rounded-field border border-hairline bg-surface-sunken text-ink-2 whitespace-nowrap">
+                        трекинг: {trackingLabel}
+                      </span>
+                    ) : isExpired && order.ready_date ? (
+                      <span className="font-mono text-[12px] text-ink-3 whitespace-nowrap">
+                        погрузка была {new Date(order.ready_date).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="w-[104px] flex-none text-right font-mono text-[15px] font-medium tabular-nums text-ink">
+                    {formatPrice(order.price, order.is_negotiable)}
+                  </span>
+                  <span className="w-[168px] flex-none flex items-center gap-2 justify-end" onClick={e => e.stopPropagation()}>
                     {isExpired ? (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        loading={archivingId === order.id}
-                        onClick={() => archiveOrder(order.id)}
-                      >
-                        Отправить в архив
+                      <Button variant="secondary" size="sm" loading={archivingId === order.id} onClick={() => archiveOrder(order.id)}>
+                        В архив
                       </Button>
                     ) : (
-                      /* Пункт 2: убрали кнопку "Закрыть", только "Открыть" */
                       <Link href={`/orders/${order.id}`}>
-                        <Button variant="secondary" size="sm">
-                          Открыть
+                        <Button size="sm" variant={isActive && respCount > 0 ? 'primary' : 'secondary'}>
+                          {isActive && respCount > 0 ? 'Отклики' : 'Открыть'}
                         </Button>
                       </Link>
                     )}
-
-                    {!isExpired && !isMatched && (order.response_count || 0) > 0 && (
-                      <span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold">
-                        {t.dashboard.responses}: {order.response_count}
-                      </span>
-                    )}
-                    {!isExpired && (order.response_count || 0) > 0 && (
-                      <Link href={`/orders/${order.id}/chat`} className="relative inline-flex">
-                        <Button variant="ghost" size="sm" className="text-blue-600">
+                    {!isExpired && respCount > 0 && (
+                      <Link href={`/orders/${order.id}/chat`} className="relative inline-flex" onClick={e => e.stopPropagation()}>
+                        <span className="inline-flex items-center min-h-[32px] px-3 rounded-card border border-hairline bg-surface text-ink-2 text-[13px] font-medium hover:border-border-strong transition-colors">
                           {t.dashboard.chat}
-                        </Button>
+                        </span>
                         {unread > 0 && (
-                          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 leading-none">
+                          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-danger text-white text-[10px] font-bold flex items-center justify-center px-1 leading-none">
                             {unread}
                           </span>
                         )}
                       </Link>
                     )}
-                  </>
-                }
-              />
-            )
-          })}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
