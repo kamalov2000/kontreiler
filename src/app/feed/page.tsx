@@ -3,21 +3,39 @@
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
-import { OrderCard } from '@/components/orders/OrderCard'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
 import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
+import { RouteInline } from '@/components/ui/RouteInline'
+import { ContainerChip } from '@/components/ui/ContainerChip'
+import { ContainerMark } from '@/components/ui/ContainerMark'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, SavedRoute } from '@/types/database'
-import { CONTAINER_TYPES } from '@/lib/cities'
+import { CONTAINER_TYPES, CONTAINER_TARE_WEIGHT } from '@/lib/cities'
 import { toast } from 'sonner'
 import { Filter, X, Bookmark, Search } from 'lucide-react'
 import Link from 'next/link'
-import { RatingBadge } from '@/components/ui/RatingBadge'
-import { formatOrderNumber } from '@/lib/utils'
+import { formatOrderNumber, formatPrice } from '@/lib/utils'
+
+function vatShort(v: string): string {
+  if (v === 'vat20') return 'с НДС 20%'
+  if (v === 'vat15') return 'с НДС 15%'
+  if (v === 'vat5') return 'с НДС 5%'
+  if (v === 'vat0') return 'НДС 0%'
+  return 'без НДС'
+}
+function weightDisplay(o: Order): string {
+  if (!o.weight_gross) return '—'
+  const tare = CONTAINER_TARE_WEIGHT[o.container_type] ?? 0
+  return (o.weight_gross + tare).toLocaleString('ru-RU')
+}
+function readyShort(d?: string | null): string {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })
+}
 
 const FEED_PREFIX_WORDS = ['заявка', 'заявку', 'заявки', 'заявке', 'заявкой', 'ордер', 'order']
 
@@ -269,15 +287,29 @@ function FeedContent() {
     setMessage('')
   }
 
+  const visibleOrders = orders.filter(o => {
+    // Скрываем заявки «только для контрагентов», если мы не контрагент
+    if (o.counterparties_only && !myClientCounterparties.has(o.client_id)) return false
+    return matchesOrderSearch(o, numberSearch)
+  })
+
   return (
     <AppLayout>
       <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
-        <h1 className="text-2xl font-bold text-gray-900">{t.feed.title}</h1>
+        <div className="flex items-baseline gap-3">
+          <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">{t.feed.title}</h1>
+          <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold tracking-[0.06em] uppercase text-success">
+            <span className="w-1.5 h-1.5 rounded-full bg-success" />Live
+          </span>
+          {!loading && (
+            <span className="font-mono text-[13px] tabular-nums text-ink-3">{visibleOrders.length} активных</span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {savedRoutes.length > 0 && (
             <button
               onClick={() => setShowRoutes(true)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 px-3 h-9 rounded-card text-sm bg-surface border border-hairline text-ink-2 hover:border-border-strong transition-colors"
             >
               <Bookmark size={16} />
               {t.feed.myRoutes}
@@ -285,14 +317,14 @@ function FeedContent() {
           )}
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-              hasFilters ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+            className={`flex items-center gap-2 px-3 h-9 rounded-card text-sm transition-colors ${
+              hasFilters ? 'bg-accent text-white' : 'bg-surface border border-hairline text-ink-2 hover:border-border-strong'
             }`}
           >
             <Filter size={16} />
             {t.feed.filters}
             {hasFilters && (
-              <span className="w-4 h-4 rounded-full bg-white text-blue-600 text-xs flex items-center justify-center font-bold">
+              <span className="w-4 h-4 rounded-full bg-white text-accent text-xs flex items-center justify-center font-bold">
                 {[fromFilter, toFilter, typeFilter].filter(Boolean).length}
               </span>
             )}
@@ -302,16 +334,16 @@ function FeedContent() {
 
       {/* Quick search by order number */}
       <div className="relative mb-3">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-4 pointer-events-none" />
         <input
           type="text"
           value={numberSearch}
           onChange={e => setNumberSearch(e.target.value)}
           placeholder={t.feed.searchPlaceholder}
-          className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full h-11 pl-9 pr-3 text-sm rounded-field border border-hairline bg-surface text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent"
         />
         {numberSearch && (
-          <button onClick={() => setNumberSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+          <button onClick={() => setNumberSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-4 hover:text-ink-2">
             <X size={14} />
           </button>
         )}
@@ -319,7 +351,7 @@ function FeedContent() {
 
       {/* Filters panel */}
       {showFilters && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+        <div className="bg-surface rounded-card border border-hairline p-4 mb-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <CityAutocomplete
               label={t.feed.from}
@@ -362,59 +394,106 @@ function FeedContent() {
         </div>
       )}
 
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin h-8 w-8 rounded-full border-4 border-blue-600 border-t-transparent" />
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {orders
-            .filter(o => {
-              // Скрываем заявки "только для контрагентов" если не являемся контрагентом
-              if (o.counterparties_only && !myClientCounterparties.has(o.client_id)) return false
-              return matchesOrderSearch(o, numberSearch)
-            })
-            .map(order => {
-            const alreadyResponded = myResponses.has(order.id)
-            const clientRating = clientRatings[order.client_id]
-            const isCounterpartyOrder = myClientCounterparties.has(order.client_id)
-            return (
-              <div key={order.id} className={isCounterpartyOrder ? 'ring-2 ring-green-400 rounded-2xl' : ''}>
-              {isCounterpartyOrder && (
-                <div className="bg-green-500 text-white text-xs font-semibold px-3 py-1 rounded-t-2xl flex items-center gap-1.5">
-                  ✅ Ваш контрагент — приоритетная заявка
-                </div>
+      <div className="border border-hairline rounded-card bg-surface overflow-x-auto">
+        <div className="min-w-[860px]">
+          {/* Шапка колонок */}
+          <div className="flex items-center gap-3.5 h-[34px] px-5 bg-surface-sunken border-b border-hairline text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">
+            <span className="w-[84px] flex-none">№</span>
+            <span className="flex-1">Маршрут</span>
+            <span className="w-[104px] flex-none">Контейнер</span>
+            <span className="w-[84px] flex-none text-right">Вес, кг</span>
+            <span className="w-[64px] flex-none text-right">Погрузка</span>
+            <span className="w-[110px] flex-none text-right">Ставка</span>
+            <span className="w-[124px] flex-none" />
+          </div>
+
+          {loading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3.5 h-[56px] px-5 border-b border-hairline last:border-0">
+                <span className="w-[84px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+                <span className="flex-1 h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+                <span className="w-[104px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+                <span className="w-[110px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+              </div>
+            ))
+          ) : visibleOrders.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 text-center py-16 px-6">
+              <ContainerMark size={28} className="text-ink-4" />
+              <span className="text-[15px] text-ink-3 max-w-[320px]">
+                {hasFilters || numberSearch ? 'По этим фильтрам заявок не найдено.' : 'Пока нет активных заявок на доске.'}
+              </span>
+              {(hasFilters || numberSearch) && (
+                <button onClick={() => { clearFilters(); setNumberSearch('') }} className="text-sm font-medium text-accent hover:text-accent-hover">
+                  Сбросить фильтры
+                </button>
               )}
-              <OrderCard
-                key={order.id}
-                order={order}
-                hasStops={stopOrders.has(order.id)}
-                extra={clientRating ? <RatingBadge avg={clientRating.avg} count={clientRating.count} /> : undefined}
-                actions={
-                  <>
-                    <Link href={`/orders/${order.id}`}>
-                      <Button size="sm" variant="secondary">{t.dashboard.details}</Button>
-                    </Link>
+            </div>
+          ) : (
+            visibleOrders.map(order => {
+              const alreadyResponded = myResponses.has(order.id)
+              const clientRating = clientRatings[order.client_id]
+              const isCounterpartyOrder = myClientCounterparties.has(order.client_id)
+              const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label || order.container_type
+              return (
+                <div
+                  key={order.id}
+                  onClick={() => router.push(`/orders/${order.id}`)}
+                  className="flex items-center gap-3.5 min-h-[56px] py-2 px-5 border-b border-hairline last:border-0 bg-surface cursor-pointer transition-colors ease-terminal hover:bg-accent-soft hover:shadow-row-active"
+                >
+                  <span className="w-[84px] flex-none font-mono text-[13px] text-ink-3 flex items-center gap-1">
+                    {isCounterpartyOrder && <span title="Ваш контрагент" className="text-accent">★</span>}
+                    {order.order_number ? formatOrderNumber(order.order_number) : '—'}
+                  </span>
+                  <span className="flex-1 min-w-0 flex items-center gap-2">
+                    <RouteInline
+                      className="flex-1"
+                      from={order.from_city}
+                      to={order.to_city}
+                      via={order.via_city}
+                      urgent={order.format === 'urgent'}
+                    />
+                    {stopOrders.has(order.id) && <span title="Есть доп. точки" className="text-ink-4 text-xs flex-none">＋точки</span>}
+                    {clientRating && (
+                      <span className="font-mono text-[12px] text-ink-3 flex-none whitespace-nowrap">★ {clientRating.avg.toFixed(1)}</span>
+                    )}
+                  </span>
+                  <span className="w-[104px] flex-none">
+                    <ContainerChip label={containerLabel} genset={order.requires_genset} />
+                  </span>
+                  <span className="w-[84px] flex-none text-right font-mono text-[13px] tabular-nums text-ink-3">
+                    {weightDisplay(order)}
+                  </span>
+                  <span className="w-[64px] flex-none text-right font-mono text-[13px] tabular-nums text-ink-3">
+                    {readyShort(order.ready_date)}
+                  </span>
+                  <span className="w-[110px] flex-none flex flex-col items-end leading-tight">
+                    <span className="font-mono text-[15px] font-medium tabular-nums text-ink">
+                      {formatPrice(order.price, order.is_negotiable)}
+                    </span>
+                    <span className="text-[10.5px] font-semibold tracking-[0.05em] uppercase text-ink-4">
+                      {vatShort(order.vat_type)}
+                    </span>
+                  </span>
+                  <span className="w-[124px] flex-none flex justify-end" onClick={e => e.stopPropagation()}>
                     {alreadyResponded ? (
-                      <span className="px-3 py-1.5 rounded-lg bg-green-50 text-green-700 text-sm font-medium">
+                      <span className="px-2.5 py-1 rounded-field bg-success-soft text-success text-[12px] font-medium whitespace-nowrap">
                         {t.feed.alreadyResponded}
                       </span>
                     ) : (
-                      <Button
-                        size="sm"
+                      <button
                         onClick={() => handleRespondClick(order)}
+                        className="min-h-[32px] px-3 rounded-card bg-accent text-white text-[13px] font-medium hover:bg-accent-hover transition-colors whitespace-nowrap"
                       >
                         {t.feed.respond}
-                      </Button>
+                      </button>
                     )}
-                  </>
-                }
-              />
-              </div>
-            )
-          })}
+                  </span>
+                </div>
+              )
+            })
+          )}
         </div>
-      )}
+      </div>
 
       {/* Respond modal */}
       <Modal
@@ -508,8 +587,8 @@ function FeedContent() {
 export default function FeedPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin h-8 w-8 rounded-full border-4 border-blue-600 border-t-transparent" />
+      <div className="min-h-screen bg-paper flex items-center justify-center">
+        <div className="animate-spin h-8 w-8 rounded-full border-4 border-accent border-t-transparent" />
       </div>
     }>
       <FeedContent />
