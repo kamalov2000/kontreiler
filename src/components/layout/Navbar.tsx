@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
-import { Package, LogOut, User, Menu, X } from 'lucide-react'
+import { LogOut, User, Menu, X } from 'lucide-react'
+import { ContainerMark } from '@/components/ui/ContainerMark'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { cn } from '@/lib/utils'
@@ -11,6 +12,13 @@ import { toast } from 'sonner'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { useLanguage } from '@/contexts/LanguageContext'
+
+function initials(name?: string | null): string {
+  if (!name) return '—'
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  const letters = parts.slice(0, 2).map(w => w[0]).join('')
+  return letters.toUpperCase() || '—'
+}
 
 export function Navbar() {
   const { user } = useUser()
@@ -45,32 +53,37 @@ export function Navbar() {
     router.push('/auth/login')
   }
 
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
+
   return (
-    <nav className="bg-white border-b border-gray-200 sticky top-0 z-40">
-      <div className="max-w-5xl mx-auto px-4">
+    <nav className="bg-surface border-b border-hairline sticky top-0 z-40">
+      <div className="max-w-6xl mx-auto px-4">
         <div className="flex items-center justify-between h-14">
           {/* Logo */}
-          <Link href={isCarrier ? '/feed' : '/dashboard'} className="flex items-center gap-2 font-bold text-blue-600 text-lg">
-            <Package size={22} />
-            Контрейл
+          <Link
+            href={isCarrier ? '/feed' : '/dashboard'}
+            className="flex items-center gap-2 flex-none"
+          >
+            <ContainerMark size={18} />
+            <span className="text-base font-bold tracking-[-0.02em] text-ink">Контрейл</span>
           </Link>
 
           {/* Desktop links */}
-          <div className="hidden sm:flex items-center gap-0.5">
+          <div className="hidden sm:flex items-center gap-5 h-full flex-1 pl-6">
             {links.map(link => (
               <Link
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  'relative px-2.5 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap',
-                  pathname === link.href || pathname.startsWith(link.href + '/')
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  'relative inline-flex items-center gap-1.5 h-full text-[13px] font-medium transition-colors whitespace-nowrap',
+                  isActive(link.href)
+                    ? 'text-accent shadow-[inset_0_-2px_0_#0E6E6E]'
+                    : 'text-ink-3 hover:text-ink'
                 )}
               >
                 {link.label}
                 {link.badge ? (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  <span className="font-mono text-[11px] px-1.5 rounded-full bg-accent-soft text-accent">
                     {link.badge}
                   </span>
                 ) : null}
@@ -79,27 +92,31 @@ export function Navbar() {
           </div>
 
           {/* Desktop right */}
-          <div className="hidden sm:flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2 flex-none">
             <LanguageSwitcher />
             <NotificationBell />
             <Link
               href="/profile"
               className={cn(
-                'flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors',
+                'flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full border transition-colors',
                 pathname === '/profile'
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-50'
+                  ? 'border-accent'
+                  : 'border-hairline hover:border-border-strong'
               )}
             >
-              <User size={16} />
-              {user?.name || t.nav.profile}
+              <span className="w-6 h-6 rounded-full bg-accent-soft text-accent flex items-center justify-center text-[11px] font-semibold">
+                {initials(user?.company_name || user?.name)}
+              </span>
+              <span className="text-[13px] font-medium text-ink-2 max-w-[140px] truncate">
+                {user?.name || t.nav.profile}
+              </span>
             </Link>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-center w-9 h-9 rounded-card text-ink-3 hover:text-ink hover:bg-surface-sunken transition-colors"
+              title={t.nav.logout}
             >
               <LogOut size={16} />
-              {t.nav.logout}
             </button>
           </div>
 
@@ -107,7 +124,7 @@ export function Navbar() {
           <div className="sm:hidden flex items-center gap-1">
             <NotificationBell />
             <button
-              className="p-2 rounded-lg text-gray-600 hover:bg-gray-50"
+              className="p-2 rounded-card text-ink-3 hover:bg-surface-sunken"
               onClick={() => setMenuOpen(!menuOpen)}
             >
               {menuOpen ? <X size={20} /> : <Menu size={20} />}
@@ -118,22 +135,22 @@ export function Navbar() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="sm:hidden border-t border-gray-100 bg-white px-4 py-2 space-y-1">
+        <div className="sm:hidden border-t border-hairline bg-surface px-4 py-2 space-y-1">
           {links.map(link => (
             <Link
               key={link.href}
               href={link.href}
               onClick={() => setMenuOpen(false)}
               className={cn(
-                'relative flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                pathname === link.href || pathname.startsWith(link.href + '/')
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-600 hover:bg-gray-50'
+                'relative flex items-center gap-2 px-3 py-2.5 rounded-card text-sm font-medium transition-colors',
+                isActive(link.href)
+                  ? 'bg-accent-soft text-accent'
+                  : 'text-ink-3 hover:bg-surface-sunken'
               )}
             >
               {link.label}
               {link.badge ? (
-                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="font-mono text-[11px] px-1.5 rounded-full bg-accent-soft text-accent">
                   {link.badge}
                 </span>
               ) : null}
@@ -142,7 +159,7 @@ export function Navbar() {
           <Link
             href="/profile"
             onClick={() => setMenuOpen(false)}
-            className="block px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+            className="block px-3 py-2.5 rounded-card text-sm text-ink-3 hover:bg-surface-sunken"
           >
             <span className="flex items-center gap-2"><User size={16} /> {t.nav.profile}</span>
           </Link>
@@ -151,7 +168,7 @@ export function Navbar() {
           </div>
           <button
             onClick={() => { setMenuOpen(false); handleLogout() }}
-            className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-gray-600 hover:bg-gray-50 flex items-center gap-2"
+            className="w-full text-left px-3 py-2.5 rounded-card text-sm text-ink-3 hover:bg-surface-sunken flex items-center gap-2"
           >
             <LogOut size={16} /> {t.nav.logout}
           </button>
