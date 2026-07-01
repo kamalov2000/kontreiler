@@ -19,7 +19,12 @@ export interface User {
   inn: string | null
   license_number: string | null
   onboarding_completed: boolean
-  // Расширенные реквизиты компании
+}
+
+// Чувствительные реквизиты компании — приватная таблица user_private,
+// доступна только владельцу (RLS) и серверу (service_role). Не в общей users.
+export interface UserPrivate {
+  id: string
   kpp: string | null
   ogrn: string | null
   legal_address: string | null

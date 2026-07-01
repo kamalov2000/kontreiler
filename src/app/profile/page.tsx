@@ -79,23 +79,33 @@ export default function ProfilePage() {
       setCompanyName(user.company_name || '')
       setInn(user.inn || '')
       setLicenseNumber(user.license_number || '')
-      setKpp(user.kpp || '')
-      setOgrn(user.ogrn || '')
-      setLegalAddress(user.legal_address || '')
-      setActualAddress(user.actual_address || '')
-      setBankName(user.bank_name || '')
-      setBankAccount(user.bank_account || '')
-      setBankCorrAccount(user.bank_corr_account || '')
-      setBankBik(user.bank_bik || '')
-      setSignatoryName(user.signatory_name || '')
-      setSignatoryPosition(user.signatory_position || '')
-      setSignatoryBasis(user.signatory_basis || '')
-      setDefaultObligations(user.default_obligations || '')
     }
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
       if (data.user?.email) setEmail(data.user.email)
     })
+  }, [user])
+
+  // Чувствительные реквизиты — из приватной таблицы (RLS: только своя строка)
+  useEffect(() => {
+    if (!user) return
+    const supabase = createClient()
+    supabase.from('user_private').select('*').eq('id', user.id).maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        setKpp(data.kpp || '')
+        setOgrn(data.ogrn || '')
+        setLegalAddress(data.legal_address || '')
+        setActualAddress(data.actual_address || '')
+        setBankName(data.bank_name || '')
+        setBankAccount(data.bank_account || '')
+        setBankCorrAccount(data.bank_corr_account || '')
+        setBankBik(data.bank_bik || '')
+        setSignatoryName(data.signatory_name || '')
+        setSignatoryPosition(data.signatory_position || '')
+        setSignatoryBasis(data.signatory_basis || '')
+        setDefaultObligations(data.default_obligations || '')
+      })
   }, [user])
 
   const fetchSavedRoutes = useCallback(async () => {
@@ -155,12 +165,32 @@ export default function ProfilePage() {
     if (!user) return
     const validErr = validateExtended()
     if (validErr) { toast.error(validErr); return }
+    // Публичные поля клиента валидируем до сохранения
+    if (user.role === 'client') {
+      if (!companyName.trim()) { toast.error('Укажите название компании'); setSaving(false); return }
+      if (!inn.trim() || !/^\d{10}$|^\d{12}$/.test(inn.trim())) { toast.error('ИНН должен содержать 10 или 12 цифр'); setSaving(false); return }
+    }
     setSaving(true)
     const supabase = createClient()
+
+    // Общедоступные поля → users
     const update: Record<string, unknown> = {
       name,
       phone: normalizePhone(phone),
       city,
+    }
+    if (user.role === 'carrier') {
+      update.company_name = companyName.trim() || null
+      update.inn = inn.trim() || null
+      update.license_number = licenseNumber.trim() || null
+    } else {
+      update.company_name = companyName.trim()
+      update.inn = inn.trim()
+    }
+
+    // Чувствительные реквизиты → приватная таблица user_private
+    const priv = {
+      id: user.id,
       kpp: kpp.trim() || null,
       ogrn: ogrn.trim() || null,
       legal_address: legalAddress.trim() || null,
@@ -174,19 +204,12 @@ export default function ProfilePage() {
       signatory_basis: signatoryBasis.trim() || null,
       default_obligations: defaultObligations.trim() || null,
     }
-    if (user.role === 'carrier') {
-      update.company_name = companyName.trim() || null
-      update.inn = inn.trim() || null
-      update.license_number = licenseNumber.trim() || null
-    }
-    if (user.role === 'client') {
-      if (!companyName.trim()) { toast.error('Укажите название компании'); setSaving(false); return }
-      if (!inn.trim() || !/^\d{10}$|^\d{12}$/.test(inn.trim())) { toast.error('ИНН должен содержать 10 или 12 цифр'); setSaving(false); return }
-      update.company_name = companyName.trim()
-      update.inn = inn.trim()
-    }
-    const { error } = await supabase.from('users').update(update).eq('id', user.id)
-    if (error) toast.error(t.profile.saveError)
+
+    const [{ error: uErr }, { error: pErr }] = await Promise.all([
+      supabase.from('users').update(update).eq('id', user.id),
+      supabase.from('user_private').upsert(priv, { onConflict: 'id' }),
+    ])
+    if (uErr || pErr) toast.error(t.profile.saveError)
     else toast.success(t.profile.saveSuccess)
     setSaving(false)
   }

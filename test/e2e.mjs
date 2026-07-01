@@ -210,6 +210,21 @@ async function main() {
     ok('Телефон недоступен постороннему (RLS закрывает hide_phone)')
   }
 
+  // ── Приватные реквизиты: банковские данные закрыты RLS ──
+  section('10. Приватные реквизиты (user_private) закрыты RLS')
+  const { error: privWriteErr } = await client.client.from('user_private')
+    .upsert({ id: client.id, bank_account: '40702810000000000001', bank_bik: '044525974' }, { onConflict: 'id' })
+  assert(!privWriteErr, 'Владелец может записать свои реквизиты', privWriteErr?.message)
+
+  const { data: ownPriv } = await client.client.from('user_private').select('bank_account').eq('id', client.id).maybeSingle()
+  assert(ownPriv?.bank_account === '40702810000000000001', 'Владелец читает свои реквизиты')
+
+  const { data: leakPriv } = await carrier2.client.from('user_private').select('bank_account').eq('id', client.id).maybeSingle()
+  assert(!leakPriv, 'RLS: посторонний НЕ читает чужие банковские реквизиты')
+
+  const { data: usersCols } = await admin.from('users').select('*').eq('id', client.id).single()
+  assert(!('bank_account' in (usersCols || {})), 'Банковских полей больше нет в общей таблице users')
+
   await cleanup()
   finish()
 }

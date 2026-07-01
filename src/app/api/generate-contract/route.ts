@@ -94,8 +94,15 @@ export async function GET(req: Request) {
     carrierUser = data
   }
 
+  // Чувствительные реквизиты хранятся в user_private (service_role обходит RLS)
+  async function withPrivate(u: Record<string, unknown> | null) {
+    if (!u?.id) return u
+    const { data: priv } = await supabase.from('user_private').select('*').eq('id', u.id).maybeSingle()
+    return { ...u, ...(priv || {}) }
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const clientUser = (order as any).client
+  const clientUser = await withPrivate((order as any).client)
+  carrierUser = await withPrivate(carrierUser)
 
   const containerLabel =
     CONTAINER_TYPES.find(c => c.value === order.container_type)?.label ?? order.container_type
