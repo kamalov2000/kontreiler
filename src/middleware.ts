@@ -62,9 +62,10 @@ export async function middleware(request: NextRequest) {
     .eq('id', user.id)
     .single()
 
-  // Профиль не создан — редирект на создание
-  if (!profile && pathname !== '/auth/complete-profile') {
-    return NextResponse.redirect(new URL('/auth/complete-profile', request.url))
+  // Профиль не создан (крайне редко — обычно создаётся триггером при регистрации).
+  // Отправляем в профиль, а не на несуществующий /auth/complete-profile.
+  if (!profile && pathname !== '/profile') {
+    return NextResponse.redirect(new URL('/profile', request.url))
   }
 
   const role = profile?.role

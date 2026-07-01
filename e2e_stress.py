@@ -1,8 +1,19 @@
 """
 Полный стресс-тест: все кейсы включая edge cases, RLS, дубли, невалидные данные.
+
+ВНИМАНИЕ: этот скрипт бьёт в ПРОД и создаёт реальные тестовые данные.
+Для регулярных прогонов используйте безопасный локальный `npm run test:e2e`
+(test/e2e.mjs — гоняет тот же функционал против локального Supabase).
+Запуск возможен только с явным подтверждением: E2E_STRESS_CONFIRM=1.
 """
-import sys, urllib.request, json, urllib.error
+import sys, os, urllib.request, json, urllib.error
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
+if os.environ.get('E2E_STRESS_CONFIRM') != '1':
+    print('ОТКАЗ: e2e_stress.py создаёт данные в ПРОДЕ.')
+    print('Для безопасных тестов: npm run test:e2e (локальный Supabase).')
+    print('Если действительно нужен прогон по проду — задайте E2E_STRESS_CONFIRM=1.')
+    sys.exit(2)
 
 SUPA = 'https://smryxtxybuiixzkqbeit.supabase.co'
 KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNtcnl4dHh5YnVpaXh6a3FiZWl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2OTEwNDUsImV4cCI6MjA5MDI2NzA0NX0._6Hcg2RhdE9qryXSBmflQiMCESCI49-F_3GXT3cTp0s'
