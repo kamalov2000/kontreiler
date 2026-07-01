@@ -1,143 +1,177 @@
 import Link from 'next/link'
-import { Package, ArrowRight, Zap, Phone } from 'lucide-react'
+import { Check } from 'lucide-react'
+import { ContainerMark } from '@/components/ui/ContainerMark'
+
+// Статичный мок доски для героя — «терминал как герой»
+const HERO_ROWS = [
+  { from: 'Москва', to: 'Новосибирск', chip: '40 HC', price: '185 000 ₽', urgent: false, active: true },
+  { from: 'Новороссийск', to: 'Москва', chip: '20 фут', price: '128 000 ₽', urgent: true, active: false },
+  { from: 'Владивосток', to: 'Хабаровск', chip: '40 REF', price: '96 000 ₽', urgent: false, active: false },
+  { from: 'Казань', to: 'Челябинск', chip: '20DC×2', price: '117 000 ₽', urgent: false, active: false },
+]
+
+const CLIENT_POINTS = [
+  'Все откликнувшиеся с контактами и рейтингом',
+  'Торги: редукцион и аукцион на понижение ставки',
+  'Трекинг рейса из 7 стадий и договор из шаблона',
+]
+const CARRIER_POINTS = [
+  'Живая доска заявок с фильтрами по маршруту',
+  'Телефон клиента сразу после отклика',
+  'Сохранённые маршруты и доска ваших машин',
+]
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-paper">
       {/* Nav */}
-      <nav className="border-b border-gray-100">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2 font-bold text-blue-600 text-lg">
-            <Package size={22} />
-            Контрейл
-          </div>
-          <div className="flex items-center gap-3">
-            <Link href="/auth/login" className="text-sm text-gray-600 hover:text-gray-900">
-              Войти
-            </Link>
-            <Link
-              href="/auth/register"
-              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-            >
-              Регистрация
-            </Link>
-          </div>
+      <nav className="flex items-center justify-between h-14 px-5 sm:px-10 bg-paper border-b border-hairline">
+        <span className="flex items-center gap-2">
+          <ContainerMark size={20} />
+          <span className="text-lg font-bold tracking-[-0.02em] text-ink">Контрейл</span>
+        </span>
+        <div className="flex items-center gap-4">
+          <Link href="/auth/login" className="text-sm font-medium text-ink-2 hover:text-ink transition-colors">
+            Войти
+          </Link>
+          <Link
+            href="/auth/register"
+            className="inline-flex items-center min-h-[40px] px-[18px] rounded-card bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors"
+          >
+            Регистрация
+          </Link>
         </div>
       </nav>
 
       {/* Hero */}
-      <section className="max-w-5xl mx-auto px-4 py-16 sm:py-24">
-        <div className="max-w-2xl">
-          <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 leading-tight mb-6">
-            Биржа контейнерных перевозок в реальном времени
+      <section className="max-w-6xl mx-auto grid lg:grid-cols-[1fr_460px] gap-12 px-5 sm:px-10 py-12 sm:py-16 items-center">
+        <div className="flex flex-col gap-5">
+          <span className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-accent">
+            Биржа контейнерных перевозок
+          </span>
+          <h1 className="text-[40px] sm:text-5xl leading-[1.05] tracking-[-0.02em] font-bold text-ink text-balance">
+            Фрахт в реальном времени. Без посредников.
           </h1>
-          <p className="text-xl text-gray-500 mb-8">
+          <p className="text-[17px] leading-relaxed text-ink-2 max-w-[460px]">
             Разместите заявку за 30 секунд — перевозчики увидят её сразу и свяжутся с вами напрямую.
+            Телефон открывается после отклика.
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
             <Link
               href="/auth/register"
-              className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white font-semibold text-base hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center justify-center min-h-[44px] px-[22px] rounded-card bg-accent text-white text-[15px] font-medium hover:bg-accent-hover transition-colors"
             >
-              Начать бесплатно
-              <ArrowRight size={18} />
+              Разместить заявку
             </Link>
             <Link
-              href="/auth/login"
-              className="flex items-center justify-center px-6 py-3 rounded-xl border border-gray-300 text-gray-700 font-semibold text-base hover:bg-gray-50 transition-colors"
+              href="/auth/register"
+              className="inline-flex items-center justify-center min-h-[44px] px-[22px] rounded-card border border-hairline bg-surface text-ink text-[15px] font-medium hover:border-border-strong transition-colors"
             >
-              Войти в систему
+              Найти загрузку
             </Link>
           </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-1 pt-2 font-mono text-[13px] tabular-nums text-ink-3">
+            <span><span className="text-ink font-medium">214</span> заявок сегодня</span>
+            <span className="text-border-strong">·</span>
+            <span><span className="text-ink font-medium">1 380</span> маршрутов</span>
+            <span className="text-border-strong">·</span>
+            <span><span className="text-ink font-medium">84</span> города</span>
+          </div>
+        </div>
+
+        {/* Живой мок доски */}
+        <div className="border border-hairline rounded-modal bg-surface overflow-hidden shadow-overlay">
+          <div className="flex items-center gap-2 h-10 px-4 border-b border-hairline bg-surface-sunken">
+            <span className="text-[13px] font-semibold text-ink">Доска заявок</span>
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.06em] uppercase text-success">
+              <span className="w-[5px] h-[5px] rounded-full bg-success" />Live
+            </span>
+            <span className="flex-1" />
+            <span className="font-mono text-[11px] text-ink-3">14:32 МСК</span>
+          </div>
+          {HERO_ROWS.map((r, i) => (
+            <div
+              key={r.from}
+              className={`flex items-center gap-2.5 h-12 px-4 ${i < HERO_ROWS.length - 1 ? 'border-b border-hairline' : ''} ${r.active ? 'bg-accent-soft shadow-row-active' : ''}`}
+            >
+              <span className="flex-1 text-sm font-semibold text-ink">
+                {r.from} <span className="text-border-strong">──·──</span> {r.to}
+                {r.urgent && <span className="ml-1.5 text-[10px] font-semibold tracking-[0.08em] text-danger">СРОЧНО</span>}
+              </span>
+              <span className="px-1.5 py-0.5 rounded-field border border-hairline bg-surface-sunken text-ink-2 font-mono text-[10px] font-medium uppercase">
+                {r.chip}
+              </span>
+              <span className="font-mono text-[13px] font-medium tabular-nums text-ink">{r.price}</span>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* How it works */}
-      <section className="bg-gray-50 py-16">
-        <div className="max-w-5xl mx-auto px-4">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">Как это работает</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center mx-auto mb-4">
-                <Zap size={28} className="text-blue-600" />
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-2">1. Размещаете заявку</h3>
-              <p className="text-gray-500 text-sm">Укажите маршрут, тип контейнера и дату — займёт 30 секунд</p>
+      {/* Как это работает */}
+      <section className="max-w-6xl mx-auto px-5 sm:px-10 py-10 border-t border-hairline">
+        <div className="grid sm:grid-cols-3 gap-8">
+          {[
+            { n: '01', h: 'Размещаете заявку', p: 'Маршрут, тип контейнера, дата — 30 секунд, и заявка на доске.' },
+            { n: '02', h: 'Перевозчики откликаются', p: 'Доска обновляется в реальном времени — без перезагрузки страницы.' },
+            { n: '03', h: 'Договариваетесь напрямую', p: 'Контакты открываются после отклика — звоните и везите.' },
+          ].map(s => (
+            <div key={s.n} className="flex flex-col gap-2 pl-4 border-l border-hairline">
+              <span className="font-mono text-[13px] text-accent">{s.n}</span>
+              <span className="text-lg leading-tight font-semibold text-ink">{s.h}</span>
+              <span className="text-sm leading-relaxed text-ink-3">{s.p}</span>
             </div>
-            <div className="text-center">
-              <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center mx-auto mb-4">
-                <Package size={28} className="text-blue-600" />
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-2">2. Перевозчики видят и откликаются</h3>
-              <p className="text-gray-500 text-sm">Лента обновляется в реальном времени — перевозчики находят загрузки мгновенно</p>
-            </div>
-            <div className="text-center">
-              <div className="w-14 h-14 rounded-2xl bg-blue-100 flex items-center justify-center mx-auto mb-4">
-                <Phone size={28} className="text-blue-600" />
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-2">3. Договариваетесь напрямую</h3>
-              <p className="text-gray-500 text-sm">Контакты открываются сразу — звоните, договаривайтесь, везите</p>
-            </div>
-          </div>
+          ))}
         </div>
       </section>
 
-      {/* Features */}
-      <section className="max-w-5xl mx-auto px-4 py-16">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-          <div className="p-6 rounded-2xl border border-gray-100 bg-white shadow-sm">
-            <h3 className="text-xl font-semibold text-gray-900 mb-3">Для грузовладельцев</h3>
-            <ul className="space-y-2 text-gray-600 text-sm">
-              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Заявка размещается за 30 секунд</li>
-              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Видите всех откликнувшихся с контактами</li>
-              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Управляете активными и архивными заявками</li>
-              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Срочные заявки выделяются в ленте</li>
-            </ul>
-            <Link
-              href="/auth/register"
-              className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-            >
-              Разместить заявку <ArrowRight size={14} />
+      {/* Две роли */}
+      <section className="max-w-6xl mx-auto grid sm:grid-cols-2 gap-6 px-5 sm:px-10 pb-12">
+        {[
+          { over: 'Грузовладельцам', h: 'Заявка за 30 секунд', points: CLIENT_POINTS, cta: 'Разместить заявку →' },
+          { over: 'Перевозчикам', h: 'Загрузка без простоя', points: CARRIER_POINTS, cta: 'Найти загрузку →' },
+        ].map(card => (
+          <div key={card.over} className="border border-hairline rounded-card bg-surface p-6 flex flex-col gap-3.5">
+            <span className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">{card.over}</span>
+            <span className="text-2xl leading-tight tracking-[-0.01em] font-semibold text-ink">{card.h}</span>
+            <div className="flex flex-col gap-2.5 text-sm leading-relaxed text-ink-2">
+              {card.points.map(p => (
+                <span key={p} className="flex gap-2 items-start">
+                  <Check size={15} strokeWidth={2.5} className="text-accent shrink-0 mt-[3px]" />
+                  {p}
+                </span>
+              ))}
+            </div>
+            <Link href="/auth/register" className="flex items-center gap-1.5 text-sm font-medium text-accent hover:text-accent-hover transition-colors mt-1">
+              {card.cta}
             </Link>
           </div>
-
-          <div className="p-6 rounded-2xl border border-gray-100 bg-white shadow-sm">
-            <h3 className="text-xl font-semibold text-gray-900 mb-3">Для перевозчиков</h3>
-            <ul className="space-y-2 text-gray-600 text-sm">
-              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Живая лента заявок без перезагрузки</li>
-              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Фильтры по маршруту и типу контейнера</li>
-              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> Телефон клиента сразу после отклика</li>
-              <li className="flex items-start gap-2"><span className="text-blue-600 mt-0.5">✓</span> История всех ваших откликов</li>
-            </ul>
-            <Link
-              href="/auth/register"
-              className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-            >
-              Найти загрузку <ArrowRight size={14} />
-            </Link>
-          </div>
-        </div>
+        ))}
       </section>
 
       {/* CTA */}
-      <section className="bg-blue-600 py-16">
-        <div className="max-w-5xl mx-auto px-4 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">Готовы начать?</h2>
-          <p className="text-blue-100 mb-8">Регистрация бесплатна. Никаких скрытых платежей.</p>
+      <section className="bg-ink px-5 sm:px-10 py-12">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+          <div className="flex flex-col gap-2">
+            <span className="text-3xl leading-tight tracking-[-0.015em] font-bold text-surface">Готовы начать?</span>
+            <span className="font-mono text-[13px] text-ink-4">регистрация бесплатна · без скрытых платежей</span>
+          </div>
           <Link
             href="/auth/register"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-blue-600 font-bold text-base hover:bg-blue-50 transition-colors"
+            className="inline-flex items-center justify-center min-h-[48px] px-[26px] rounded-card bg-accent text-white text-[15px] font-medium hover:bg-accent-hover transition-colors shrink-0"
           >
-            Зарегистрироваться бесплатно
-            <ArrowRight size={18} />
+            Зарегистрироваться
           </Link>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-gray-100 py-8">
-        <div className="max-w-5xl mx-auto px-4 text-center text-sm text-gray-400">
-          © 2026 Контрейл. Биржа контейнерных перевозок.
+      <footer className="bg-ink border-t border-white/10 px-5 sm:px-10 py-5">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <span className="font-mono text-[11px] text-ink-3">© 2026 Контрейл · биржа контейнерных перевозок</span>
+          <div className="flex gap-4 text-xs text-ink-4">
+            <Link href="/terms" className="hover:text-surface transition-colors">Условия</Link>
+            <Link href="/privacy" className="hover:text-surface transition-colors">Конфиденциальность</Link>
+          </div>
         </div>
       </footer>
     </div>
