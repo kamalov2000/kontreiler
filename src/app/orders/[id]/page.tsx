@@ -929,7 +929,7 @@ export default function OrderDetailPage() {
               <div className="col-span-2">
                 <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Срок действия</div>
                 <ExpiryCountdown expiresAt={order.expires_at} />
-                <div className="text-[11px] text-ink-4 mt-0.5 font-mono tabular-nums">до {formatDateWithTime(order.expires_at!)}</div>
+                <div className="text-[11px] text-ink-4 mt-0.5 font-mono tabular-nums">до {formatDateTime(order.expires_at!)}</div>
               </div>
             )}
           </div>

@@ -1,14 +1,51 @@
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 import { ContainerMark } from '@/components/ui/ContainerMark'
+import { LiveClock } from '@/components/ui/LiveClock'
+import { createServiceClient } from '@/lib/supabase/service'
+import { RUSSIAN_CITIES } from '@/lib/cities'
 
-// Статичный мок доски для героя — «терминал как герой»
-const HERO_ROWS = [
-  { from: 'Москва', to: 'Новосибирск', chip: '40 HC', price: '185 000 ₽', urgent: false, active: true },
-  { from: 'Новороссийск', to: 'Москва', chip: '20 фут', price: '128 000 ₽', urgent: true, active: false },
-  { from: 'Владивосток', to: 'Хабаровск', chip: '40 REF', price: '96 000 ₽', urgent: false, active: false },
-  { from: 'Казань', to: 'Челябинск', chip: '20DC×2', price: '117 000 ₽', urgent: false, active: false },
+// Кэшируем страницу на 5 минут — быстрая отдача без запроса к БД на каждый заход.
+export const revalidate = 300
+
+// Запасной демо-набор доски — показывается, только если активных заявок нет.
+const FALLBACK_ROWS = [
+  { from: 'Москва', to: 'Новосибирск', chip: '40HC', price: '185 000 ₽', urgent: false },
+  { from: 'Новороссийск', to: 'Москва', chip: '20DC', price: '128 000 ₽', urgent: true },
+  { from: 'Владивосток', to: 'Хабаровск', chip: '40REF', price: '96 000 ₽', urgent: false },
+  { from: 'Казань', to: 'Челябинск', chip: '20DC2', price: '117 000 ₽', urgent: false },
 ]
+
+interface BoardRow { from: string; to: string; chip: string; price: string; urgent: boolean }
+
+// Тянет реальные данные для героя: последние активные заявки + счётчики.
+// Всё через service-клиент (сервер), чтобы не упираться в RLS для публичной страницы.
+async function getBoard(): Promise<{ rows: BoardRow[]; active: number; carriers: number }> {
+  try {
+    const sb = createServiceClient()
+    const [ordersRes, activeRes, carriersRes] = await Promise.all([
+      sb.from('orders')
+        .select('from_city,to_city,container_type,price,is_negotiable,is_urgent,format')
+        .eq('status', 'active').order('created_at', { ascending: false }).limit(4),
+      sb.from('orders').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      sb.from('users').select('id', { count: 'exact', head: true }).eq('role', 'carrier'),
+    ])
+    const rows: BoardRow[] = (ordersRes.data ?? []).map(o => ({
+      from: o.from_city,
+      to: o.to_city,
+      chip: String(o.container_type || '').toUpperCase(),
+      price: o.is_negotiable || !o.price ? 'Договорная' : `${o.price.toLocaleString('ru-RU')} ₽`,
+      urgent: !!o.is_urgent || o.format === 'urgent',
+    }))
+    return {
+      rows: rows.length ? rows : FALLBACK_ROWS,
+      active: activeRes.count ?? rows.length,
+      carriers: carriersRes.count ?? 0,
+    }
+  } catch {
+    return { rows: FALLBACK_ROWS, active: 0, carriers: 0 }
+  }
+}
 
 const CLIENT_POINTS = [
   'Все откликнувшиеся с контактами и рейтингом',
@@ -21,7 +58,9 @@ const CARRIER_POINTS = [
   'Сохранённые маршруты и доска ваших машин',
 ]
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const { rows, active, carriers } = await getBoard()
+  const cities = RUSSIAN_CITIES.length
   return (
     <div className="min-h-screen bg-paper">
       {/* Nav */}
@@ -71,11 +110,19 @@ export default function LandingPage() {
             </Link>
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-1 pt-2 font-mono text-[13px] tabular-nums text-ink-3">
-            <span><span className="text-ink font-medium">214</span> заявок сегодня</span>
-            <span className="text-border-strong">·</span>
-            <span><span className="text-ink font-medium">1 380</span> маршрутов</span>
-            <span className="text-border-strong">·</span>
-            <span><span className="text-ink font-medium">84</span> города</span>
+            {active > 0 && (
+              <>
+                <span><span className="text-ink font-medium">{active.toLocaleString('ru-RU')}</span> активных заявок</span>
+                <span className="text-border-strong">·</span>
+              </>
+            )}
+            {carriers > 0 && (
+              <>
+                <span><span className="text-ink font-medium">{carriers.toLocaleString('ru-RU')}</span> перевозчиков</span>
+                <span className="text-border-strong">·</span>
+              </>
+            )}
+            <span><span className="text-ink font-medium">{cities}</span> городов</span>
           </div>
         </div>
 
@@ -87,12 +134,12 @@ export default function LandingPage() {
               <span className="w-[5px] h-[5px] rounded-full bg-success" />Live
             </span>
             <span className="flex-1" />
-            <span className="font-mono text-[11px] text-ink-3">14:32 МСК</span>
+            <LiveClock />
           </div>
-          {HERO_ROWS.map((r, i) => (
+          {rows.map((r, i) => (
             <div
-              key={r.from}
-              className={`flex items-center gap-2.5 h-12 px-4 ${i < HERO_ROWS.length - 1 ? 'border-b border-hairline' : ''} ${r.active ? 'bg-accent-soft shadow-row-active' : ''}`}
+              key={`${r.from}-${r.to}-${i}`}
+              className={`flex items-center gap-2.5 h-12 px-4 ${i < rows.length - 1 ? 'border-b border-hairline' : ''} ${i === 0 ? 'bg-accent-soft shadow-row-active' : ''}`}
             >
               <span className="flex-1 text-sm font-semibold text-ink">
                 {r.from} <span className="text-border-strong">──·──</span> {r.to}
