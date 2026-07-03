@@ -3,16 +3,19 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, ArrowRight, MessageCircle } from 'lucide-react'
+import { ArrowLeft, MessageCircle, MapPin, User, CheckCircle, Route } from 'lucide-react'
 import { RevealPhone } from '@/components/ui/RevealPhone'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/Button'
+import { StatusPill } from '@/components/ui/StatusPill'
+import { ContainerChip } from '@/components/ui/ContainerChip'
+import { ContainerMark } from '@/components/ui/ContainerMark'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Truck, TruckResponse } from '@/types/database'
 import { formatDate, formatDateTime, formatPrice } from '@/lib/utils'
 import { TRUCK_CONTAINER_TYPES, TRAILER_TYPES } from '@/lib/cities'
-import { TRUCK_STATUS_LABEL, TRUCK_STATUS_CLASS } from '@/lib/status'
+import { TRUCK_STATUS_LABEL } from '@/lib/status'
 import { toast } from 'sonner'
 
 export default function TruckDetailPage() {
@@ -118,8 +121,17 @@ export default function TruckDetailPage() {
   if (loading || userLoading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin h-8 w-8 rounded-full border-4 border-blue-600 border-t-transparent" />
+        <div className="max-w-2xl">
+          <div className="h-4 w-28 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer mb-6" />
+          <div className="bg-surface rounded-card border border-hairline p-6 mb-6 space-y-5">
+            <div className="h-5 w-24 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+            <div className="h-8 w-3/4 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-10 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+              ))}
+            </div>
+          </div>
         </div>
       </AppLayout>
     )
@@ -132,93 +144,127 @@ export default function TruckDetailPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const carrier = (truck as any).carrier
 
+  const trailerLabel = truck.trailer_type
+    ? (TRAILER_TYPES.find(t => t.value === truck.trailer_type)?.label || truck.trailer_type)
+    : null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const notes = (truck as any).notes as string | null | undefined
+
   return (
     <AppLayout>
       <div className="max-w-2xl">
+        {/* Навигация */}
         <Link
           href={isOwnTruck ? '/my-trucks' : '/trucks'}
-          className="flex items-center gap-1 text-sm text-blue-600 hover:underline mb-6"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-3 hover:text-ink transition-colors ease-terminal mb-5"
         >
           <ArrowLeft size={16} /> {isOwnTruck ? 'Мои машины' : 'Найти машину'}
         </Link>
 
-        {/* Truck card */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-6">
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${TRUCK_STATUS_CLASS[truck.status] ?? 'bg-gray-100 text-gray-600'}`}>
-              {TRUCK_STATUS_LABEL[truck.status] ?? truck.status}
-            </span>
+        {/* Карточка машины */}
+        <div className="bg-surface rounded-card border border-hairline p-6 mb-6">
+          {/* Статус доступности */}
+          <div className="flex items-center gap-2 flex-wrap mb-5">
+            <StatusPill status={truck.status} kind="truck" label={TRUCK_STATUS_LABEL[truck.status] ?? truck.status} />
           </div>
 
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-2xl font-bold text-gray-900">{truck.from_city}</span>
-            <ArrowRight size={20} className="text-gray-400" />
-            <span className="text-2xl font-bold text-gray-900">{truck.to_city}</span>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <div className="p-3 rounded-xl bg-gray-50">
-              <div className="text-xs text-gray-500 mb-0.5">Контейнер</div>
-              <div className="font-medium text-gray-900">{containerLabel}</div>
-            </div>
-            <div className="p-3 rounded-xl bg-gray-50">
-              <div className="text-xs text-gray-500 mb-0.5">Ставка</div>
-              <div className="font-medium text-blue-700">{formatPrice(truck.price, truck.is_negotiable)}</div>
-            </div>
-            <div className="p-3 rounded-xl bg-gray-50">
-              <div className="text-xs text-gray-500 mb-0.5">Готов</div>
-              <div className="font-medium text-gray-900">{formatDate(truck.available_date)}</div>
-            </div>
-            {truck.trailer_type && (
-              <div className="p-3 rounded-xl bg-gray-50">
-                <div className="text-xs text-gray-500 mb-0.5">Тип прицепа</div>
-                <div className="font-medium text-gray-900">
-                  {TRAILER_TYPES.find(t => t.value === truck.trailer_type)?.label || truck.trailer_type}
+          {/* Герой-маршрут: крупные города, пунктирная рельса */}
+          <div className="mb-6">
+            <div className="flex items-stretch gap-3 flex-col sm:flex-row sm:items-center">
+              {/* Точка А */}
+              <div className="flex items-start gap-2.5 min-w-0">
+                <span className="mt-2 w-2.5 h-2.5 rounded-full bg-accent shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[28px] leading-[1.05] font-bold tracking-[-0.02em] text-ink">{truck.from_city}</div>
                 </div>
+              </div>
+
+              {/* Рельса — узел с accent-кольцом */}
+              <div className="hidden sm:flex items-center flex-none px-1 self-start mt-4 min-w-[36px]">
+                <span className="flex-1 rail" />
+                <span className="w-3 h-3 rounded-full bg-surface border-2 border-accent ring-2 ring-accent-soft mx-[3px] flex-none" />
+                <span className="flex-1 rail" />
+              </div>
+
+              {/* Точка Б */}
+              <div className="flex items-start gap-2.5 min-w-0">
+                <span className="mt-2 w-2.5 h-2.5 rounded-full bg-success shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[28px] leading-[1.05] font-bold tracking-[-0.02em] text-ink">{truck.to_city}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Волосяной разделитель */}
+          <div className="border-t border-hairline mb-5" />
+
+          {/* Моно-таблица параметров */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 mb-5">
+            <div>
+              <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Контейнер</div>
+              <ContainerChip label={containerLabel || truck.container_type} />
+            </div>
+            <div>
+              <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Ставка</div>
+              <div className="font-mono text-xl font-medium tabular-nums text-ink">{formatPrice(truck.price, truck.is_negotiable)}</div>
+            </div>
+            <div>
+              <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Готов</div>
+              <div className="font-mono text-[15px] tabular-nums text-ink">{formatDate(truck.available_date)}</div>
+            </div>
+            {trailerLabel && (
+              <div>
+                <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Тип прицепа</div>
+                <ContainerChip label={trailerLabel} />
               </div>
             )}
             {truck.payload && (
-              <div className="p-3 rounded-xl bg-gray-50">
-                <div className="text-xs text-gray-500 mb-0.5">Грузоподъёмность</div>
-                <div className="font-medium text-gray-900">{truck.payload} т</div>
+              <div>
+                <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Грузоподъёмность</div>
+                <div className="font-mono text-[15px] tabular-nums text-ink">{truck.payload} т</div>
               </div>
             )}
             {truck.long_distance && (
-              <div className="p-3 rounded-xl bg-green-50 border border-green-100">
-                <div className="text-xs text-green-600 mb-0.5">Дальние рейсы</div>
-                <div className="font-medium text-green-800">🛣️ Готов</div>
+              <div>
+                <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Дальние рейсы</div>
+                <div className="inline-flex items-center gap-1.5 text-[15px] font-medium text-success">
+                  <Route size={15} /> Готов
+                </div>
               </div>
             )}
           </div>
 
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          {(truck as any).notes && (
-            <div className="mt-3 px-3 py-2 rounded-xl bg-amber-50 border border-amber-100">
-              <div className="text-xs text-amber-600 mb-0.5">Особые условия</div>
-              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-              <div className="text-sm text-amber-900">{(truck as any).notes}</div>
+          {/* Особые условия */}
+          {notes && (
+            <div className="p-3 rounded-field bg-warning-soft border border-warning/20 mb-3">
+              <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-warning mb-1">Особые условия</div>
+              <div className="text-sm text-ink-2">{notes}</div>
             </div>
           )}
 
-          <div className="mt-3 text-xs text-gray-400">
+          <div className="text-[11px] text-ink-4 mt-5 font-mono tabular-nums">
             Размещено: {formatDateTime(truck.created_at)}
           </div>
         </div>
 
-        {/* Carrier info (for clients) */}
+        {/* Перевозчик (для клиента) */}
         {!isOwnTruck && carrier && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6">
-            <div className="text-xs text-gray-500 mb-2">Перевозчик</div>
-            <div className="font-semibold text-gray-900">{carrier.name}</div>
-            {carrier.city && <div className="text-sm text-gray-500 mt-0.5">{carrier.city}</div>}
-            <div className="mt-2">
-              <RevealPhone kind="truck" id={truck.id} targetUserId={carrier.id}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors" />
+          <div className="bg-surface border border-hairline rounded-card p-5 mb-6">
+            <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-2.5">Перевозчик</div>
+            <div className="font-semibold text-ink text-[17px]">{carrier.name}</div>
+            {carrier.city && (
+              <div className="flex items-center gap-1 text-sm text-ink-3 mt-0.5">
+                <MapPin size={12} className="shrink-0" /> {carrier.city}
+              </div>
+            )}
+            <div className="mt-4">
+              <RevealPhone kind="truck" id={truck.id} targetUserId={carrier.id} />
             </div>
           </div>
         )}
 
-        {/* Client actions */}
+        {/* Действия клиента */}
         {isClient && truck.status === 'active' && (
           <div className="mb-6">
             {hasResponded ? (
@@ -228,15 +274,15 @@ export default function TruckDetailPage() {
                 </Button>
               </Link>
             ) : showForm ? (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 space-y-3">
-                <p className="text-sm font-medium text-gray-700">Хотите этот рейс?</p>
+              <div className="bg-surface rounded-card border border-hairline p-5 space-y-4">
+                <p className="text-[15px] font-semibold text-ink">Хотите этот рейс?</p>
                 <textarea
                   value={message}
                   onChange={e => setMessage(e.target.value)}
                   placeholder="Комментарий (необязательно)"
                   rows={3}
                   maxLength={500}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  className="w-full px-3 py-2 rounded-field border border-hairline bg-surface text-sm text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent resize-none"
                 />
                 <div className="flex gap-2">
                   <Button onClick={handleRespond} loading={responding} className="flex-1">
@@ -255,47 +301,55 @@ export default function TruckDetailPage() {
           </div>
         )}
 
-        {/* Carrier sees responses */}
+        {/* Отклики (для владельца машины) */}
         {isOwnTruck && (
           <>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">
-              Отклики ({responses.length})
-            </h2>
+            <div className="flex items-baseline gap-2.5 mb-3">
+              <h2 className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Отклики</h2>
+              <span className="font-mono text-[13px] tabular-nums text-ink-3">{responses.length}</span>
+            </div>
             {responses.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-gray-400">
-                Пока никто не откликнулся
+              <div className="bg-surface rounded-card border border-hairline flex flex-col items-center gap-3 py-12 px-6 text-center">
+                <ContainerMark size={26} className="text-ink-4" />
+                <span className="text-[15px] text-ink-3">Пока никто не откликнулся</span>
               </div>
             ) : (
               <div className="space-y-3">
                 {responses.map(r => {
                   const client = r.client
                   return (
-                    <div key={r.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-                      <div className="font-semibold text-gray-900">{client?.name || 'Клиент'}</div>
-                      {client?.city && <div className="text-sm text-gray-500">{client.city}</div>}
-                      {r.message && (
-                        <p className="mt-2 text-sm text-gray-700 bg-gray-50 rounded-lg p-2">{r.message}</p>
-                      )}
-                      <div className="mt-2 flex items-center gap-2 flex-wrap">
-                        <RevealPhone kind="truck" id={truck.id} targetUserId={r.client_id}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors" />
-                        <Link
-                          href={`/trucks/${id}/chat?client=${r.client_id}`}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors"
-                        >
-                          <MessageCircle size={14} /> Чат
-                        </Link>
-                        {truck.status === 'active' && (
-                          <button
-                            onClick={() => acceptClient(r.client_id)}
-                            disabled={acceptingClientId === r.client_id}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
-                          >
-                            {acceptingClientId === r.client_id ? '...' : 'Принять клиента'}
-                          </button>
-                        )}
+                    <div key={r.id} className="bg-surface rounded-card border border-hairline p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full bg-accent-soft flex items-center justify-center shrink-0">
+                          <User size={18} className="text-accent" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold text-ink">{client?.name || 'Клиент'}</div>
+                          {client?.city && <div className="text-sm text-ink-3">{client.city}</div>}
+                          {r.message && (
+                            <p className="mt-2 text-sm text-ink-2 bg-surface-sunken rounded-field p-2.5">{r.message}</p>
+                          )}
+                          <div className="mt-3 flex items-center gap-2 flex-wrap">
+                            <RevealPhone kind="truck" id={truck.id} targetUserId={r.client_id} />
+                            <Link
+                              href={`/trucks/${id}/chat?client=${r.client_id}`}
+                              className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card bg-surface border border-hairline text-ink-2 text-sm font-medium hover:border-border-strong transition-colors ease-terminal"
+                            >
+                              <MessageCircle size={14} /> Чат
+                            </Link>
+                            {truck.status === 'active' && (
+                              <Button
+                                size="sm"
+                                loading={acceptingClientId === r.client_id}
+                                onClick={() => acceptClient(r.client_id)}
+                              >
+                                <CheckCircle size={14} className="mr-1" /> Принять клиента
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-[11px] text-ink-4 shrink-0 font-mono tabular-nums">{formatDateTime(r.created_at)}</div>
                       </div>
-                      <div className="mt-1 text-xs text-gray-400">{formatDateTime(r.created_at)}</div>
                     </div>
                   )
                 })}

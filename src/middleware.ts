@@ -32,8 +32,9 @@ export async function middleware(request: NextRequest) {
     return supabaseResponse
   }
 
-  // Публичные маршруты
-  if (pathname === '/' || pathname.startsWith('/auth')) {
+  // Публичные маршруты (лендинг, авторизация, правовые страницы —
+  // доступны без входа, на них ведут ссылки из футера и регистрации)
+  if (pathname === '/' || pathname.startsWith('/auth') || pathname === '/privacy' || pathname === '/terms') {
     if (user && (pathname === '/' || pathname === '/auth/login' || pathname === '/auth/register')) {
       // Получаем роль пользователя
       const { data: profile } = await supabase
