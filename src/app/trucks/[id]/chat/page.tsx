@@ -3,13 +3,15 @@
 import { useEffect, useState, useRef, useCallback, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Send, ArrowRight } from 'lucide-react'
+import { ArrowLeft, Send, Lock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Truck, TruckMessage, User } from '@/types/database'
 import { formatDateTime } from '@/lib/utils'
 import { RevealPhone } from '@/components/ui/RevealPhone'
 import { AppLayout } from '@/components/layout/AppLayout'
+import { RouteInline } from '@/components/ui/RouteInline'
+import { ContainerMark } from '@/components/ui/ContainerMark'
 import { cn } from '@/lib/utils'
 
 function TruckChatContent() {
@@ -228,7 +230,7 @@ function TruckChatContent() {
     return (
       <AppLayout>
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin h-8 w-8 rounded-full border-4 border-blue-600 border-t-transparent" />
+          <div className="animate-spin h-8 w-8 rounded-full border-2 border-accent border-t-transparent" />
         </div>
       </AppLayout>
     )
@@ -238,13 +240,15 @@ function TruckChatContent() {
     return (
       <AppLayout>
         <div className="max-w-lg mx-auto text-center py-16">
-          <div className="text-4xl mb-4">🔒</div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Нет доступа к чату</h2>
-          <p className="text-gray-500 text-sm mb-6">
+          <div className="flex justify-center mb-4 text-ink-4">
+            <Lock size={28} strokeWidth={1.5} />
+          </div>
+          <h2 className="text-lg font-semibold text-ink mb-2">Нет доступа к чату</h2>
+          <p className="text-ink-3 text-sm mb-6">
             Чат доступен перевозчику и клиенту, откликнувшемуся на рейс.
           </p>
-          <Link href={backHref} className="text-blue-600 hover:underline text-sm">
-            ← Назад
+          <Link href={backHref} className="text-accent hover:text-accent-hover text-sm">
+            Назад
           </Link>
         </div>
       </AppLayout>
@@ -258,21 +262,19 @@ function TruckChatContent() {
         <div className="flex items-center gap-3 mb-4 shrink-0">
           <Link
             href={backHref}
-            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+            className="p-2 rounded-card text-ink-3 hover:text-ink hover:bg-surface-sunken transition-colors ease-terminal shrink-0"
           >
             <ArrowLeft size={18} />
           </Link>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-              {truck?.from_city}
-              <ArrowRight size={12} className="text-gray-400 shrink-0" />
-              {truck?.to_city}
-            </div>
+            {truck && (
+              <RouteInline from={truck.from_city} to={truck.to_city} className="flex-none" />
+            )}
             {otherParty && (
-              <div className="text-xs text-gray-500 flex items-center gap-1 flex-wrap">
+              <div className="text-xs text-ink-3 flex items-center gap-1.5 flex-wrap mt-0.5">
                 <span>Чат с {otherParty.name}</span>
                 <RevealPhone kind="truck" id={truckId} targetUserId={otherParty.id}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium" />
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-field text-xs font-medium" />
               </div>
             )}
           </div>
@@ -281,8 +283,8 @@ function TruckChatContent() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto space-y-3 pr-1 min-h-0">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm">
-              <div className="text-3xl mb-3">💬</div>
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-center text-ink-3 text-sm">
+              <ContainerMark size={28} className="text-ink-4" />
               <p>Начните диалог — напишите первое сообщение</p>
             </div>
           ) : (
@@ -297,21 +299,21 @@ function TruckChatContent() {
                   )}
                 >
                   {!isOwn && (
-                    <span className="text-xs text-gray-500 mb-1 px-1">
+                    <span className="text-xs text-ink-3 mb-1 px-1">
                       {msg.sender?.name || 'Пользователь'}
                     </span>
                   )}
                   <div
                     className={cn(
-                      'px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words',
+                      'px-3.5 py-2.5 rounded-card text-sm leading-relaxed break-words',
                       isOwn
-                        ? 'bg-blue-600 text-white rounded-tr-sm'
-                        : 'bg-white border border-gray-100 text-gray-900 rounded-tl-sm shadow-sm'
+                        ? 'bg-accent text-white rounded-tr-sm'
+                        : 'bg-surface border border-hairline text-ink rounded-tl-sm'
                     )}
                   >
                     {msg.text}
                   </div>
-                  <span className="text-xs text-gray-400 mt-1 px-1">
+                  <span className="font-mono text-[11px] tabular-nums text-ink-4 mt-1 px-1">
                     {formatDateTime(msg.created_at)}
                   </span>
                 </div>
@@ -323,7 +325,7 @@ function TruckChatContent() {
 
         {/* Input */}
         <div className="mt-3 shrink-0">
-          <div className="flex gap-2 items-end bg-white border border-gray-200 rounded-2xl p-2 shadow-sm">
+          <div className="flex gap-2 items-end bg-surface border border-hairline rounded-card p-2">
             <textarea
               ref={inputRef}
               value={text}
@@ -332,7 +334,7 @@ function TruckChatContent() {
               placeholder="Написать сообщение... (Enter — отправить)"
               rows={1}
               maxLength={2000}
-              className="flex-1 resize-none px-2 py-1.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none min-h-[36px] max-h-[120px]"
+              className="flex-1 resize-none px-2 py-2 text-sm text-ink placeholder:text-ink-4 focus:outline-none min-h-[40px] max-h-[120px] bg-transparent"
               style={{ overflowY: text.includes('\n') ? 'auto' : 'hidden' }}
               onInput={e => {
                 const t = e.target as HTMLTextAreaElement
@@ -343,12 +345,12 @@ function TruckChatContent() {
             <button
               onClick={sendMessage}
               disabled={!text.trim() || sending}
-              className="p-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+              className="flex items-center justify-center h-11 w-11 rounded-card bg-accent text-white hover:bg-accent-hover active:bg-accent-pressed disabled:opacity-40 disabled:cursor-not-allowed transition-colors ease-terminal shrink-0"
             >
               <Send size={18} />
             </button>
           </div>
-          <p className="text-xs text-gray-400 mt-1 text-right">
+          <p className="font-mono text-[11px] text-ink-4 mt-1.5 text-right">
             Enter — отправить, Shift+Enter — перенос строки
           </p>
         </div>

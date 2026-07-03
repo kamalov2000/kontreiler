@@ -240,7 +240,7 @@ export default function ProfilePage() {
       if (data._stub) {
         toast.warning('Тестовый режим: поле заполнено примерными данными. Для реальных данных добавьте DADATA_API_KEY в переменные окружения.')
       } else {
-        toast.success(`✅ Данные загружены: ${data.short_name || data.name}`)
+        toast.success(`Данные загружены: ${data.short_name || data.name}`)
       }
     } finally {
       setLookingUp(false)
@@ -305,57 +305,66 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <AppLayout>
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin h-8 w-8 rounded-full border-4 border-blue-600 border-t-transparent" />
+        <div className="max-w-md space-y-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 rounded-card border border-hairline bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+          ))}
         </div>
       </AppLayout>
     )
   }
 
   const completion = calcCompletion()
+  const completionTone = completion === 100 ? 'text-success' : completion >= 60 ? 'text-warning' : 'text-danger'
+  const completionBar = completion === 100 ? 'bg-success' : completion >= 60 ? 'bg-warning' : 'bg-danger'
+
+  // Общие классы полей ввода в новой дизайн-системе
+  const labelCls = 'block text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5'
+  const fieldCls = 'w-full h-11 px-3 text-sm rounded-field border border-hairline bg-surface text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent transition-colors ease-terminal'
+  const monoFieldCls = fieldCls + ' font-mono tabular-nums'
 
   return (
     <AppLayout>
       <div className="max-w-md">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">{t.profile.title}</h1>
+        <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink mb-6">{t.profile.title}</h1>
 
-        {/* Profile completion */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+        {/* Заполненность профиля */}
+        <div className="bg-surface rounded-card border border-hairline p-4 mb-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">Профиль заполнен на</span>
-            <span className={`text-sm font-bold ${completion === 100 ? 'text-green-600' : completion >= 60 ? 'text-amber-600' : 'text-red-500'}`}>
+            <span className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Профиль заполнен на</span>
+            <span className={`font-mono text-sm font-medium tabular-nums ${completionTone}`}>
               {completion}%
             </span>
           </div>
-          <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
+          <div className="w-full h-1.5 rounded-full bg-surface-sunken overflow-hidden">
             <div
-              className={`h-2 rounded-full transition-all duration-500 ${completion === 100 ? 'bg-green-500' : completion >= 60 ? 'bg-amber-400' : 'bg-red-400'}`}
+              className={`h-1.5 rounded-full transition-all duration-500 ${completionBar}`}
               style={{ width: `${completion}%` }}
             />
           </div>
           {completion < 100 && (
-            <p className="text-xs text-gray-400 mt-2">Заполните реквизиты компании для генерации договора</p>
+            <p className="text-[13px] text-ink-3 mt-2">Заполните реквизиты компании для генерации договора</p>
           )}
         </div>
 
-        {/* Profile form */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-4">
-          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
-            <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-              <User size={24} className="text-blue-600" />
+        {/* Профиль */}
+        <div className="bg-surface rounded-card border border-hairline p-6 mb-4">
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-hairline">
+            <div className="w-12 h-12 rounded-card bg-accent-soft flex items-center justify-center shrink-0">
+              <User size={22} strokeWidth={1.5} className="text-accent" />
             </div>
-            <div>
-              <div className="font-semibold text-gray-900">{user?.name || '—'}</div>
-              <div className="text-sm text-gray-500 flex items-center gap-2 flex-wrap">
+            <div className="min-w-0">
+              <div className="font-semibold text-ink truncate">{user?.name || '—'}</div>
+              <div className="text-[13px] text-ink-3 flex items-center gap-2 flex-wrap mt-0.5">
                 {user?.role === 'client' ? t.profile.client : t.profile.carrier}
                 {user?.is_verified && (
-                  <span className="inline-flex items-center gap-1 text-green-600">
-                    <Shield size={12} /> {t.profile.verified}
+                  <span className="inline-flex items-center gap-1 text-success">
+                    <Shield size={12} strokeWidth={1.5} /> {t.profile.verified}
                   </span>
                 )}
                 {isEmailVerified && (
-                  <span className="inline-flex items-center gap-1 text-blue-600">
-                    <CheckCircle size={12} /> {t.profile.emailVerified}
+                  <span className="inline-flex items-center gap-1 text-accent">
+                    <CheckCircle size={12} strokeWidth={1.5} /> {t.profile.emailVerified}
                   </span>
                 )}
               </div>
@@ -364,10 +373,10 @@ export default function ProfilePage() {
 
           {email && (
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                <span className="flex items-center gap-1.5"><Mail size={14} />{t.profile.email}</span>
+              <label className={labelCls}>
+                <span className="inline-flex items-center gap-1.5"><Mail size={13} strokeWidth={1.5} />{t.profile.email}</span>
               </label>
-              <div className="px-3 py-2.5 rounded-lg border border-gray-200 bg-gray-50 text-sm text-gray-600 select-all">
+              <div className="h-11 flex items-center px-3 rounded-field border border-hairline bg-surface-sunken font-mono text-sm text-ink-2 select-all">
                 {email}
               </div>
             </div>
@@ -379,10 +388,10 @@ export default function ProfilePage() {
             <Input id="city" label={t.profile.city} value={city} onChange={e => setCity(e.target.value)} required />
 
             {/* Реквизиты компании */}
-            <div className="border-t border-gray-100 pt-4">
+            <div className="border-t border-hairline pt-4">
               <div className="flex items-center gap-2 mb-3">
-                <Building2 size={14} className="text-gray-400" />
-                <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                <Building2 size={14} strokeWidth={1.5} className="text-ink-3" />
+                <p className="text-[11.5px] text-ink-3 font-semibold uppercase tracking-[0.06em]">
                   {user?.role === 'client' ? 'Реквизиты компании' : 'Реквизиты перевозчика'}
                 </p>
               </div>
@@ -398,7 +407,7 @@ export default function ProfilePage() {
 
                 {/* ИНН + кнопка поиска */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">ИНН</label>
+                  <label className={labelCls}>ИНН</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -406,21 +415,21 @@ export default function ProfilePage() {
                       onChange={e => setInn(e.target.value)}
                       placeholder="1234567890"
                       maxLength={12}
-                      className="flex-1 px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                      className={`flex-1 ${monoFieldCls}`}
                       required={user?.role === 'client'}
                     />
                     <button
                       type="button"
                       onClick={handleLookupInn}
                       disabled={lookingUp}
-                      className="flex items-center gap-1.5 px-3 py-2.5 rounded-lg text-sm font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50 shrink-0"
+                      className="inline-flex items-center gap-1.5 h-11 px-3 rounded-card text-sm font-medium bg-surface text-ink border border-hairline hover:border-border-strong transition-colors ease-terminal disabled:opacity-50 shrink-0"
                       title="Заполнить реквизиты по ИНН (DaData)"
                     >
-                      <Search size={14} />
+                      <Search size={14} strokeWidth={1.5} />
                       {lookingUp ? '...' : 'По ИНН'}
                     </button>
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">Нажмите «По ИНН» для автозаполнения</p>
+                  <p className="text-[13px] text-ink-3 mt-1">Нажмите «По ИНН» для автозаполнения</p>
                 </div>
 
                 {user?.role === 'carrier' && (
@@ -436,47 +445,62 @@ export default function ProfilePage() {
             </div>
 
             {/* Расширенные реквизиты (для договора) */}
-            <div className="border-t border-gray-100 pt-3">
+            <div className="border-t border-hairline pt-3">
               <button
                 type="button"
                 onClick={() => setExtOpen(v => !v)}
                 className="flex items-center justify-between w-full text-left"
               >
                 <div className="flex items-center gap-2">
-                  <Building2 size={14} className="text-gray-400" />
-                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+                  <Building2 size={14} strokeWidth={1.5} className="text-ink-3" />
+                  <span className="text-[11.5px] text-ink-3 font-semibold uppercase tracking-[0.06em]">
                     Реквизиты для договор-заявки
                   </span>
-                  <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">PDF</span>
+                  <span className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-accent bg-accent-soft px-1.5 py-0.5 rounded-field">PDF</span>
                 </div>
-                {extOpen ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                {extOpen ? <ChevronUp size={16} strokeWidth={1.5} className="text-ink-3" /> : <ChevronDown size={16} strokeWidth={1.5} className="text-ink-3" />}
               </button>
 
               {extOpen && (
                 <div className="mt-3 space-y-3">
                   <div className="grid grid-cols-2 gap-3">
-                    <Input id="kpp" label="КПП" value={kpp} onChange={e => setKpp(e.target.value)} placeholder="770101001" maxLength={9} />
-                    <Input id="ogrn" label="ОГРН" value={ogrn} onChange={e => setOgrn(e.target.value)} placeholder="1234567890123" maxLength={15} />
+                    <div>
+                      <label className={labelCls}>КПП</label>
+                      <input value={kpp} onChange={e => setKpp(e.target.value)} placeholder="770101001" maxLength={9} className={monoFieldCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>ОГРН</label>
+                      <input value={ogrn} onChange={e => setOgrn(e.target.value)} placeholder="1234567890123" maxLength={15} className={monoFieldCls} />
+                    </div>
                   </div>
                   <Input id="legal_address" label="Юридический адрес" value={legalAddress} onChange={e => setLegalAddress(e.target.value)} placeholder="г. Москва, ул. Примерная, д. 1" />
                   <Input id="actual_address" label="Фактический адрес" value={actualAddress} onChange={e => setActualAddress(e.target.value)} placeholder="Если отличается от юридического" />
 
-                  <div className="text-xs text-gray-400 font-medium uppercase tracking-wide pt-1">Банковские реквизиты</div>
+                  <div className="text-[11.5px] text-ink-3 font-semibold uppercase tracking-[0.06em] pt-1">Банковские реквизиты</div>
                   <Input id="bank_name" label="Наименование банка" value={bankName} onChange={e => setBankName(e.target.value)} placeholder="АО Тинькофф Банк" />
                   <div className="grid grid-cols-2 gap-3">
-                    <Input id="bank_account" label="Расчётный счёт" value={bankAccount} onChange={e => setBankAccount(e.target.value)} placeholder="40702810000000000000" maxLength={20} />
-                    <Input id="bank_bik" label="БИК" value={bankBik} onChange={e => setBankBik(e.target.value)} placeholder="044525974" maxLength={9} />
+                    <div>
+                      <label className={labelCls}>Расчётный счёт</label>
+                      <input value={bankAccount} onChange={e => setBankAccount(e.target.value)} placeholder="40702810000000000000" maxLength={20} className={monoFieldCls} />
+                    </div>
+                    <div>
+                      <label className={labelCls}>БИК</label>
+                      <input value={bankBik} onChange={e => setBankBik(e.target.value)} placeholder="044525974" maxLength={9} className={monoFieldCls} />
+                    </div>
                   </div>
-                  <Input id="bank_corr_account" label="Корреспондентский счёт" value={bankCorrAccount} onChange={e => setBankCorrAccount(e.target.value)} placeholder="30101810145250000974" maxLength={20} />
+                  <div>
+                    <label className={labelCls}>Корреспондентский счёт</label>
+                    <input value={bankCorrAccount} onChange={e => setBankCorrAccount(e.target.value)} placeholder="30101810145250000974" maxLength={20} className={monoFieldCls} />
+                  </div>
 
-                  <div className="text-xs text-gray-400 font-medium uppercase tracking-wide pt-1">Подписант</div>
+                  <div className="text-[11.5px] text-ink-3 font-semibold uppercase tracking-[0.06em] pt-1">Подписант</div>
                   <Input id="signatory_name" label="ФИО подписанта" value={signatoryName} onChange={e => setSignatoryName(e.target.value)} placeholder="Иванов Иван Иванович" />
                   <Input id="signatory_position" label="Должность" value={signatoryPosition} onChange={e => setSignatoryPosition(e.target.value)} placeholder="Генеральный директор" />
                   <Input id="signatory_basis" label="Действует на основании" value={signatoryBasis} onChange={e => setSignatoryBasis(e.target.value)} placeholder="Устава / Доверенности №..." />
 
-                  <div className="text-xs text-gray-400 font-medium uppercase tracking-wide pt-1">Стандартные обязанности сторон</div>
+                  <div className="text-[11.5px] text-ink-3 font-semibold uppercase tracking-[0.06em] pt-1">Стандартные обязанности сторон</div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    <label className={labelCls}>
                       Обязанности (заменяют стандартный текст в договоре)
                     </label>
                     <textarea
@@ -484,7 +508,7 @@ export default function ProfilePage() {
                       onChange={e => setDefaultObligations(e.target.value)}
                       placeholder="Оставьте пустым для использования стандартного текста платформы..."
                       rows={4}
-                      className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 resize-y"
+                      className="w-full px-3 py-2.5 text-sm rounded-field border border-hairline bg-surface text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent transition-colors ease-terminal resize-y"
                     />
                   </div>
                 </div>
@@ -499,12 +523,12 @@ export default function ProfilePage() {
 
         {/* Email verification */}
         {!isEmailVerified && (
-          <div className="bg-white rounded-2xl border border-amber-200 shadow-sm p-5 mb-4">
+          <div className="bg-warning-soft rounded-card border border-hairline p-5 mb-4">
             <div className="flex items-center gap-2 mb-3">
-              <Mail size={18} className="text-amber-500" />
-              <span className="font-semibold text-gray-900">{t.profile.emailVerification.title}</span>
+              <Mail size={18} strokeWidth={1.5} className="text-warning" />
+              <span className="font-semibold text-ink">{t.profile.emailVerification.title}</span>
             </div>
-            <p className="text-sm text-gray-500 mb-4">{t.profile.emailVerification.hint}</p>
+            <p className="text-sm text-ink-2 mb-4">{t.profile.emailVerification.hint}</p>
             <Button onClick={handleResendEmail} loading={resending} variant="secondary" className="w-full">
               {t.profile.emailVerification.resend}
             </Button>
@@ -512,74 +536,76 @@ export default function ProfilePage() {
         )}
 
         {/* Company members */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
+        <div className="bg-surface rounded-card border border-hairline p-5 mb-4">
           <div className="flex items-center gap-2 mb-4">
-            <Users size={18} className="text-blue-500" />
-            <span className="font-semibold text-gray-900">Сотрудники компании</span>
+            <Users size={18} strokeWidth={1.5} className="text-ink-3" />
+            <span className="font-semibold text-ink">Сотрудники компании</span>
           </div>
           {members.length === 0 ? (
-            <p className="text-sm text-gray-400 mb-4">Сотрудники не добавлены</p>
+            <p className="text-sm text-ink-3 mb-4">Сотрудники не добавлены</p>
           ) : (
             <div className="space-y-2 mb-4">
               {members.map(m => (
-                <div key={m.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-50 border border-gray-100">
+                <div key={m.id} className="flex items-center gap-2 p-2.5 rounded-field bg-surface-sunken border border-hairline">
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-900">{m.name}</div>
-                    <div className="text-xs text-gray-400 flex gap-2 flex-wrap">
+                    <div className="text-sm font-medium text-ink">{m.name}</div>
+                    <div className="text-[13px] text-ink-3 flex gap-2 flex-wrap">
                       {m.position && <span>{m.position}</span>}
-                      {m.phone && <span>{m.phone}</span>}
+                      {m.phone && <span className="font-mono tabular-nums">{m.phone}</span>}
                     </div>
                   </div>
                   <button
                     onClick={() => handleDeleteMember(m.id)}
-                    className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                    className="p-1.5 rounded-field text-ink-3 hover:text-danger hover:bg-danger-soft transition-colors ease-terminal shrink-0"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={14} strokeWidth={1.5} />
                   </button>
                 </div>
               ))}
             </div>
           )}
-          <div className="border-t border-gray-100 pt-4 space-y-3">
-            <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Добавить сотрудника</div>
+          <div className="border-t border-hairline pt-4 space-y-3">
+            <div className="text-[11.5px] font-semibold text-ink-3 uppercase tracking-[0.06em]">Добавить сотрудника</div>
             <Input id="memberName" label="Имя" value={memberName} onChange={e => setMemberName(e.target.value)} placeholder="Иванов Иван" />
             <Input id="memberPosition" label="Должность" value={memberPosition} onChange={e => setMemberPosition(e.target.value)} placeholder="Менеджер" />
             <Input id="memberPhone" type="tel" label="Телефон" value={memberPhone} onChange={e => setMemberPhone(e.target.value)} placeholder="+7 900 000 00 00" />
             <Button onClick={handleAddMember} loading={addingMember} variant="secondary" className="w-full">
-              <Plus size={16} className="mr-1.5" /> Добавить сотрудника
+              <Plus size={16} strokeWidth={1.5} className="mr-1.5" /> Добавить сотрудника
             </Button>
           </div>
         </div>
 
         {/* Saved routes */}
         {user?.role === 'carrier' && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
+          <div className="bg-surface rounded-card border border-hairline p-5 mb-4">
             <div className="flex items-center gap-2 mb-4">
-              <MapPin size={18} className="text-blue-500" />
-              <span className="font-semibold text-gray-900">{t.profile.savedRoutes.title}</span>
+              <MapPin size={18} strokeWidth={1.5} className="text-ink-3" />
+              <span className="font-semibold text-ink">{t.profile.savedRoutes.title}</span>
             </div>
             {savedRoutes.length === 0 ? (
-              <p className="text-sm text-gray-400 mb-4">{t.profile.savedRoutes.none}</p>
+              <p className="text-sm text-ink-3 mb-4">{t.profile.savedRoutes.none}</p>
             ) : (
               <div className="space-y-2 mb-4">
                 {savedRoutes.map(r => (
-                  <div key={r.id} className="flex items-center gap-2 p-2.5 rounded-xl bg-gray-50 border border-gray-100">
-                    <span className="text-sm font-medium text-gray-900 flex-1">
-                      {r.from_city} → {r.to_city}
-                      {r.container_type && <span className="ml-2 text-xs text-gray-500">{r.container_type}</span>}
+                  <div key={r.id} className="flex items-center gap-2 p-2.5 rounded-field bg-surface-sunken border border-hairline">
+                    <span className="text-sm font-medium text-ink flex-1 inline-flex items-center gap-2 flex-wrap">
+                      <span>{r.from_city}</span>
+                      <span className="text-ink-4">──•──</span>
+                      <span>{r.to_city}</span>
+                      {r.container_type && <span className="font-mono text-[11.5px] uppercase tracking-[0.06em] text-ink-2 px-1.5 py-0.5 rounded-field border border-hairline bg-surface">{r.container_type}</span>}
                     </span>
                     <button
                       onClick={() => handleDeleteRoute(r.id)}
-                      className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      className="p-1.5 rounded-field text-ink-3 hover:text-danger hover:bg-danger-soft transition-colors ease-terminal shrink-0"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={14} strokeWidth={1.5} />
                     </button>
                   </div>
                 ))}
               </div>
             )}
-            <div className="border-t border-gray-100 pt-4 space-y-3">
-              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">{t.profile.savedRoutes.addTitle}</div>
+            <div className="border-t border-hairline pt-4 space-y-3">
+              <div className="text-[11.5px] font-semibold text-ink-3 uppercase tracking-[0.06em]">{t.profile.savedRoutes.addTitle}</div>
               <div className="grid grid-cols-2 gap-2">
                 <CityAutocomplete label={t.profile.savedRoutes.from} value={routeFrom} onChange={setRouteFrom} placeholder={t.common.anyCity} />
                 <CityAutocomplete label={t.profile.savedRoutes.to} value={routeTo} onChange={setRouteTo} placeholder={t.common.anyCity} />
@@ -592,24 +618,24 @@ export default function ProfilePage() {
                 placeholder={t.common.anyType}
               />
               <Button onClick={handleAddRoute} loading={addingRoute} variant="secondary" className="w-full">
-                <Plus size={16} className="mr-1.5" /> {t.profile.savedRoutes.add}
+                <Plus size={16} strokeWidth={1.5} className="mr-1.5" /> {t.profile.savedRoutes.add}
               </Button>
             </div>
           </div>
         )}
 
         {/* Рейтинг и отзывы */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
+        <div className="bg-surface rounded-card border border-hairline p-5 mb-4">
           <div className="flex items-center gap-2 mb-4">
-            <Star size={18} className="text-amber-500" />
-            <span className="font-semibold text-gray-900">{t.profile.rating.title}</span>
+            <Star size={18} strokeWidth={1.5} className="text-ink-3" />
+            <span className="font-semibold text-ink">{t.profile.rating.title}</span>
           </div>
           {myRating ? (
             <>
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex gap-0.5">
                   {[1,2,3,4,5].map(s => (
-                    <Star key={s} size={20} className={s <= Math.round(myRating.avg) ? 'fill-amber-400 text-amber-400' : 'text-gray-200 fill-gray-200'} />
+                    <Star key={s} size={20} className={s <= Math.round(myRating.avg) ? 'fill-warning text-warning' : 'text-hairline fill-hairline'} />
                   ))}
                 </div>
                 <RatingBadge avg={myRating.avg} count={myRating.count} />
@@ -617,29 +643,29 @@ export default function ProfilePage() {
               {myReviews.length > 0 && (
                 <div className="space-y-3">
                   {myReviews.map(rv => (
-                    <div key={rv.id} className="p-3 rounded-xl bg-gray-50 border border-gray-100">
+                    <div key={rv.id} className="p-3 rounded-field bg-surface-sunken border border-hairline">
                       <div className="flex items-center justify-between mb-1 gap-2">
-                        <span className="text-sm font-medium text-gray-700">{rv.reviewer?.name || t.profile.rating.anon}</span>
+                        <span className="text-sm font-medium text-ink-2">{rv.reviewer?.name || t.profile.rating.anon}</span>
                         <div className="flex gap-0.5 shrink-0">
                           {[1,2,3,4,5].map(s => (
-                            <Star key={s} size={12} className={s <= rv.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-200 fill-gray-200'} />
+                            <Star key={s} size={12} className={s <= rv.rating ? 'fill-warning text-warning' : 'text-hairline fill-hairline'} />
                           ))}
                         </div>
                       </div>
-                      {rv.comment && <p className="text-sm text-gray-600">{rv.comment}</p>}
-                      <div className="text-xs text-gray-400 mt-1">{formatDateTime(rv.created_at)}</div>
+                      {rv.comment && <p className="text-sm text-ink-2">{rv.comment}</p>}
+                      <div className="font-mono text-[13px] tabular-nums text-ink-3 mt-1">{formatDateTime(rv.created_at)}</div>
                     </div>
                   ))}
                 </div>
               )}
             </>
           ) : (
-            <p className="text-sm text-gray-400">{t.profile.rating.noReviews}</p>
+            <p className="text-sm text-ink-3">{t.profile.rating.noReviews}</p>
           )}
         </div>
 
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-          {t.profile.roleHint} (<strong>{user?.role === 'client' ? t.profile.client : t.profile.carrier}</strong>) {t.profile.roleCannotChange}
+        <div className="bg-surface-sunken border border-hairline rounded-card p-4 text-sm text-ink-2">
+          {t.profile.roleHint} (<strong className="text-ink">{user?.role === 'client' ? t.profile.client : t.profile.carrier}</strong>) {t.profile.roleCannotChange}
         </div>
       </div>
     </AppLayout>

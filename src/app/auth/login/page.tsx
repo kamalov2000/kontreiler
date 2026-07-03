@@ -3,11 +3,15 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Package } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { ContainerMark } from '@/components/ui/ContainerMark'
 import { toast } from 'sonner'
+
+const fieldInputClass =
+  'rounded-field border-hairline bg-surface text-ink focus:ring-2 focus:ring-accent focus:border-accent placeholder:text-ink-4'
+const overlineLabelClass = 'block text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -47,54 +51,62 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen bg-paper flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <Link href="/" className="flex items-center gap-2 text-blue-600 font-bold text-2xl mb-2">
-            <Package size={28} />
-            Контрейл
+          <Link href="/" className="flex items-center gap-2 mb-2">
+            <ContainerMark size={24} />
+            <span className="text-2xl font-bold tracking-[-0.02em] text-ink">Контрейл</span>
           </Link>
-          <p className="text-gray-500 text-sm">Биржа контейнерных перевозок</p>
+          <p className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">
+            Биржа контейнерных перевозок
+          </p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <h1 className="text-xl font-semibold text-gray-900 mb-6">Вход в систему</h1>
+        <div className="bg-surface rounded-card border border-hairline p-6">
+          <h1 className="text-xl font-semibold text-ink mb-6">Вход в систему</h1>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              id="email"
-              type="email"
-              label="Email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
-            <Input
-              id="password"
-              type="password"
-              label="Пароль"
-              placeholder="••••••••"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-            />
+            <div className="w-full">
+              <label htmlFor="email" className={overlineLabelClass}>Email</label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className={fieldInputClass}
+              />
+            </div>
+            <div className="w-full">
+              <label htmlFor="password" className={overlineLabelClass}>Пароль</label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                className={fieldInputClass}
+              />
+            </div>
             <Button type="submit" loading={loading} className="w-full" size="lg">
               Войти
             </Button>
           </form>
 
           <p className="mt-3 text-center text-sm">
-            <Link href="/auth/forgot-password" className="text-gray-500 hover:text-blue-600 hover:underline">
+            <Link href="/auth/forgot-password" className="text-accent hover:text-accent-hover">
               Забыл пароль?
             </Link>
           </p>
 
-          <p className="mt-3 text-center text-sm text-gray-600">
+          <p className="mt-3 text-center text-sm text-ink-3">
             Нет аккаунта?{' '}
-            <Link href="/auth/register" className="text-blue-600 hover:underline font-medium">
+            <Link href="/auth/register" className="text-accent hover:text-accent-hover font-medium">
               Зарегистрироваться
             </Link>
           </p>

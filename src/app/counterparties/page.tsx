@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Counterparty } from '@/types/database'
-import { Users, Plus, Trash2, Search, X } from 'lucide-react'
+import { ContainerMark } from '@/components/ui/ContainerMark'
+import { Plus, Trash2, Search, X, Truck, Package } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function CounterpartiesPage() {
@@ -101,15 +102,10 @@ export default function CounterpartiesPage() {
   return (
     <AppLayout>
       <div className="max-w-2xl">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-              <Users size={20} className="text-blue-600" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Контрагенты</h1>
-              <p className="text-sm text-gray-500">Ваши проверенные {targetRole}</p>
-            </div>
+        <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">Контрагенты</h1>
+            <p className="text-[13px] text-ink-3 mt-0.5">Ваши проверенные {targetRole}</p>
           </div>
           <Button onClick={() => setAddOpen(true)}>
             <Plus size={16} className="mr-1" />
@@ -119,23 +115,23 @@ export default function CounterpartiesPage() {
 
         {/* Блок добавления */}
         {addOpen && (
-          <div className="bg-white rounded-2xl border border-blue-200 p-5 mb-5 shadow-sm">
+          <div className="bg-surface rounded-card border border-hairline p-5 mb-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-900">Добавить контрагента</h2>
-              <button onClick={() => { setAddOpen(false); setSearchResult(null); setSearchEmail('') }} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
+              <h2 className="text-[13px] font-semibold tracking-[0.06em] uppercase text-ink-3">Добавить контрагента</h2>
+              <button onClick={() => { setAddOpen(false); setSearchResult(null); setSearchEmail('') }} className="p-1.5 rounded-field text-ink-4 hover:text-ink hover:bg-surface-sunken transition-colors">
                 <X size={16} />
               </button>
             </div>
             <div className="flex gap-2 mb-3">
               <div className="relative flex-1">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-4 pointer-events-none" />
                 <input
                   type="text"
                   value={searchEmail}
                   onChange={e => setSearchEmail(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && searchUser()}
                   placeholder="Имя или название компании..."
-                  className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full h-11 pl-9 pr-3 text-sm rounded-field border border-hairline bg-surface text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent"
                 />
               </div>
               <Button variant="secondary" onClick={searchUser} loading={searching}>
@@ -144,16 +140,20 @@ export default function CounterpartiesPage() {
             </div>
 
             {searchResult && (
-              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 mb-3">
-                <div className="font-medium text-gray-900">{searchResult.company_name || searchResult.name || 'Без имени'}</div>
-                <div className="text-xs text-gray-500 mb-2">{searchResult.role === 'carrier' ? 'Перевозчик' : 'Клиент'}</div>
-                <div className="mb-2">
+              <div className="p-4 rounded-card bg-surface-sunken border border-hairline mb-1">
+                <div className="font-semibold text-ink">{searchResult.company_name || searchResult.name || 'Без имени'}</div>
+                <div className="inline-flex items-center gap-1.5 mt-1 mb-3 text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">
+                  {searchResult.role === 'carrier'
+                    ? <><Truck size={13} strokeWidth={1.5} className="text-ink-3" /> Перевозчик</>
+                    : <><Package size={13} strokeWidth={1.5} className="text-ink-3" /> Клиент</>}
+                </div>
+                <div className="mb-3">
                   <input
                     type="text"
                     value={note}
                     onChange={e => setNote(e.target.value)}
                     placeholder="Заметка (необязательно)"
-                    className="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full h-11 px-3 text-sm rounded-field border border-hairline bg-surface text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent"
                   />
                 </div>
                 <Button size="sm" onClick={() => addCounterparty(searchResult.id)} loading={adding}>
@@ -165,40 +165,57 @@ export default function CounterpartiesPage() {
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin h-8 w-8 rounded-full border-4 border-blue-600 border-t-transparent" />
+          <div className="border border-hairline rounded-card bg-surface overflow-hidden">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3.5 h-[56px] px-5 border-b border-hairline last:border-0">
+                <span className="flex-1 h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+                <span className="w-[110px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+              </div>
+            ))}
           </div>
         ) : counterparties.length === 0 ? (
-          <div className="text-center py-16 text-gray-400">
-            <Users size={48} className="mx-auto mb-3 opacity-20" />
-            <p className="mb-1">Контрагентов пока нет</p>
-            <p className="text-sm">Добавьте проверенных {targetRole} для быстрого взаимодействия</p>
+          <div className="border border-hairline rounded-card bg-surface flex flex-col items-center gap-3 text-center py-16 px-6 text-ink-3">
+            <ContainerMark size={28} className="text-ink-4" />
+            <p className="text-ink-2">Контрагентов пока нет</p>
+            <p className="text-[13px] max-w-xs">Добавьте проверенных {targetRole} для быстрого взаимодействия</p>
+            <button onClick={() => setAddOpen(true)} className="inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:text-accent-hover transition-colors">
+              <Plus size={15} />
+              Добавить контрагента
+            </button>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="border border-hairline rounded-card bg-surface overflow-hidden">
             {counterparties.map(cp => {
               const partner = cp.counterparty
+              const partnerInn = (partner as { inn?: string | null })?.inn
               return (
-                <div key={cp.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center justify-between gap-3">
+                <div key={cp.id} className="flex items-center justify-between gap-3 min-h-[56px] py-3 px-5 border-b border-hairline last:border-0 transition-colors ease-terminal hover:bg-accent-soft">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-                      <Users size={18} className="text-blue-600" />
-                    </div>
+                    <ContainerMark size={20} className="text-ink-3 shrink-0" />
                     <div className="min-w-0">
-                      <div className="font-medium text-gray-900 truncate">
+                      <div className="font-semibold text-ink truncate">
                         {partner?.company_name || partner?.name || 'Без имени'}
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {partner?.role === 'carrier' ? '🚛 Перевозчик' : '📦 Клиент'}
-                        {(partner as { city?: string | null })?.city ? ` · ${(partner as { city?: string | null }).city}` : ''}
+                      <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                        <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">
+                          {partner?.role === 'carrier'
+                            ? <><Truck size={12} strokeWidth={1.5} /> Перевозчик</>
+                            : <><Package size={12} strokeWidth={1.5} /> Клиент</>}
+                        </span>
+                        {(partner as { city?: string | null })?.city && (
+                          <span className="text-[13px] text-ink-3">· {(partner as { city?: string | null }).city}</span>
+                        )}
+                        {partnerInn && (
+                          <span className="font-mono text-[13px] tabular-nums text-ink-3">ИНН {partnerInn}</span>
+                        )}
                       </div>
-                      {cp.note && <div className="text-xs text-blue-600 mt-0.5 italic">{cp.note}</div>}
+                      {cp.note && <div className="text-[13px] text-accent mt-0.5">{cp.note}</div>}
                     </div>
                   </div>
                   <button
                     onClick={() => removeCounterparty(cp.id)}
                     disabled={deletingId === cp.id}
-                    className="p-2 rounded-lg text-gray-400 hover:bg-red-50 hover:text-red-500 transition-colors shrink-0 disabled:opacity-50"
+                    className="p-2 rounded-field text-ink-4 hover:bg-danger-soft hover:text-danger transition-colors shrink-0 disabled:opacity-50"
                     title="Удалить контрагента"
                   >
                     <Trash2 size={16} />
@@ -210,19 +227,19 @@ export default function CounterpartiesPage() {
         )}
 
         {/* Инфо-блок */}
-        <div className="mt-6 p-4 rounded-2xl bg-blue-50 border border-blue-100 text-sm text-blue-700">
-          <strong>Как это работает:</strong>
-          <ul className="mt-1 space-y-1 text-blue-600">
+        <div className="mt-6 p-4 rounded-card bg-surface border border-hairline">
+          <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-2">Как это работает</div>
+          <ul className="space-y-1.5 text-[13px] text-ink-2">
             {user?.role === 'client' ? (
               <>
-                <li>• При создании заявки выберите «Только для моих контрагентов»</li>
-                <li>• Такие заявки видны только добавленным перевозчикам</li>
-                <li>• Они выделяются зелёной рамкой в ленте перевозчика</li>
+                <li className="flex gap-2"><span className="text-accent">—</span> При создании заявки выберите «Только для моих контрагентов»</li>
+                <li className="flex gap-2"><span className="text-accent">—</span> Такие заявки видны только добавленным перевозчикам</li>
+                <li className="flex gap-2"><span className="text-accent">—</span> Они выделяются акцентной рамкой в ленте перевозчика</li>
               </>
             ) : (
               <>
-                <li>• Заявки клиентов из вашего списка выделяются зелёной рамкой</li>
-                <li>• Вы получаете уведомление, когда они публикуют новую заявку</li>
+                <li className="flex gap-2"><span className="text-accent">—</span> Заявки клиентов из вашего списка выделяются акцентной рамкой</li>
+                <li className="flex gap-2"><span className="text-accent">—</span> Вы получаете уведомление, когда они публикуют новую заявку</li>
               </>
             )}
           </ul>

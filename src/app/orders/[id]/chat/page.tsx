@@ -3,15 +3,19 @@
 import { useEffect, useState, useRef, useCallback, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Send, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, Send, ChevronDown, ChevronUp, Lock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Order, User } from '@/types/database'
 import { formatDate, formatDateTime, formatPrice } from '@/lib/utils'
 import { RevealPhone } from '@/components/ui/RevealPhone'
 import { AppLayout } from '@/components/layout/AppLayout'
+import { Button } from '@/components/ui/Button'
+import { RouteInline } from '@/components/ui/RouteInline'
+import { ContainerChip } from '@/components/ui/ContainerChip'
+import { StatusPill } from '@/components/ui/StatusPill'
+import { ContainerMark } from '@/components/ui/ContainerMark'
 import { cn } from '@/lib/utils'
-import { ORDER_STATUS_LABEL, ORDER_STATUS_CLASS } from '@/lib/status'
 import { CONTAINER_TYPES } from '@/lib/cities'
 
 interface Message {
@@ -240,7 +244,7 @@ function ChatContent() {
     return (
       <AppLayout>
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin h-8 w-8 rounded-full border-4 border-blue-600 border-t-transparent" />
+          <div className="animate-spin h-8 w-8 rounded-full border-2 border-accent border-t-transparent" />
         </div>
       </AppLayout>
     )
@@ -250,14 +254,16 @@ function ChatContent() {
     return (
       <AppLayout>
         <div className="max-w-lg mx-auto text-center py-16">
-          <div className="text-4xl mb-4">🔒</div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Нет доступа к чату</h2>
-          <p className="text-gray-500 text-sm mb-6">
+          <div className="flex justify-center mb-4 text-ink-4">
+            <Lock size={28} strokeWidth={1.5} />
+          </div>
+          <h2 className="text-lg font-semibold text-ink mb-2">Нет доступа к чату</h2>
+          <p className="text-ink-3 text-sm mb-6">
             Чат доступен только участникам сделки: клиенту заявки и откликнувшемуся перевозчику.
           </p>
-          <button onClick={() => router.back()} className="text-blue-600 hover:underline text-sm">
-            ← Назад
-          </button>
+          <Button variant="secondary" size="sm" onClick={() => router.back()}>
+            Назад
+          </Button>
         </div>
       </AppLayout>
     )
@@ -272,33 +278,33 @@ function ChatContent() {
         <div className="flex items-center gap-3 mb-3 shrink-0">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors font-medium"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-card text-sm text-ink-3 hover:text-ink hover:bg-surface-sunken transition-colors ease-terminal font-medium shrink-0"
           >
             <ArrowLeft size={16} />
             Назад
           </button>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 flex-wrap">
-              {order?.from_city}
-              <ArrowRight size={12} className="text-gray-400 shrink-0" />
-              {order?.to_city}
+            <div className="flex items-center gap-2 flex-wrap">
+              {order && (
+                <RouteInline from={order.from_city} to={order.to_city} className="flex-none" />
+              )}
               {order?.order_number && (
-                <span className="text-xs font-mono font-normal text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">
+                <span className="font-mono text-[11px] text-ink-3 bg-surface-sunken border border-hairline px-1.5 py-0.5 rounded-field whitespace-nowrap">
                   {order.order_number}
                 </span>
               )}
             </div>
             {otherParty && (
-              <div className="text-xs text-gray-500 flex items-center gap-1 flex-wrap">
+              <div className="text-xs text-ink-3 flex items-center gap-1.5 flex-wrap mt-0.5">
                 <span>Чат с {otherParty.name}</span>
                 <RevealPhone kind="order" id={orderId} targetUserId={otherParty.id}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium" />
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-field text-xs font-medium" />
               </div>
             )}
           </div>
           <button
             onClick={() => setOrderCardOpen(v => !v)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors font-medium shrink-0"
+            className="flex items-center gap-1 px-3 py-1.5 rounded-card text-xs text-accent bg-accent-soft hover:bg-accent hover:text-white transition-colors ease-terminal font-medium shrink-0"
           >
             Заявка
             {orderCardOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -307,51 +313,47 @@ function ChatContent() {
 
         {/* Карточка заявки (раскрывается) */}
         {orderCardOpen && order && (
-          <div className="mb-3 shrink-0 bg-white border border-blue-100 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ORDER_STATUS_CLASS[order.status]}`}>
-                {ORDER_STATUS_LABEL[order.status] ?? order.status}
-              </span>
+          <div className="mb-3 shrink-0 bg-surface border border-hairline rounded-card p-4">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <StatusPill status={order.status} kind="order" />
               {order.is_urgent && (
-                <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
-                  🔴 СРОЧНО
+                <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-danger">
+                  Срочно
                 </span>
               )}
               <Link
                 href={`/orders/${orderId}`}
-                className="text-xs text-blue-600 hover:underline ml-auto"
+                className="text-xs text-accent hover:text-accent-hover ml-auto"
               >
                 Открыть полностью →
               </Link>
             </div>
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg font-bold text-gray-900">{order.from_city}</span>
-              <ArrowRight size={16} className="text-gray-400 shrink-0" />
-              <span className="text-lg font-bold text-gray-900">{order.to_city}</span>
+            <div className="mb-3">
+              <RouteInline from={order.from_city} to={order.to_city} via={order.via_city} />
             </div>
-            <div className="grid grid-cols-3 gap-2 text-xs">
-              <div className="bg-gray-50 rounded-xl p-2">
-                <div className="text-gray-400 mb-0.5">Контейнер</div>
-                <div className="font-medium text-gray-800">{containerLabel}</div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-surface-sunken rounded-field p-2">
+                <div className="text-[11px] uppercase tracking-[0.06em] text-ink-3 mb-1">Контейнер</div>
+                <div>{containerLabel ? <ContainerChip label={containerLabel} /> : <span className="text-sm text-ink-2">—</span>}</div>
               </div>
-              <div className="bg-gray-50 rounded-xl p-2">
-                <div className="text-gray-400 mb-0.5">Ставка</div>
-                <div className="font-medium text-blue-700">{formatPrice(order.price, order.is_negotiable)}</div>
+              <div className="bg-surface-sunken rounded-field p-2">
+                <div className="text-[11px] uppercase tracking-[0.06em] text-ink-3 mb-1">Ставка</div>
+                <div className="font-mono text-sm font-medium tabular-nums text-ink">{formatPrice(order.price, order.is_negotiable)}</div>
               </div>
-              <div className="bg-gray-50 rounded-xl p-2">
-                <div className="text-gray-400 mb-0.5">Дата</div>
-                <div className="font-medium text-gray-800">{formatDate(order.ready_date)}</div>
+              <div className="bg-surface-sunken rounded-field p-2">
+                <div className="text-[11px] uppercase tracking-[0.06em] text-ink-3 mb-1">Дата</div>
+                <div className="font-mono text-sm tabular-nums text-ink-2">{formatDate(order.ready_date)}</div>
               </div>
             </div>
           </div>
         )}
 
         {/* Chat container */}
-        <div className="flex-1 flex flex-col min-h-0 bg-gray-50 border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+        <div className="flex-1 flex flex-col min-h-0 bg-paper border border-hairline rounded-card overflow-hidden">
           <div className="flex-1 overflow-y-auto space-y-3 p-4 min-h-0">
             {messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm">
-                <div className="text-3xl mb-3">💬</div>
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-center text-ink-3 text-sm">
+                <ContainerMark size={28} className="text-ink-4" />
                 <p>Начните диалог — напишите первое сообщение</p>
               </div>
             ) : (
@@ -366,21 +368,21 @@ function ChatContent() {
                     )}
                   >
                     {!isOwn && (
-                      <span className="text-xs text-gray-500 mb-1 px-1">
+                      <span className="text-xs text-ink-3 mb-1 px-1">
                         {msg.sender?.name || 'Пользователь'}
                       </span>
                     )}
                     <div
                       className={cn(
-                        'px-4 py-2.5 rounded-2xl text-sm leading-relaxed break-words',
+                        'px-3.5 py-2.5 rounded-card text-sm leading-relaxed break-words',
                         isOwn
-                          ? 'bg-blue-600 text-white rounded-tr-sm'
-                          : 'bg-white border border-gray-100 text-gray-900 rounded-tl-sm shadow-sm'
+                          ? 'bg-accent text-white rounded-tr-sm'
+                          : 'bg-surface border border-hairline text-ink rounded-tl-sm'
                       )}
                     >
                       {msg.text}
                     </div>
-                    <span className="text-xs text-gray-400 mt-1 px-1">
+                    <span className="font-mono text-[11px] tabular-nums text-ink-4 mt-1 px-1">
                       {formatDateTime(msg.created_at)}
                     </span>
                   </div>
@@ -391,7 +393,7 @@ function ChatContent() {
           </div>
 
           {/* Input */}
-          <div className="p-3 border-t border-gray-200 bg-white shrink-0">
+          <div className="p-3 border-t border-hairline bg-surface shrink-0">
             <div className="flex gap-2 items-end">
               <textarea
                 ref={inputRef}
@@ -401,7 +403,7 @@ function ChatContent() {
                 placeholder="Написать сообщение... (Enter — отправить)"
                 rows={1}
                 maxLength={2000}
-                className="flex-1 resize-none px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none min-h-[36px] max-h-[120px] bg-gray-50 rounded-xl border border-gray-200 focus:border-blue-300 focus:bg-white transition-colors"
+                className="flex-1 resize-none px-3 py-2.5 text-sm text-ink placeholder:text-ink-4 focus:outline-none min-h-[44px] max-h-[120px] bg-surface-sunken rounded-card border border-hairline focus:border-accent focus:ring-2 focus:ring-accent focus:bg-surface transition-colors ease-terminal"
                 style={{ overflowY: text.includes('\n') ? 'auto' : 'hidden' }}
                 onInput={e => {
                   const t = e.target as HTMLTextAreaElement
@@ -412,12 +414,12 @@ function ChatContent() {
               <button
                 onClick={sendMessage}
                 disabled={!text.trim() || sending}
-                className="p-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
+                className="flex items-center justify-center h-11 w-11 rounded-card bg-accent text-white hover:bg-accent-hover active:bg-accent-pressed disabled:opacity-40 disabled:cursor-not-allowed transition-colors ease-terminal shrink-0"
               >
                 <Send size={18} />
               </button>
             </div>
-            <p className="text-xs text-gray-400 mt-1 text-right">
+            <p className="font-mono text-[11px] text-ink-4 mt-1.5 text-right">
               Enter — отправить, Shift+Enter — перенос строки
             </p>
           </div>

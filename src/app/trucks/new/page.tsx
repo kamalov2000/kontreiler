@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
+import { RouteInline } from '@/components/ui/RouteInline'
+import { ContainerChip } from '@/components/ui/ContainerChip'
 import { Modal } from '@/components/ui/Modal'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
@@ -104,32 +106,44 @@ function NewTruckForm() {
   return (
     <AppLayout>
       <div className="max-w-lg">
-        <Link href="/my-trucks" className="flex items-center gap-1 text-sm text-blue-600 hover:underline mb-6">
+        <Link href="/my-trucks" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-3 hover:text-ink transition-colors mb-6">
           <ArrowLeft size={16} /> Мои машины
         </Link>
 
-        <div className="flex items-center justify-between mb-1">
-          <h1 className="text-2xl font-bold text-gray-900">
+        <div className="flex items-center justify-between mb-1 gap-3">
+          <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">
             {isDuplicate ? 'Дублировать рейс' : 'Разместить машину'}
           </h1>
           {savedRoutes.length > 0 && (
             <button
               type="button"
               onClick={() => setShowRoutes(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-card text-[13px] font-medium bg-surface border border-hairline text-ink hover:border-border-strong transition-colors"
             >
-              <Bookmark size={14} />
+              <Bookmark size={14} className="text-ink-3" />
               Мои маршруты
             </button>
           )}
         </div>
         {isDuplicate && (
-          <p className="text-sm text-gray-500 mb-6">Параметры скопированы — отредактируйте при необходимости</p>
+          <p className="text-[13px] text-ink-3 mb-6">Параметры скопированы — отредактируйте при необходимости</p>
         )}
         {!isDuplicate && <div className="mb-6" />}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+          {/* Маршрут и контейнер */}
+          <div className="bg-surface rounded-card border border-hairline p-5 space-y-4">
+            <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">
+              Маршрут
+            </div>
+
+            {/* Превью маршрута */}
+            {(fromCity || toCity) && (
+              <div className="rounded-field bg-surface-sunken border border-hairline px-3.5 py-2.5">
+                <RouteInline from={fromCity || '—'} to={toCity || '—'} />
+              </div>
+            )}
+
             <CityAutocomplete
               label="Откуда"
               value={fromCity}
@@ -167,6 +181,7 @@ function NewTruckForm() {
               placeholder="Например: 22"
               min="1"
               max="100"
+              className="font-mono tabular-nums"
             />
             <Input
               label="Дата готовности"
@@ -175,36 +190,41 @@ function NewTruckForm() {
               onChange={e => setAvailableDate(e.target.value)}
               min={today}
               error={errors.availableDate}
+              className="font-mono tabular-nums"
             />
           </div>
 
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+          {/* Условия и ставка */}
+          <div className="bg-surface rounded-card border border-hairline p-5 space-y-3">
+            <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">
+              Условия
+            </div>
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 id="longDistance"
                 type="checkbox"
                 checked={longDistance}
                 onChange={e => setLongDistance(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                className="w-4 h-4 rounded-field border-hairline text-accent focus:ring-accent"
               />
               <div>
-                <div className="text-sm font-medium text-gray-900">🛣️ Готов к дальним рейсам</div>
-                <div className="text-xs text-gray-500">Межрегиональные и дальние маршруты</div>
+                <div className="text-[13px] font-medium text-ink">Готов к дальним рейсам</div>
+                <div className="text-xs text-ink-3">Межрегиональные и дальние маршруты</div>
               </div>
             </label>
-            <div className="h-px bg-gray-100" />
-            <div className="flex items-center gap-3">
+            <div className="h-px bg-hairline" />
+            <label htmlFor="negotiable" className="flex items-center gap-3 cursor-pointer">
               <input
                 id="negotiable"
                 type="checkbox"
                 checked={isNegotiable}
                 onChange={e => setIsNegotiable(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-blue-600"
+                className="w-4 h-4 rounded-field border-hairline text-accent focus:ring-accent"
               />
-              <label htmlFor="negotiable" className="text-sm font-medium text-gray-700">
+              <span className="text-[13px] font-medium text-ink">
                 Ставка договорная
-              </label>
-            </div>
+              </span>
+            </label>
             {!isNegotiable && (
               <Input
                 label="Ставка (₽)"
@@ -214,14 +234,15 @@ function NewTruckForm() {
                 placeholder="Например: 120000"
                 min="0"
                 error={errors.price}
+                className="font-mono tabular-nums"
               />
             )}
           </div>
 
           {/* Особые условия */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-            <label className="block text-sm font-medium text-gray-700 mb-1.5" htmlFor="notes">
-              Особые условия <span className="text-gray-400 font-normal">(необязательно)</span>
+          <div className="bg-surface rounded-card border border-hairline p-5">
+            <label className="block text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-2" htmlFor="notes">
+              Особые условия <span className="text-ink-4 font-medium normal-case tracking-normal">(необязательно)</span>
             </label>
             <textarea
               id="notes"
@@ -230,7 +251,7 @@ function NewTruckForm() {
               placeholder="Рефрижератор, боковая загрузка, допуск ADR..."
               rows={2}
               maxLength={500}
-              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full px-3 py-2.5 rounded-field border border-hairline bg-surface text-sm text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent resize-none"
             />
           </div>
 
@@ -251,15 +272,11 @@ function NewTruckForm() {
             <button
               key={r.id}
               onClick={() => applyRoute(r)}
-              className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:bg-blue-50 hover:border-blue-200 transition-colors text-left"
+              className="w-full flex items-center justify-between gap-3 p-3 rounded-card border border-hairline hover:bg-accent-soft hover:border-border-strong transition-colors text-left"
             >
-              <span className="font-medium text-gray-900">
-                {r.from_city} → {r.to_city}
-              </span>
+              <RouteInline from={r.from_city} to={r.to_city} className="flex-1" />
               {r.container_type && (
-                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                  {r.container_type}
-                </span>
+                <ContainerChip label={r.container_type} />
               )}
             </button>
           ))}
@@ -274,7 +291,7 @@ export default function NewTruckPage() {
     <Suspense fallback={
       <AppLayout>
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin h-8 w-8 rounded-full border-4 border-blue-600 border-t-transparent" />
+          <div className="animate-spin h-8 w-8 rounded-full border-4 border-accent border-t-transparent" />
         </div>
       </AppLayout>
     }>
