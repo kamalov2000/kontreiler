@@ -6,6 +6,11 @@ import React from 'react'
 import { ContractDocument, ContractData, PartyData } from '@/lib/contract-pdf'
 import { CONTAINER_TYPES } from '@/lib/cities'
 
+// react-pdf требует Node-рантайм (не Edge). maxDuration — чтобы холодный старт
+// с рендером PDF и загрузкой шрифта не упирался в дефолтный лимит функции.
+export const runtime = 'nodejs'
+export const maxDuration = 60
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function formatDate(iso: string): string {
@@ -140,16 +145,25 @@ export async function GET(req: Request) {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const element = React.createElement(ContractDocument, { data: contractData }) as any
-  const buffer = await renderToBuffer(element)
-
   const filename = `dogovor-${contractData.orderNumber}.pdf`
-  const uint8 = new Uint8Array(buffer)
-  return new NextResponse(uint8, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Content-Length': String(uint8.byteLength),
-    },
-  })
+  try {
+    const buffer = await renderToBuffer(element)
+    const uint8 = new Uint8Array(buffer)
+    return new NextResponse(uint8, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': String(uint8.byteLength),
+      },
+    })
+  } catch (e) {
+    // Раньше падало необработанно → 500 с HTML-страницей и общий тост в UI.
+    // Теперь пишем реальную причину в логи Vercel и отдаём понятную ошибку.
+    console.error('generate-contract: renderToBuffer failed', e)
+    return NextResponse.json(
+      { error: 'Не удалось сформировать PDF договора. Попробуйте ещё раз через минуту.' },
+      { status: 500 }
+    )
+  }
 }
