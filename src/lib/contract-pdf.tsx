@@ -7,19 +7,15 @@ import {
   Font,
   StyleSheet,
 } from '@react-pdf/renderer'
+import { ROBOTO_REGULAR, ROBOTO_BOLD } from './contract-fonts'
 
-// Шрифт с поддержкой кириллицы
+// Шрифт с поддержкой кириллицы — вшит base64 (без рантайм-загрузки с CDN,
+// что раньше валило генерацию PDF на serverless-функции Vercel).
 Font.register({
   family: 'Roboto',
   fonts: [
-    {
-      src: 'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Regular.woff',
-      fontWeight: 'normal',
-    },
-    {
-      src: 'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Bold.woff',
-      fontWeight: 'bold',
-    },
+    { src: ROBOTO_REGULAR, fontWeight: 'normal' },
+    { src: ROBOTO_BOLD, fontWeight: 'bold' },
   ],
 })
 
