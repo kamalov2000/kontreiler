@@ -1,0 +1,17 @@
+-- ВОССТАНОВЛЕНИЕ доступа на чтение public.users.
+--
+-- Миграция 20260701000007_phone_privacy сделала:
+--   REVOKE SELECT ON users FROM anon, authenticated;
+--   GRANT SELECT (<все колонки кроме phone>) ...
+-- Цель была скрыть телефон. Но column-level REVOKE несовместим с `SELECT *`:
+-- в `*` попадает колонка phone, гранта на неё нет → Postgres отклоняет ВЕСЬ
+-- запрос ("permission denied for table users"). А приложение грузит профиль
+-- через `.from('users').select('*')` (useUser) и использует эмбеды
+-- `client:users!client_id(*)` — из-за чего у залогиненных пользователей
+-- вечно висела загрузка и приложение «зависало».
+--
+-- Возвращаем табличный SELECT, чтобы приложение работало. Приватность
+-- телефона будет решена корректно — переносом колонки phone в user_private
+-- (own-row RLS), как это уже сделано для банковских реквизитов, — без
+-- column-level REVOKE на общей таблице.
+GRANT SELECT ON public.users TO anon, authenticated;
