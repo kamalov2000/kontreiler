@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { X, Download, Upload, FileSpreadsheet, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { X, Download, FileSpreadsheet, AlertTriangle, Check, Info } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { CONTAINER_TYPES } from '@/lib/cities'
@@ -235,38 +235,36 @@ export function OrderImportModal({
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white">
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <FileSpreadsheet size={20} className="text-green-600" />
+      <div className="bg-surface rounded-modal shadow-overlay w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-hairline sticky top-0 bg-surface z-10">
+          <h2 className="text-lg font-semibold text-ink flex items-center gap-2">
+            <FileSpreadsheet size={20} className="text-success" />
             Массовая загрузка заявок из Excel
           </h2>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
-            <X size={18} />
+          <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-field text-ink-3 hover:bg-surface-sunken">
+            <X size={16} />
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
-          <div className="text-sm text-gray-600 bg-blue-50 border border-blue-100 rounded-xl p-3">
-            1. Скачайте шаблон · 2. Заполните строки (одна строка = одна заявка) · 3. Загрузите файл.
-            Поля со <span className="font-semibold">*</span> обязательны. Пустая «Ставка» — договорная.
+        <div className="p-5 flex flex-col gap-4">
+          {/* Инфо-плашка */}
+          <div className="flex gap-2.5 p-3 rounded-field bg-accent-soft">
+            <Info size={16} className="text-accent shrink-0 mt-px" />
+            <span className="text-[13px] leading-relaxed text-[#084848]">
+              Заполните столбцы по шаблону: маршрут, тип контейнера, вес, дата, ставка. Города сверяются
+              со справочником автоматически. Поля со <span className="font-semibold">*</span> обязательны,
+              пустая «Ставка» — договорная.
+            </span>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" size="sm" onClick={downloadTemplate}>
-              <Download size={15} className="mr-1" /> Скачать шаблон
+          {/* Действия */}
+          <div className="flex flex-wrap gap-2.5">
+            <Button variant="secondary" onClick={downloadTemplate} className="flex-1 gap-1.5">
+              <Download size={15} /> Скачать шаблон
             </Button>
-            <button
-              onClick={() => inputRef.current?.click()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors"
-            >
-              <Upload size={15} /> Выбрать файл
-            </button>
-            {fileName && (
-              <button onClick={reset} className="text-sm text-gray-500 hover:text-gray-700 underline">
-                Сбросить
-              </button>
-            )}
+            <Button onClick={() => inputRef.current?.click()} className="flex-1 gap-1.5">
+              <FileSpreadsheet size={15} /> Выбрать файл
+            </Button>
             <input
               ref={inputRef}
               type="file"
@@ -277,53 +275,70 @@ export function OrderImportModal({
           </div>
 
           {fileName && (
-            <div className="text-xs text-gray-500">Файл: <span className="font-medium text-gray-700">{fileName}</span></div>
+            <div className="flex items-center gap-2 text-xs text-ink-3">
+              <span>Файл: <span className="font-medium text-ink-2">{fileName}</span></span>
+              <button onClick={reset} className="text-accent hover:text-accent-hover underline">Сбросить</button>
+            </div>
           )}
 
           {parsed.length > 0 && (
             <>
-              <div className="flex items-center gap-3 text-sm">
-                <span className="flex items-center gap-1 text-green-700 font-medium">
-                  <CheckCircle2 size={15} /> Готово к загрузке: {validRows.length}
-                </span>
-                {invalidRows.length > 0 && (
-                  <span className="flex items-center gap-1 text-red-600 font-medium">
-                    <AlertTriangle size={15} /> С ошибками: {invalidRows.length}
-                  </span>
-                )}
+              {/* Сводка */}
+              <div className="flex gap-2.5">
+                <div className="flex-1 p-3 rounded-field border border-hairline bg-success-soft">
+                  <div className="font-mono tabular-nums text-[22px] font-medium text-success">{validRows.length}</div>
+                  <div className="text-xs text-success">готово к импорту</div>
+                </div>
+                <div className="flex-1 p-3 rounded-field border border-hairline bg-warning-soft">
+                  <div className="font-mono tabular-nums text-[22px] font-medium text-warning">{invalidRows.length}</div>
+                  <div className="text-xs text-warning">с предупреждениями</div>
+                </div>
               </div>
 
-              <div className="border border-gray-200 rounded-xl divide-y divide-gray-100 max-h-72 overflow-y-auto">
+              {/* Список строк */}
+              <div className="border border-hairline rounded-field overflow-hidden max-h-72 overflow-y-auto">
                 {parsed.map(r => (
-                  <div key={r.rowNum} className={`px-3 py-2 text-sm ${r.errors.length ? 'bg-red-50/50' : ''}`}>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-gray-800">
-                        <span className="text-gray-400 mr-1.5">#{r.rowNum}</span>{r.summary}
+                  r.errors.length === 0 ? (
+                    <div key={r.rowNum} className="flex items-center gap-2.5 px-3 py-2.5 border-b border-hairline last:border-b-0">
+                      <Check size={15} className="text-success shrink-0" strokeWidth={2} />
+                      <span className="text-[13px] flex-1 text-ink">
+                        <span className="font-mono tabular-nums text-ink-4 mr-1.5">#{r.rowNum}</span>{r.summary}
                       </span>
-                      {r.errors.length === 0
-                        ? <CheckCircle2 size={15} className="text-green-500 shrink-0" />
-                        : <AlertTriangle size={15} className="text-red-500 shrink-0" />}
                     </div>
-                    {r.errors.length > 0 && (
-                      <div className="text-xs text-red-600 mt-0.5">{r.errors.join('; ')}</div>
-                    )}
-                  </div>
+                  ) : (
+                    <div key={r.rowNum} className="flex items-start gap-2.5 px-3 py-2.5 border-b border-hairline last:border-b-0 bg-warning-soft">
+                      <AlertTriangle size={15} className="text-warning shrink-0 mt-0.5" />
+                      <div className="flex-1 text-[13px] text-warning">
+                        <div className="flex items-center justify-between gap-2">
+                          <span>
+                            <span className="font-mono tabular-nums opacity-70 mr-1.5">Стр. {r.rowNum}</span>{r.summary}
+                          </span>
+                          <span className="font-medium shrink-0">Исправить</span>
+                        </div>
+                        <div className="text-xs mt-0.5">{r.errors.join('; ')}</div>
+                      </div>
+                    </div>
+                  )
                 ))}
               </div>
             </>
           )}
         </div>
 
-        <div className="flex gap-3 p-5 border-t border-gray-100 sticky bottom-0 bg-white">
-          <Button
-            onClick={doImport}
-            loading={importing}
-            disabled={validRows.length === 0}
-            className="flex-1"
-          >
-            Загрузить {validRows.length > 0 ? `(${validRows.length})` : ''}
-          </Button>
-          <Button variant="secondary" onClick={onClose}>Закрыть</Button>
+        <div className="flex justify-between items-center gap-2.5 px-5 py-3.5 border-t border-hairline bg-paper sticky bottom-0">
+          <span className="font-mono tabular-nums text-xs text-ink-3">
+            будет создано {validRows.length} заявок
+          </span>
+          <div className="flex gap-2.5">
+            <Button variant="secondary" onClick={onClose}>Отмена</Button>
+            <Button
+              onClick={doImport}
+              loading={importing}
+              disabled={validRows.length === 0}
+            >
+              Импортировать {validRows.length > 0 ? validRows.length : ''}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

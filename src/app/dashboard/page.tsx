@@ -347,8 +347,8 @@ export default function DashboardPage() {
               className={cn(
                 'relative inline-flex items-center gap-1.5 pb-2.5 -mb-px text-[13px] font-medium transition-colors',
                 tab === tabKey
-                  ? 'text-accent border-b-2 border-accent'
-                  : 'text-ink-3 hover:text-ink border-b-2 border-transparent'
+                  ? 'text-accent shadow-[inset_0_-2px_0_#0E6E6E]'
+                  : 'text-ink-3 hover:text-ink'
               )}
             >
               {TAB_LABEL[tabKey]}
@@ -385,10 +385,10 @@ export default function DashboardPage() {
           <button
             onClick={() => setShowAllFilters(v => !v)}
             className={cn(
-              'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors',
+              'flex items-center gap-2 px-3 h-9 rounded-card text-sm transition-colors',
               hasAllFilters
-                ? 'bg-blue-100 text-blue-700 font-medium'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                ? 'bg-accent text-white'
+                : 'bg-surface border border-hairline text-ink-2 hover:border-border-strong'
             )}
           >
             <Filter size={14} />
@@ -396,7 +396,7 @@ export default function DashboardPage() {
           </button>
 
           {showAllFilters && (
-            <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 bg-white rounded-xl border border-gray-200">
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 bg-surface rounded-card border border-hairline">
               <Select
                 id="allFilterStatus"
                 label="Статус"
@@ -423,40 +423,40 @@ export default function DashboardPage() {
                   ...CONTAINER_TYPES.map(c => ({ value: c.value, label: c.label })),
                 ]}
               />
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Откуда</label>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Откуда</label>
                 <input
                   type="text"
                   value={allFilterFrom}
                   onChange={e => setAllFilterFrom(e.target.value)}
                   placeholder="Город отправления"
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full h-9 px-3 text-sm rounded-field border border-hairline bg-surface text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/40"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Куда</label>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Куда</label>
                 <input
                   type="text"
                   value={allFilterTo}
                   onChange={e => setAllFilterTo(e.target.value)}
                   placeholder="Город назначения"
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full h-9 px-3 text-sm rounded-field border border-hairline bg-surface text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/40"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Дата погрузки</label>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Дата погрузки</label>
                 <input
                   type="date"
                   value={allFilterDate}
                   onChange={e => setAllFilterDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full h-9 px-3 text-sm rounded-field border border-hairline bg-surface text-ink focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/40"
                 />
               </div>
               {hasAllFilters && (
                 <div className="flex items-end">
                   <button
                     onClick={() => { setAllFilterStatus(''); setAllFilterContainer(''); setAllFilterFrom(''); setAllFilterTo(''); setAllFilterDate('') }}
-                    className="text-sm text-red-600 hover:text-red-800 underline"
+                    className="text-sm text-danger hover:text-danger/80 underline"
                   >
                     Сбросить фильтры
                   </button>

@@ -36,28 +36,37 @@ export function RevealPhone({
     }
   }
 
-  const base = className ?? 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors'
+  const base = className ?? 'inline-flex items-center gap-2 min-h-[40px] px-3 rounded-card text-sm font-medium transition-colors'
 
+  // Открыт: строка bg-accent-soft, моно-номер чернил-бирюзы.
   if (state === 'shown' && phone) {
     return (
-      <a href={`tel:${phone}`} className={`${base} bg-green-50 text-green-700 hover:bg-green-100`}>
-        <Phone size={14} /> {formatPhone(phone)}
+      <a href={`tel:${phone}`} className={`${base} border border-hairline bg-accent-soft text-[#0B5A5A] hover:bg-accent-soft/80`}>
+        <Phone size={15} strokeWidth={1.5} className="text-accent shrink-0" />
+        <span className="font-mono tabular-nums text-[#0B5A5A]">{formatPhone(phone)}</span>
       </a>
     )
   }
+  // Недоступно / скрыт: приглушённая утопленная поверхность.
   if (state === 'hidden') {
     return (
-      <span className={`${base} bg-gray-100 text-gray-500`}>
+      <span className={`${base} bg-surface-sunken text-ink-4`}>
         Телефон скрыт — общение через чат
       </span>
     )
   }
   if (state === 'error') {
-    return <span className={`${base} bg-gray-100 text-gray-400`}>Телефон недоступен</span>
+    return <span className={`${base} bg-surface-sunken text-ink-4`}>Телефон недоступен</span>
   }
+  // До отклика: secondary-кнопка с иконкой телефона accent.
   return (
-    <button onClick={reveal} disabled={state === 'loading'} className={`${base} bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-50`}>
-      <Phone size={14} /> {state === 'loading' ? 'Загрузка…' : 'Показать телефон'}
+    <button
+      onClick={reveal}
+      disabled={state === 'loading'}
+      className={`${base} border border-hairline bg-surface text-accent hover:bg-surface-sunken disabled:opacity-50`}
+    >
+      <Phone size={15} strokeWidth={1.5} className="text-accent shrink-0" />
+      {state === 'loading' ? 'Загрузка…' : 'Показать телефон'}
     </button>
   )
 }

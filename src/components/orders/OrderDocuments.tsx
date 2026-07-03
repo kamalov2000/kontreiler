@@ -2,9 +2,10 @@
 
 import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Paperclip, Upload, Trash2, FileText, Loader2 } from 'lucide-react'
+import { Upload, Trash2, FileText, FileSpreadsheet, Loader2, ChevronUp, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 
 interface Document {
   id: string
@@ -27,6 +28,13 @@ function formatBytes(bytes: number | null) {
   if (bytes < 1024) return `${bytes} Б`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} КБ`
   return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
+}
+
+// Тип файла по расширению — для метки и тонировки плитки
+function fileMeta(name: string): { ext: string; isSheet: boolean } {
+  const ext = (name.split('.').pop() || '').toUpperCase()
+  const isSheet = ext === 'XLSX' || ext === 'XLS'
+  return { ext, isSheet }
 }
 
 export function OrderDocuments({ orderId, currentUserId, canUpload }: OrderDocumentsProps) {
@@ -121,28 +129,72 @@ export function OrderDocuments({ orderId, currentUserId, canUpload }: OrderDocum
   }
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mb-6">
+    <div className="bg-surface rounded-card border border-hairline overflow-hidden mb-6">
       <button
         onClick={toggle}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-paper transition-colors"
       >
-        <div className="flex items-center gap-2 font-semibold text-gray-900">
-          <Paperclip size={16} className="text-gray-500" />
-          Документы
+        <span className="flex items-center gap-2">
+          <span className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-ink-3">Документы</span>
           {loaded && docs.length > 0 && (
-            <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-              {docs.length}
-            </span>
+            <span className="font-mono tabular-nums text-xs text-ink-3">{docs.length}</span>
           )}
-        </div>
-        <span className="text-xs text-gray-400">{open ? '▲' : '▼'}</span>
+        </span>
+        {open
+          ? <ChevronUp size={16} className="text-ink-3" />
+          : <ChevronDown size={16} className="text-ink-3" />}
       </button>
 
       {open && (
-        <div className="px-5 pb-5">
+        <div className="px-4 pb-4 flex flex-col gap-2.5">
+          {/* List */}
+          {!loaded ? (
+            <div className="py-4 flex justify-center">
+              <Loader2 size={20} className="animate-spin text-ink-4" />
+            </div>
+          ) : docs.length === 0 ? (
+            <p className="text-sm text-ink-4 text-center py-3">Документов пока нет</p>
+          ) : (
+            docs.map(doc => {
+              const { ext, isSheet } = fileMeta(doc.file_name)
+              return (
+                <div key={doc.id} className="flex items-center gap-2.5 px-3 py-2.5 rounded-field border border-hairline bg-surface">
+                  <span className={cn(
+                    'w-8 h-8 rounded-field flex items-center justify-center shrink-0',
+                    isSheet ? 'bg-success-soft' : 'bg-danger-soft'
+                  )}>
+                    {isSheet
+                      ? <FileSpreadsheet size={16} className="text-success" />
+                      : <FileText size={16} className="text-danger" />}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <button
+                      onClick={() => handleDownload(doc)}
+                      className="text-[13px] font-medium text-ink hover:text-accent truncate block text-left w-full"
+                    >
+                      {doc.file_name}
+                    </button>
+                    <div className="font-mono tabular-nums text-[11px] text-ink-4">
+                      {ext} · {formatBytes(doc.file_size)} · {formatDateTime(doc.created_at)}
+                    </div>
+                  </div>
+                  {doc.uploaded_by === currentUserId && (
+                    <button
+                      onClick={() => handleDelete(doc)}
+                      disabled={deletingId === doc.id}
+                      className="w-7 h-7 flex items-center justify-center rounded-field text-ink-4 hover:text-danger hover:bg-danger-soft transition-colors shrink-0"
+                    >
+                      {deletingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={15} />}
+                    </button>
+                  )}
+                </div>
+              )
+            })
+          )}
+
           {/* Upload */}
           {canUpload && (
-            <div className="mb-4">
+            <>
               <input
                 ref={fileRef}
                 type="file"
@@ -153,52 +205,24 @@ export function OrderDocuments({ orderId, currentUserId, canUpload }: OrderDocum
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-gray-300 text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors w-full justify-center"
+                className="flex flex-col items-center gap-1.5 p-[18px] rounded-field border border-dashed border-border-strong bg-paper text-center hover:border-accent hover:bg-accent-soft transition-colors w-full"
               >
                 {uploading ? (
-                  <><Loader2 size={15} className="animate-spin" /> Загружается…</>
+                  <>
+                    <Loader2 size={20} className="animate-spin text-accent" />
+                    <span className="text-[13px] text-ink-2">Загружается…</span>
+                  </>
                 ) : (
-                  <><Upload size={15} /> Загрузить файл (PDF, Word, Excel, фото — до 10 МБ)</>
+                  <>
+                    <Upload size={20} className="text-accent" />
+                    <span className="text-[13px] text-ink-2">
+                      Перетащите файл или <span className="text-accent font-medium">выберите</span>
+                    </span>
+                    <span className="font-mono tabular-nums text-[11px] text-ink-4">PDF, JPG, XLSX · до 10 МБ</span>
+                  </>
                 )}
               </button>
-            </div>
-          )}
-
-          {/* List */}
-          {!loaded ? (
-            <div className="py-4 flex justify-center">
-              <Loader2 size={20} className="animate-spin text-gray-400" />
-            </div>
-          ) : docs.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-3">Документов пока нет</p>
-          ) : (
-            <div className="space-y-2">
-              {docs.map(doc => (
-                <div key={doc.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
-                  <FileText size={18} className="text-blue-500 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <button
-                      onClick={() => handleDownload(doc)}
-                      className="text-sm font-medium text-gray-900 hover:text-blue-600 truncate block text-left w-full"
-                    >
-                      {doc.file_name}
-                    </button>
-                    <div className="text-xs text-gray-400 mt-0.5">
-                      {doc.uploader?.name} · {formatBytes(doc.file_size)} · {formatDateTime(doc.created_at)}
-                    </div>
-                  </div>
-                  {doc.uploaded_by === currentUserId && (
-                    <button
-                      onClick={() => handleDelete(doc)}
-                      disabled={deletingId === doc.id}
-                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
-                    >
-                      {deletingId === doc.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
+            </>
           )}
         </div>
       )}

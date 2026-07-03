@@ -376,7 +376,7 @@ function FeedContent() {
           {hasFilters && (
             <button
               onClick={clearFilters}
-              className="mt-3 flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+              className="mt-3 flex items-center gap-1 text-sm text-ink-3 hover:text-ink"
             >
               <X size={14} /> {t.feed.clearFilters}
             </button>
@@ -503,24 +503,35 @@ function FeedContent() {
       >
         {respondingTo && (
           <div>
-            <div className="mb-4 p-3 rounded-xl bg-gray-50">
-              <div className="font-medium text-gray-900">
-                {respondingTo.from_city}
-                {respondingTo.via_city ? ` → ${respondingTo.via_city}` : ''}
-                {' → '}{respondingTo.to_city}
+            {/* Превью заявки */}
+            <div className="mb-4 flex flex-col gap-2 rounded-field border border-hairline bg-paper p-3.5">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[12px] text-ink-3">
+                  {respondingTo.order_number ? formatOrderNumber(respondingTo.order_number) : '—'}
+                </span>
+                <span className="text-ink-4">·</span>
+                <ContainerChip
+                  label={CONTAINER_TYPES.find(c => c.value === respondingTo.container_type)?.label || respondingTo.container_type}
+                  genset={respondingTo.requires_genset}
+                />
               </div>
-              <div className="text-sm text-gray-500 mt-0.5">
-                {CONTAINER_TYPES.find(c => c.value === respondingTo.container_type)?.label}
+              <RouteInline
+                from={respondingTo.from_city}
+                to={respondingTo.to_city}
+                via={respondingTo.via_city}
+              />
+              <div className="flex items-center justify-between">
+                <span className="font-mono text-[12px] text-ink-3">
+                  погрузка {readyShort(respondingTo.ready_date)} · {weightDisplay(respondingTo)} кг
+                </span>
+                <span className="font-mono text-[14px] font-medium tabular-nums text-ink">
+                  {formatPrice(respondingTo.price, respondingTo.is_negotiable)}
+                </span>
               </div>
-              {respondingTo.notes && (
-                <div className="mt-2 text-sm text-gray-600 italic">
-                  {respondingTo.notes}
-                </div>
-              )}
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+            <div className="mb-4 flex flex-col gap-1.5">
+              <label className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">
                 {t.feed.respondModal.commentLabel}
               </label>
               <textarea
@@ -528,12 +539,15 @@ function FeedContent() {
                 onChange={e => setMessage(e.target.value)}
                 placeholder={t.feed.respondModal.commentPlaceholder}
                 rows={3}
-                maxLength={300}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                maxLength={500}
+                className="w-full px-3 py-2.5 rounded-field border border-hairline bg-surface text-sm text-ink placeholder:text-ink-4 leading-relaxed resize-none focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/40"
               />
+              <span className="self-end font-mono text-[11px] tabular-nums text-ink-4">
+                {message.length} / 500
+              </span>
             </div>
 
-            <p className="text-sm text-gray-500 mb-4">
+            <p className="mb-4 text-sm text-ink-3">
               {t.feed.respondModal.hint}
             </p>
 
@@ -555,27 +569,31 @@ function FeedContent() {
         onClose={() => setShowRoutes(false)}
         title={t.feed.routeModal.title}
       >
-        <div className="space-y-2">
+        <div className="-mx-1">
           {savedRoutes.map(r => (
             <button
               key={r.id}
               onClick={() => applyRoute(r)}
-              className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:bg-blue-50 hover:border-blue-200 transition-colors text-left"
+              className="w-full flex items-center gap-2.5 p-3 rounded-lg hover:bg-accent-soft transition-colors text-left"
             >
-              <span className="font-medium text-gray-900">
+              <span className="w-2 h-2 rounded-full flex-none bg-accent" />
+              <span className="flex-1 text-sm font-semibold text-ink">
                 {r.from_city} → {r.to_city}
               </span>
               {r.container_type && (
-                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                <span className="font-mono text-[11px] text-ink-3 whitespace-nowrap">
                   {r.container_type}
                 </span>
               )}
             </button>
           ))}
-          <p className="text-xs text-gray-400 pt-2">
-            {t.feed.routeModal.manage}{' '}
-            <Link href="/profile" className="text-blue-600 hover:underline" onClick={() => setShowRoutes(false)}>
-              {t.feed.routeModal.profileLink}
+          <p className="pt-3">
+            <Link
+              href="/profile"
+              className="text-[13px] font-medium text-accent hover:text-accent-hover"
+              onClick={() => setShowRoutes(false)}
+            >
+              {t.feed.routeModal.manage} →
             </Link>
           </p>
         </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Package, ArrowRight } from 'lucide-react'
+import { User, FileText, ArrowRight } from 'lucide-react'
 import { useUser } from '@/hooks/useUser'
 import { createClient } from '@/lib/supabase/client'
 
@@ -41,58 +41,97 @@ export function WelcomeModal() {
 
   const isCarrier = user.role === 'carrier'
 
+  // Три шага онбординга. Иконка-плитка вместо эмодзи — по тону акцента.
   const steps = isCarrier
     ? [
-        { icon: '👤', text: 'Заполните профиль — укажите телефон, город и компанию' },
-        { icon: '📋', text: 'Смотрите ленту заявок — обновляется в реальном времени' },
-        { icon: '✅', text: 'Откликайтесь на подходящие — зарабатывайте' },
+        {
+          Icon: User,
+          title: 'Заполните профиль компании',
+          desc: 'Телефон, город, компания и верификация email — открывает отклики.',
+        },
+        {
+          Icon: FileText,
+          title: 'Смотрите ленту заявок',
+          desc: 'Обновляется в реальном времени — маршрут, тип контейнера, ставка.',
+        },
+        {
+          Icon: ArrowRight,
+          title: 'Договоритесь напрямую',
+          desc: 'Контакты открываются после отклика — звоните и везите.',
+        },
       ]
     : [
-        { icon: '📦', text: 'Разместите заявку — укажите маршрут, тип контейнера и дату' },
-        { icon: '🔔', text: 'Перевозчики откликнутся — вы увидите предложения сразу' },
-        { icon: '🤝', text: 'Выберите лучшего и отслеживайте рейс' },
+        {
+          Icon: User,
+          title: 'Заполните профиль компании',
+          desc: 'ИНН, контакты, верификация email — открывает размещение заявок.',
+        },
+        {
+          Icon: FileText,
+          title: 'Разместите заявку',
+          desc: 'Маршрут, тип контейнера, дата — 30 секунд.',
+        },
+        {
+          Icon: ArrowRight,
+          title: 'Договоритесь напрямую',
+          desc: 'Контакты открываются после отклика — звоните и везите.',
+        },
       ]
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-        <div className="flex items-center gap-2 text-blue-600 font-bold text-xl mb-1">
-          <Package size={24} />
-          Контрейл
+      <div className="bg-surface rounded-modal shadow-overlay border border-hairline w-full max-w-md overflow-hidden">
+        {/* Шапка: глиф контейнера + бренд, заголовок, подзаголовок */}
+        <div className="px-7 pt-7 flex flex-col gap-1.5">
+          <div className="flex items-center gap-2.5">
+            <svg width="24" height="24" viewBox="0 0 20 20" aria-hidden="true">
+              <rect x="1.5" y="4.5" width="17" height="11" rx="2" fill="none" stroke="#0E6E6E" strokeWidth="1.5" />
+              <line x1="7" y1="4.5" x2="7" y2="15.5" stroke="#0E6E6E" strokeWidth="1.5" />
+              <line x1="13" y1="4.5" x2="13" y2="15.5" stroke="#0E6E6E" strokeWidth="1.5" />
+            </svg>
+            <span className="text-xl font-bold tracking-tight text-ink">Контрейл</span>
+          </div>
+          <h2 className="mt-2 text-2xl font-semibold leading-tight tracking-tight text-ink">
+            {isCarrier ? 'Добро пожаловать на биржу фрахта' : 'Добро пожаловать на биржу фрахта'}
+          </h2>
+          <p className="text-sm leading-relaxed text-ink-3">
+            {isCarrier
+              ? 'Три шага — и вы на ленте заявок.'
+              : 'Три шага — и ваша первая заявка на доске.'}
+          </p>
         </div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-1">
-          {isCarrier ? 'Добро пожаловать, перевозчик!' : 'Добро пожаловать!'}
-        </h2>
-        <p className="text-sm text-gray-500 mb-5">
-          {isCarrier
-            ? 'Вот как найти загрузку за 3 шага:'
-            : 'Вот как отправить груз за 3 шага:'}
-        </p>
 
-        <div className="space-y-3 mb-6">
+        {/* Три шага — строки с волосяным разделителем */}
+        <div className="px-7 py-5 flex flex-col">
           {steps.map((s, i) => (
-            <div key={i} className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-base shrink-0">
-                {s.icon}
+            <div
+              key={i}
+              className={`flex gap-3.5 py-3 ${i < steps.length - 1 ? 'border-b border-hairline' : ''}`}
+            >
+              <span className="w-9 h-9 rounded-full bg-accent-soft flex items-center justify-center shrink-0">
+                <s.Icon size={18} strokeWidth={1.5} className="text-accent" />
+              </span>
+              <div>
+                <div className="text-[15px] font-semibold text-ink">{s.title}</div>
+                <div className="text-[13px] text-ink-3 mt-0.5 leading-relaxed">{s.desc}</div>
               </div>
-              <p className="text-sm text-gray-700 pt-1">{s.text}</p>
             </div>
           ))}
         </div>
 
-        <div className="flex gap-3">
-          <button
-            onClick={handleStart}
-            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
-          >
-            Начать
-            <ArrowRight size={16} />
-          </button>
+        {/* Футер: hairline + bg-paper */}
+        <div className="flex justify-end gap-2.5 px-7 py-3.5 border-t border-hairline bg-paper">
           <button
             onClick={handleSkip}
-            className="px-4 py-2.5 rounded-xl text-sm text-gray-500 hover:bg-gray-100 transition-colors"
+            className="min-h-[40px] px-4 rounded-card border border-hairline bg-surface text-sm text-ink hover:bg-surface-sunken transition-colors"
           >
             Позже
+          </button>
+          <button
+            onClick={handleStart}
+            className="min-h-[40px] px-4 rounded-card bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors"
+          >
+            Начать
           </button>
         </div>
       </div>

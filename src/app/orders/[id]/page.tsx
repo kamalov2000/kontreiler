@@ -635,7 +635,7 @@ export default function OrderDetailPage() {
     return (
       <AppLayout>
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin h-8 w-8 rounded-full border-4 border-blue-600 border-t-transparent" />
+          <div className="animate-spin h-8 w-8 rounded-full border-4 border-accent border-t-transparent" />
         </div>
       </AppLayout>
     )
