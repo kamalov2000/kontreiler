@@ -84,7 +84,11 @@ export default function ProfilePage() {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user?.email) setEmail(data.user.email)
     })
-  }, [user])
+    // Заполняем форму ОДИН раз при появлении пользователя (по id), а не при
+    // каждом обновлении объекта user (heartbeat last_seen_at раз в неск. сек),
+    // иначе несохранённые правки и автозаполнение по ИНН затираются.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   // Чувствительные реквизиты — из приватной таблицы (RLS: только своя строка)
   useEffect(() => {
@@ -106,7 +110,8 @@ export default function ProfilePage() {
         setSignatoryBasis(data.signatory_basis || '')
         setDefaultObligations(data.default_obligations || '')
       })
-  }, [user])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   const fetchSavedRoutes = useCallback(async () => {
     if (!user || user.role !== 'carrier') return
@@ -440,7 +445,7 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-2">
                   <Building2 size={14} className="text-gray-400" />
                   <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">
-                    Реквизиты для договора
+                    Реквизиты для договор-заявки
                   </span>
                   <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">PDF</span>
                 </div>
