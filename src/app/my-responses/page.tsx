@@ -6,11 +6,15 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Response } from '@/types/database'
-import { formatDateTime, formatPrice } from '@/lib/utils'
+import { formatDateTime, formatPrice, formatOrderNumber } from '@/lib/utils'
 import { CONTAINER_TYPES } from '@/lib/cities'
-import { ORDER_STATUS_LABEL } from '@/lib/status'
-import { ArrowRight, Search, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { RevealPhone } from '@/components/ui/RevealPhone'
+import { RouteInline } from '@/components/ui/RouteInline'
+import { StatusPill } from '@/components/ui/StatusPill'
+import { ContainerChip } from '@/components/ui/ContainerChip'
+import { ContainerMark } from '@/components/ui/ContainerMark'
+import { Button } from '@/components/ui/Button'
 
 type StatusFilter = 'all' | 'accepted' | 'pending' | 'rejected'
 
@@ -103,39 +107,44 @@ export default function MyResponsesPage() {
 
   const statusBadgeOptions = [
     { value: 'all',      label: 'Все' },
-    { value: 'accepted', label: '✅ Принятые' },
-    { value: 'pending',  label: '⏳ Ожидание' },
-    { value: 'rejected', label: '❌ Отклонённые' },
+    { value: 'accepted', label: 'Принятые' },
+    { value: 'pending',  label: 'Ожидание' },
+    { value: 'rejected', label: 'Отклонённые' },
   ]
 
   return (
     <AppLayout>
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">Мои отклики</h1>
+      <div className="flex items-baseline gap-3 mb-5 flex-wrap">
+        <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">Мои отклики</h1>
+        {!loading && (
+          <span className="font-mono text-[13px] tabular-nums text-ink-3">{filtered.length} откликов</span>
+        )}
+      </div>
 
       {/* Поиск и фильтр */}
       <div className="flex flex-col sm:flex-row gap-3 mb-5">
         <div className="relative flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-4 pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Поиск по маршруту, городу, номеру заявки..."
-            className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-11 pl-9 pr-8 text-sm rounded-field border border-hairline bg-surface text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent"
           />
           {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-4 hover:text-ink-2">
               <X size={14} />
             </button>
           )}
         </div>
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1 shrink-0">
+        <div className="flex gap-1 bg-surface-sunken rounded-field p-1 shrink-0">
           {statusBadgeOptions.map(opt => (
             <button
               key={opt.value}
               onClick={() => setStatusFilter(opt.value as StatusFilter)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
-                statusFilter === opt.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              className={`px-3 py-1.5 rounded-[6px] text-[13px] font-medium transition-colors ease-terminal whitespace-nowrap ${
+                statusFilter === opt.value ? 'bg-surface text-ink border border-hairline' : 'text-ink-3 hover:text-ink'
               }`}
             >
               {opt.label}
@@ -145,116 +154,109 @@ export default function MyResponsesPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="animate-spin h-8 w-8 rounded-full border-4 border-blue-600 border-t-transparent" />
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="border border-hairline rounded-card bg-surface p-5">
+              <div className="flex items-center gap-3">
+                <span className="w-[96px] h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+                <span className="flex-1 h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+                <span className="w-[120px] h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+              </div>
+              <div className="mt-4 h-16 rounded-field bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+            </div>
+          ))}
         </div>
       ) : responses.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <p className="mb-4">Вы ещё не откликались на заявки</p>
-          <Link href="/feed" className="text-blue-600 hover:underline text-sm">
-            Перейти в ленту →
+        <div className="border border-hairline rounded-card bg-surface flex flex-col items-center gap-3 text-center py-16 px-6">
+          <ContainerMark size={28} className="text-ink-4" />
+          <span className="text-[15px] text-ink-3 max-w-[320px]">Вы ещё не откликались на заявки.</span>
+          <Link href="/feed" className="text-sm font-medium text-accent hover:text-accent-hover">
+            Перейти в ленту
           </Link>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-12 text-gray-400 text-sm">Нет откликов по заданным фильтрам</div>
+        <div className="border border-hairline rounded-card bg-surface flex flex-col items-center gap-3 text-center py-16 px-6">
+          <ContainerMark size={28} className="text-ink-4" />
+          <span className="text-[15px] text-ink-3">Нет откликов по заданным фильтрам.</span>
+        </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           {filtered.map((r: any) => {
             const order = r.order
             if (!order) return null
-            const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label
+            const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label || order.container_type
             const client = order.client
             const unread = unreadMap[order.id] || 0
 
-            // Статус отклика для перевозчика
-            const badge = (() => {
-              if (order.status === 'cancelled') return { text: '🚫 Заявка отменена',          cls: 'bg-red-100 text-red-600' }
-              if (order.status === 'closed')    return { text: 'Заявка закрыта',               cls: 'bg-gray-100 text-gray-500' }
+            // Статус отклика перевозчика → пилюля дизайн-системы
+            const respStatus = (() => {
+              if (order.status === 'cancelled') return { status: 'cancelled', label: 'Заявка отменена' }
+              if (order.status === 'closed')    return { status: 'closed',    label: 'Заявка закрыта' }
               if (order.accepted_carrier_id === user?.id)
-                                               return { text: '✅ Ваш отклик принят',          cls: 'bg-green-100 text-green-700' }
-              if (order.accepted_carrier_id)   return { text: '❌ Выбран другой перевозчик',   cls: 'bg-red-100 text-red-600' }
-              return                                  { text: '⏳ Ожидает решения',             cls: 'bg-amber-100 text-amber-700' }
+                                               return { status: 'delivered', label: 'Ваш отклик принят' }
+              if (order.accepted_carrier_id)   return { status: 'cancelled', label: 'Выбран другой перевозчик' }
+              return                                  { status: 'in_transit', label: 'Ожидает решения' }
             })()
 
             const isAccepted = order.accepted_carrier_id === user?.id
-            const borderClass = order.status === 'cancelled' || (order.accepted_carrier_id && order.accepted_carrier_id !== user?.id)
-              ? 'border-red-200'
+            const isRejected = order.status === 'cancelled' || (order.accepted_carrier_id && order.accepted_carrier_id !== user?.id)
+            const borderClass = isRejected
+              ? 'border-danger-soft'
               : isAccepted
-              ? 'border-blue-300'
-              : 'border-gray-100'
+              ? 'border-accent'
+              : 'border-hairline'
 
             return (
-              <div key={r.id} className={`bg-white rounded-2xl border shadow-sm p-4 sm:p-5 ${borderClass}`}>
-                {/* Маршрут — кликабельный заголовок */}
-                <Link href={`/orders/${order.id}`} className="block group mb-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-gray-900 text-lg group-hover:text-blue-700 transition-colors">
-                      {order.from_city}
-                    </span>
-                    <ArrowRight size={16} className="text-gray-400 shrink-0" />
-                    {order.via_city && (
-                      <>
-                        <span className="font-bold text-gray-900 text-lg group-hover:text-blue-700 transition-colors">
-                          {order.via_city}
-                        </span>
-                        <ArrowRight size={16} className="text-gray-400 shrink-0" />
-                      </>
-                    )}
-                    <span className="font-bold text-gray-900 text-lg group-hover:text-blue-700 transition-colors">
-                      {order.to_city}
-                    </span>
-                    {order.is_urgent && (
-                      <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
-                        СРОЧНО
-                      </span>
-                    )}
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ml-auto ${badge.cls}`}>
-                      {badge.text}
-                    </span>
-                  </div>
+              <div key={r.id} className={`bg-surface rounded-card border p-4 sm:p-5 ${borderClass}`}>
+                {/* Заголовок: № · маршрут · статус */}
+                <div className="flex items-center gap-3 flex-wrap mb-4">
                   {order.order_number && (
-                    <div className="text-xs text-gray-400 mt-0.5">Заявка КТ-{String(order.order_number).replace(/^КТ-/, '')}</div>
+                    <Link href={`/orders/${order.id}`} className="font-mono text-[13px] tabular-nums text-ink-3 hover:text-accent transition-colors">
+                      {formatOrderNumber(order.order_number)}
+                    </Link>
                   )}
-                </Link>
+                  <Link href={`/orders/${order.id}`} className="min-w-0 flex-1">
+                    <RouteInline
+                      from={order.from_city}
+                      to={order.to_city}
+                      via={order.via_city}
+                      urgent={order.is_urgent}
+                    />
+                  </Link>
+                  <StatusPill status={respStatus.status} label={respStatus.label} kind="order" className="flex-none" />
+                </div>
 
-                {/* Details */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 text-sm">{containerLabel}</span>
-                  <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium">
+                {/* Данные заявки */}
+                <div className="flex flex-wrap items-center gap-2.5 mb-4">
+                  <ContainerChip label={containerLabel} genset={order.requires_genset} />
+                  <span className="font-mono text-[15px] font-medium tabular-nums text-ink">
                     {formatPrice(order.price, order.is_negotiable)}
                   </span>
-                  <span className="px-2.5 py-1 rounded-lg bg-gray-50 text-gray-500 text-sm">
-                    {ORDER_STATUS_LABEL[order.status] ?? order.status}
-                  </span>
                   {order.ready_date && (
-                    <span className="px-2.5 py-1 rounded-lg bg-gray-50 text-gray-500 text-sm">
-                      📅 {new Date(order.ready_date).toLocaleDateString('ru-RU')}
+                    <span className="font-mono text-[13px] tabular-nums text-ink-3">
+                      погрузка {new Date(order.ready_date).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}
                     </span>
                   )}
                 </div>
 
-                {/* Client contact */}
-                <div className="p-3 rounded-xl bg-gray-50 border border-gray-100">
-                  <div className="text-xs text-gray-500 mb-1">Контакт клиента</div>
-                  <div className="font-medium text-gray-900">{client?.name}</div>
-                  {client?.city && <div className="text-sm text-gray-500">{client.city}</div>}
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <RevealPhone kind="order" id={order.id} targetUserId={order.client_id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors" />
-                    {/* Кнопка "Заявка" — более заметная, синяя */}
-                    <Link
-                      href={`/orders/${order.id}`}
-                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
-                    >
-                      Открыть заявку
+                {/* Контакт клиента */}
+                <div className="p-3.5 rounded-field bg-surface-sunken border border-hairline">
+                  <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Контакт клиента</div>
+                  <div className="text-[15px] font-medium text-ink">{client?.name}</div>
+                  {client?.city && <div className="text-sm text-ink-3">{client.city}</div>}
+                  <div className="mt-3 flex items-center gap-2 flex-wrap">
+                    <RevealPhone kind="order" id={order.id} targetUserId={order.client_id} className="inline-flex items-center gap-1.5 min-h-[36px] px-3 rounded-card border border-hairline bg-surface text-ink-2 text-sm font-medium hover:border-border-strong transition-colors" />
+                    <Link href={`/orders/${order.id}`}>
+                      <Button size="sm">Открыть заявку</Button>
                     </Link>
                     <Link
                       href={`/orders/${order.id}/chat`}
-                      className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors"
+                      className="relative inline-flex items-center min-h-[36px] px-3 rounded-card border border-hairline bg-surface text-ink-2 text-sm font-medium hover:border-border-strong transition-colors"
                     >
-                      💬 Чат
+                      Чат
                       {unread > 0 && (
-                        <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 leading-none">
+                        <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-danger text-white text-[10px] font-bold flex items-center justify-center px-1 leading-none">
                           {unread}
                         </span>
                       )}
@@ -262,14 +264,14 @@ export default function MyResponsesPage() {
                   </div>
                 </div>
 
-                {/* My comment */}
+                {/* Комментарий перевозчика */}
                 {r.message && (
-                  <p className="mt-3 text-sm text-gray-600 italic">
-                    Ваш комментарий: {r.message}
+                  <p className="mt-3 text-sm text-ink-2">
+                    <span className="text-ink-3">Ваш комментарий: </span>{r.message}
                   </p>
                 )}
 
-                <div className="mt-2 text-xs text-gray-400">Отклик: {formatDateTime(r.created_at)}</div>
+                <div className="mt-2.5 font-mono text-[12px] tabular-nums text-ink-4">Отклик: {formatDateTime(r.created_at)}</div>
               </div>
             )
           })}

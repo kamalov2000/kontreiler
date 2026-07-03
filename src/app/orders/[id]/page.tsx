@@ -4,9 +4,9 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
-  ArrowLeft, User, ArrowRight, CheckCircle,
+  ArrowLeft, User, CheckCircle,
   MoreVertical, X, Edit2, Copy, RotateCcw, Ban, Star, Banknote,
-  MapPin, Timer, Zap, Weight, TrendingDown, TrendingUp, FileText, Navigation,
+  MapPin, Timer, Weight, TrendingDown, TrendingUp, FileText, Navigation,
 } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderDocuments } from '@/components/orders/OrderDocuments'
@@ -16,6 +16,9 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
+import { StatusPill } from '@/components/ui/StatusPill'
+import { ContainerChip } from '@/components/ui/ContainerChip'
+import { ContainerMark } from '@/components/ui/ContainerMark'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -24,7 +27,6 @@ import { formatDateWithTime, formatDateTime, formatPrice, formatOrderNumber, rea
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT, CONTAINER_UNIT_TARE } from '@/lib/cities'
 import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
 import { toast } from 'sonner'
-import { ORDER_STATUS_CLASS } from '@/lib/status'
 import { cn } from '@/lib/utils'
 
 // Задача 8: после статуса "Доставлено" любые изменения запрещены —
@@ -688,50 +690,49 @@ export default function OrderDetailPage() {
 
   return (
     <AppLayout>
-      <div className="max-w-2xl">
+      <div className="max-w-3xl">
         {/* Навигация */}
         <div className="flex items-center justify-between mb-5">
-          <button onClick={() => router.back()} className="flex items-center gap-1 text-sm text-blue-600 hover:underline">
+          <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm font-medium text-ink-3 hover:text-ink transition-colors ease-terminal">
             <ArrowLeft size={16} /> Назад
           </button>
         </div>
 
         {/* Карточка заявки */}
         <div className={cn(
-          'bg-white rounded-2xl border shadow-sm p-5 mb-6',
-          order.is_urgent ? 'border-red-200' : 'border-gray-100'
+          'bg-surface rounded-card border p-6 mb-6',
+          order.is_urgent ? 'border-danger/40' : 'border-hairline'
         )}>
           {/* Номер + статус + управление */}
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div className="flex flex-col gap-1.5">
+          <div className="flex items-start justify-between gap-4 mb-5">
+            <div className="flex flex-col gap-2.5">
               {order.order_number && (
-                <span className="text-2xl font-black font-mono text-blue-600 tracking-tight">
-                  {formatOrderNumber(order.order_number)}
-                </span>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Заявка</span>
+                  <span className="font-mono text-[26px] leading-none font-medium tabular-nums text-ink">
+                    {formatOrderNumber(order.order_number)}
+                  </span>
+                </div>
               )}
               <div className="flex items-center gap-2 flex-wrap">
                 {order.format === 'urgent' && (
-                  <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-semibold">
-                    🔴 СРОЧНО
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-field bg-danger-soft text-danger text-[11.5px] font-semibold tracking-[0.06em] uppercase">
+                    <span className="w-1.5 h-1.5 rounded-full bg-danger" /> Срочно
                   </span>
                 )}
                 {order.format === 'reduction' && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
-                    <TrendingDown size={11} /> {t.order.formatReduction}
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-field bg-warning-soft text-warning text-[11.5px] font-semibold tracking-[0.06em] uppercase">
+                    <TrendingDown size={12} /> {t.order.formatReduction}
                   </span>
                 )}
                 {order.format === 'auction' && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">
-                    <TrendingUp size={11} /> {t.order.formatAuction}
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-field bg-accent-soft text-accent text-[11.5px] font-semibold tracking-[0.06em] uppercase">
+                    <TrendingUp size={12} /> {t.order.formatAuction}
                   </span>
                 )}
-                <span className={cn('px-2.5 py-1 rounded-full text-xs font-semibold', ORDER_STATUS_CLASS[order.status])}>
-                  {statusLabel}
-                </span>
+                <StatusPill status={order.status} kind="order" label={statusLabel} />
                 {order.requires_genset && (
-                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
-                    <Zap size={11} /> Genset
-                  </span>
+                  <ContainerChip label="Genset" genset />
                 )}
               </div>
             </div>
@@ -771,21 +772,21 @@ export default function OrderDetailPage() {
                 <div ref={menuRef} className="relative">
                   <button
                     onClick={() => setMenuOpen(v => !v)}
-                    className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                    className="p-2 rounded-card text-ink-3 hover:bg-surface-sunken hover:text-ink transition-colors ease-terminal"
                     title="Дополнительно"
                   >
                     <MoreVertical size={18} />
                   </button>
                   {menuOpen && (
-                    <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                    <div className="absolute right-0 top-full mt-1 w-52 bg-surface border border-hairline rounded-card shadow-overlay z-50 overflow-hidden">
                       {canRevert && (
-                        <button onClick={revertStatus} className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-amber-700 hover:bg-amber-50 transition-colors">
-                          <RotateCcw size={15} className="text-amber-500" /> {REVERT_LABEL[order.status]}
+                        <button onClick={revertStatus} className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-warning hover:bg-warning-soft transition-colors ease-terminal">
+                          <RotateCcw size={15} /> {REVERT_LABEL[order.status]}
                         </button>
                       )}
                       {canReopen && (
-                        <button onClick={reopenOrder} className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-blue-700 hover:bg-blue-50 transition-colors">
-                          <RotateCcw size={15} className="text-blue-500" /> Переоткрыть заявку
+                        <button onClick={reopenOrder} className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-accent hover:bg-accent-soft transition-colors ease-terminal">
+                          <RotateCcw size={15} /> Переоткрыть заявку
                         </button>
                       )}
                     </div>
@@ -797,32 +798,30 @@ export default function OrderDetailPage() {
 
           {/* Дополнительные точки над маршрутом */}
           {stops.length > 0 && (
-            <div className="mb-3 space-y-1.5">
-              <div className="text-xs text-gray-500 font-medium">Дополнительные точки:</div>
+            <div className="mb-4 space-y-1.5">
+              <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Дополнительные точки</div>
               {stops.map((s, i) => (
                 <div key={s.id} className="flex items-start gap-2 text-sm">
-                  <span className="mt-0.5 w-5 h-5 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold shrink-0">{i + 1}</span>
+                  <span className="mt-0.5 w-5 h-5 rounded-full bg-accent-soft text-accent flex items-center justify-center font-mono text-[11px] font-medium shrink-0">{i + 1}</span>
                   <div>
-                    <span className="font-medium text-gray-800">{s.address}</span>
-                    {s.comment && <span className="text-gray-500"> — {s.comment}</span>}
+                    <span className="font-medium text-ink">{s.address}</span>
+                    {s.comment && <span className="text-ink-3"> — {s.comment}</span>}
                   </div>
                 </div>
               ))}
             </div>
           )}
 
-          {/* Маршрут цепочкой А → Б → В с адресами */}
-          <div className="mb-4">
-            <div className="flex items-start gap-0 flex-col sm:flex-row sm:items-center">
+          {/* Герой-маршрут: крупные города, пунктирная рельса, узел via с accent-кольцом */}
+          <div className="mb-6">
+            <div className="flex items-stretch gap-3 flex-col sm:flex-row sm:items-center">
               {/* Точка А */}
-              <div className="flex items-start gap-2">
-                <div className="flex flex-col items-center pt-1 shrink-0">
-                  <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-                </div>
-                <div>
-                  <div className="text-xl font-bold text-gray-900">{order.from_city}</div>
+              <div className="flex items-start gap-2.5 min-w-0">
+                <span className="mt-2 w-2.5 h-2.5 rounded-full bg-accent shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[28px] leading-[1.05] font-bold tracking-[-0.02em] text-ink">{order.from_city}</div>
                   {order.from_city_address && (
-                    <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
+                    <div className="flex items-center gap-1 text-[13px] text-ink-3 mt-1">
                       <MapPin size={12} className="shrink-0" />
                       {order.from_city_address}
                     </div>
@@ -830,38 +829,39 @@ export default function OrderDetailPage() {
                 </div>
               </div>
 
-              <ArrowRight size={18} className="text-gray-300 mx-3 shrink-0 my-2 sm:my-0" />
+              {/* Рельса */}
+              <div className="hidden sm:flex items-center flex-none px-1 self-start mt-4 min-w-[36px]">
+                <span className="w-8 rail" />
+              </div>
 
-              {/* Точка Б (если есть) */}
+              {/* Точка Б (если есть) — узел via с accent-кольцом */}
               {order.via_city && (
                 <>
-                  <div className="flex items-start gap-2">
-                    <div className="flex flex-col items-center pt-1 shrink-0">
-                      <div className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                    </div>
-                    <div>
-                      <div className="text-xl font-bold text-gray-900">{order.via_city}</div>
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <span className="mt-2.5 w-3 h-3 rounded-full bg-surface border-2 border-accent ring-2 ring-accent-soft shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-[22px] leading-[1.1] font-semibold tracking-[-0.01em] text-ink-2">{order.via_city}</div>
                       {order.via_city_address && (
-                        <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
+                        <div className="flex items-center gap-1 text-[13px] text-ink-3 mt-1">
                           <MapPin size={12} className="shrink-0" />
                           {order.via_city_address}
                         </div>
                       )}
                     </div>
                   </div>
-                  <ArrowRight size={18} className="text-gray-300 mx-3 shrink-0 my-2 sm:my-0" />
+                  <div className="hidden sm:flex items-center flex-none px-1 self-start mt-4 min-w-[36px]">
+                    <span className="w-8 rail" />
+                  </div>
                 </>
               )}
 
               {/* Точка В */}
-              <div className="flex items-start gap-2">
-                <div className="flex flex-col items-center pt-1 shrink-0">
-                  <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
-                </div>
-                <div>
-                  <div className="text-xl font-bold text-gray-900">{order.to_city}</div>
+              <div className="flex items-start gap-2.5 min-w-0">
+                <span className="mt-2 w-2.5 h-2.5 rounded-full bg-success shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[28px] leading-[1.05] font-bold tracking-[-0.02em] text-ink">{order.to_city}</div>
                   {order.to_city_address && (
-                    <div className="flex items-center gap-1 text-sm text-gray-500 mt-0.5">
+                    <div className="flex items-center gap-1 text-[13px] text-ink-3 mt-1">
                       <MapPin size={12} className="shrink-0" />
                       {order.to_city_address}
                     </div>
@@ -871,112 +871,115 @@ export default function OrderDetailPage() {
             </div>
           </div>
 
+          {/* Волосяной разделитель */}
+          <div className="border-t border-hairline mb-5" />
+
           {/* Сетка параметров */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-            <div className="p-3 rounded-xl bg-gray-50">
-              <div className="text-xs text-gray-500 mb-0.5">Контейнер</div>
-              <div className="font-semibold text-gray-900 text-sm">{containerLabel}</div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5 mb-5">
+            <div>
+              <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Контейнер</div>
+              <ContainerChip label={containerLabel || order.container_type} />
             </div>
             {/* Пункт 10: для аукционов — начальная ставка вместо обычной цены */}
             {order.format === 'reduction' || order.format === 'auction' ? (
-              <div className="p-3 rounded-xl bg-amber-50">
-                <div className="text-xs text-gray-500 mb-0.5">Начальная ставка</div>
-                <div className="font-semibold text-amber-700 text-sm">{order.auction_start_price?.toLocaleString('ru-RU')} ₽</div>
+              <div>
+                <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Начальная ставка</div>
+                <div className="font-mono text-xl font-medium tabular-nums text-ink">{order.auction_start_price?.toLocaleString('ru-RU')} ₽</div>
               </div>
             ) : (
-              <div className="p-3 rounded-xl bg-gray-50">
-                <div className="text-xs text-gray-500 mb-0.5">Ставка</div>
-                <div className="font-semibold text-blue-700 text-sm">{formatPrice(order.price, order.is_negotiable)}</div>
-                <div className="text-xs text-gray-400 mt-0.5">{vatLabel}</div>
+              <div>
+                <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Ставка</div>
+                <div className="font-mono text-xl font-medium tabular-nums text-ink">{formatPrice(order.price, order.is_negotiable)}</div>
+                <div className="text-[11px] font-medium text-ink-4 mt-0.5">{vatLabel}</div>
               </div>
             )}
             {/* Плановая дата погрузки/выгрузки */}
-            <div className="p-3 rounded-xl bg-gray-50">
-              <div className="text-xs text-gray-500 mb-0.5">Плановая дата погрузки/выгрузки</div>
-              <div className="font-semibold text-gray-900 text-sm">{formatDateWithTime(order.ready_date, order.ready_time)}</div>
+            <div>
+              <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Дата погрузки/выгрузки</div>
+              <div className="font-mono text-[15px] tabular-nums text-ink">{formatDateWithTime(order.ready_date, order.ready_time)}</div>
               {(() => {
                 const badge = readyDateBadge(order.ready_date)
                 if (!badge) return null
-                const colorClass = badge.color === 'red' ? 'text-red-600' : badge.color === 'amber' ? 'text-amber-600' : 'text-green-600'
-                return <div className={`text-xs font-medium mt-0.5 ${colorClass}`}>{badge.label}</div>
+                const colorClass = badge.color === 'red' ? 'text-danger' : badge.color === 'amber' ? 'text-warning' : 'text-success'
+                return <div className={`text-[11px] font-medium mt-0.5 ${colorClass}`}>{badge.label}</div>
               })()}
               {order.arrival_time && (
-                <div className="text-xs text-gray-500 mt-0.5">Прибытие ТС: {order.arrival_time.slice(0, 5)}</div>
+                <div className="text-[11px] text-ink-3 mt-0.5 font-mono tabular-nums">Прибытие ТС: {order.arrival_time.slice(0, 5)}</div>
               )}
             </div>
             {(order.weight_gross || order.weight_net || order.weight_gross_2 || order.weight_net_2) && (
-              <div className="p-3 rounded-xl bg-gray-50">
-                <div className="text-xs text-gray-500 mb-1 flex items-center gap-1"><Weight size={11} /> Вес</div>
+              <div className="col-span-2 sm:col-span-1">
+                <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5 flex items-center gap-1"><Weight size={12} /> Вес</div>
                 {order.container_type === '20DC2' ? (
-                  <>
-                    {order.weight_gross && <div className="text-xs text-gray-700">Конт. 1 с тарой: <strong>{(order.weight_gross + (CONTAINER_UNIT_TARE['20DC2'] ?? 2200)).toLocaleString('ru-RU')} кг</strong></div>}
-                    {order.weight_net   && <div className="text-xs text-gray-700">Конт. 1 нетто: <strong>{order.weight_net.toLocaleString('ru-RU')} кг</strong></div>}
-                    {order.weight_gross_2 && <div className="text-xs text-gray-700 mt-1">Конт. 2 с тарой: <strong>{(order.weight_gross_2 + (CONTAINER_UNIT_TARE['20DC2'] ?? 2200)).toLocaleString('ru-RU')} кг</strong></div>}
-                    {order.weight_net_2   && <div className="text-xs text-gray-700">Конт. 2 нетто: <strong>{order.weight_net_2.toLocaleString('ru-RU')} кг</strong></div>}
-                  </>
+                  <div className="space-y-0.5 text-[13px] text-ink-2">
+                    {order.weight_gross && <div>Конт. 1 с тарой: <strong className="font-mono tabular-nums text-ink">{(order.weight_gross + (CONTAINER_UNIT_TARE['20DC2'] ?? 2200)).toLocaleString('ru-RU')} кг</strong></div>}
+                    {order.weight_net   && <div>Конт. 1 нетто: <strong className="font-mono tabular-nums text-ink">{order.weight_net.toLocaleString('ru-RU')} кг</strong></div>}
+                    {order.weight_gross_2 && <div className="mt-1">Конт. 2 с тарой: <strong className="font-mono tabular-nums text-ink">{(order.weight_gross_2 + (CONTAINER_UNIT_TARE['20DC2'] ?? 2200)).toLocaleString('ru-RU')} кг</strong></div>}
+                    {order.weight_net_2   && <div>Конт. 2 нетто: <strong className="font-mono tabular-nums text-ink">{order.weight_net_2.toLocaleString('ru-RU')} кг</strong></div>}
+                  </div>
                 ) : (
-                  <>
-                    {order.weight_gross && <div className="text-xs text-gray-700">Вес груза с контейнером: <strong>{(order.weight_gross + (CONTAINER_TARE_WEIGHT[order.container_type] ?? 0)).toLocaleString('ru-RU')} кг</strong></div>}
-                    {order.weight_net   && <div className="text-xs text-gray-700">Нетто: <strong>{order.weight_net.toLocaleString('ru-RU')} кг</strong></div>}
-                  </>
+                  <div className="space-y-0.5 text-[13px] text-ink-2">
+                    {order.weight_gross && <div>С контейнером: <strong className="font-mono tabular-nums text-ink">{(order.weight_gross + (CONTAINER_TARE_WEIGHT[order.container_type] ?? 0)).toLocaleString('ru-RU')} кг</strong></div>}
+                    {order.weight_net   && <div>Нетто: <strong className="font-mono tabular-nums text-ink">{order.weight_net.toLocaleString('ru-RU')} кг</strong></div>}
+                  </div>
                 )}
               </div>
             )}
             {order.expires_at && (
-              <div className="p-3 rounded-xl bg-gray-50 col-span-2 sm:col-span-2">
-                <div className="text-xs text-gray-500 mb-1">Срок действия</div>
+              <div className="col-span-2">
+                <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Срок действия</div>
                 <ExpiryCountdown expiresAt={order.expires_at} />
-                <div className="text-xs text-gray-400 mt-0.5">до {formatDateWithTime(order.expires_at!)}</div>
+                <div className="text-[11px] text-ink-4 mt-0.5 font-mono tabular-nums">до {formatDateWithTime(order.expires_at!)}</div>
               </div>
             )}
           </div>
 
           {/* Договорная цена */}
           {order.agreed_price && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-green-50 border border-green-100 mb-3">
-              <Banknote size={16} className="text-green-600 shrink-0" />
-              <span className="text-sm font-medium text-green-800">
-                Договорная цена: {order.agreed_price.toLocaleString('ru-RU')} ₽
+            <div className="flex items-center gap-2.5 p-3 rounded-field bg-success-soft border border-success/20 mb-3">
+              <Banknote size={16} className="text-success shrink-0" />
+              <span className="text-sm font-medium text-success">
+                Договорная цена: <span className="font-mono tabular-nums">{order.agreed_price.toLocaleString('ru-RU')} ₽</span>
               </span>
             </div>
           )}
 
           {/* Простой транспорта */}
           {order.downtime_rate && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-gray-50 border border-gray-100 mb-3">
-              <span className="text-sm text-gray-600">Простой транспорта:</span>
-              <span className="text-sm font-semibold text-gray-900">{order.downtime_rate.toLocaleString('ru-RU')} ₽/час</span>
+            <div className="flex items-center gap-2 p-3 rounded-field bg-surface-sunken border border-hairline mb-3">
+              <span className="text-sm text-ink-2">Простой транспорта:</span>
+              <span className="text-sm font-medium text-ink font-mono tabular-nums">{order.downtime_rate.toLocaleString('ru-RU')} ₽/час</span>
             </div>
           )}
 
           {/* Особые условия */}
           {order.notes && (
-            <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 mb-3">
-              <div className="text-xs text-amber-600 mb-0.5">Особые условия</div>
-              <div className="text-sm text-amber-900">{order.notes}</div>
+            <div className="p-3 rounded-field bg-warning-soft border border-warning/20 mb-3">
+              <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-warning mb-1">Особые условия</div>
+              <div className="text-sm text-ink-2">{order.notes}</div>
             </div>
           )}
 
           {/* Блок торгов */}
           {(order.format === 'reduction' || order.format === 'auction') && (
-            <div className="mt-4 p-4 rounded-xl border border-amber-200 bg-amber-50">
+            <div className="mt-5 p-4 rounded-card border border-hairline bg-surface-sunken">
               <div className="flex items-center justify-between mb-3">
-                <div className="font-semibold text-amber-900 text-sm">
+                <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-2">
                   {order.format === 'reduction' ? t.order.formatReduction : t.order.formatAuction}
                 </div>
                 {order.auction_end_time && (
                   <ExpiryCountdown expiresAt={order.auction_end_time} />
                 )}
               </div>
-              <div className="flex flex-wrap gap-4 mb-3 text-sm">
+              <div className="flex flex-wrap gap-x-6 gap-y-2 mb-3 text-sm">
                 <div>
-                  <span className="text-gray-500">{t.auctions.startPrice}: </span>
-                  <strong>{order.auction_start_price?.toLocaleString('ru-RU')} ₽</strong>
+                  <span className="text-ink-3">{t.auctions.startPrice}: </span>
+                  <strong className="font-mono tabular-nums text-ink">{order.auction_start_price?.toLocaleString('ru-RU')} ₽</strong>
                 </div>
                 {bids.length > 0 && (
                   <div>
-                    <span className="text-gray-500">{t.auctions.bestBid}: </span>
-                    <strong className="text-amber-800">
+                    <span className="text-ink-3">{t.auctions.bestBid}: </span>
+                    <strong className="font-mono tabular-nums text-accent">
                       {(order.format === 'reduction'
                         ? Math.min(...bids.map(b => b.amount))
                         : Math.max(...bids.map(b => b.amount))
@@ -984,7 +987,7 @@ export default function OrderDetailPage() {
                     </strong>
                   </div>
                 )}
-                <div className="text-gray-500">
+                <div className="text-ink-3 font-mono tabular-nums">
                   {bids.length} {t.auctions.bidCount}
                 </div>
               </div>
@@ -1011,9 +1014,9 @@ export default function OrderDetailPage() {
               {bids.length > 0 && (
                 <div className="mt-3 space-y-1.5 max-h-40 overflow-y-auto">
                   {bids.map(b => (
-                    <div key={b.id} className="flex items-center justify-between text-xs text-gray-600 px-2 py-1 rounded-lg bg-white border border-amber-100">
-                      <span className="font-medium text-gray-800">{b.carrier?.name || 'Перевозчик'}</span>
-                      <span className="font-semibold text-amber-800">{b.amount.toLocaleString('ru-RU')} ₽</span>
+                    <div key={b.id} className="flex items-center justify-between text-[13px] px-2.5 py-1.5 rounded-field bg-surface border border-hairline">
+                      <span className="font-medium text-ink-2">{b.carrier?.name || 'Перевозчик'}</span>
+                      <span className="font-mono tabular-nums text-accent">{b.amount.toLocaleString('ru-RU')} ₽</span>
                     </div>
                   ))}
                 </div>
@@ -1021,35 +1024,35 @@ export default function OrderDetailPage() {
             </div>
           )}
 
-          <div className="text-xs text-gray-400 mt-4">
+          <div className="text-[11px] text-ink-4 mt-5 font-mono tabular-nums">
             Размещено: {formatDateTime(order.created_at)}
           </div>
         </div>
 
         {/* Выбранный перевозчик */}
         {(isMatched || ['in_transit', 'delivered', 'closed', 'cancelled'].includes(order.status)) && acceptedResponse && (
-          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <CheckCircle size={18} className="text-blue-600" />
-              <span className="font-semibold text-blue-900">Выбранный перевозчик</span>
+          <div className="bg-surface border border-hairline rounded-card p-5 mb-6">
+            <div className="flex items-center gap-2 mb-2.5">
+              <CheckCircle size={16} className="text-accent" />
+              <span className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Выбранный перевозчик</span>
             </div>
-            <div className="font-medium text-gray-900">{acceptedResponse.carrier?.name}</div>
+            <div className="font-semibold text-ink text-[17px]">{acceptedResponse.carrier?.name}</div>
             {acceptedResponse.carrier?.city && (
-              <div className="text-sm text-gray-500">{acceptedResponse.carrier.city}</div>
+              <div className="text-sm text-ink-3 mt-0.5">{acceptedResponse.carrier.city}</div>
             )}
-            <div className="mt-3 flex gap-2 flex-wrap">
+            <div className="mt-4 flex gap-2 flex-wrap">
               <RevealPhone kind="order" id={order.id} targetUserId={order.accepted_carrier_id} />
               <Link
                 href={`/orders/${order.id}/chat?carrier=${order.accepted_carrier_id}`}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors ease-terminal"
               >
-                💬 Открыть чат
+                Открыть чат
               </Link>
               {(isOwner || user?.id === order.accepted_carrier_id) && (
                 <button
                   onClick={handleDownloadContract}
                   disabled={downloadingContract}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card bg-surface border border-hairline text-ink-2 text-sm font-medium hover:border-border-strong transition-colors ease-terminal disabled:opacity-50"
                 >
                   <FileText size={14} />
                   {downloadingContract ? 'Генерация...' : 'Договор-заявка PDF'}
@@ -1061,31 +1064,28 @@ export default function OrderDetailPage() {
 
         {/* Трекинг рейса — задача 5, 10 */}
         {order.tracking_enabled && (isOwner || user?.id === order.accepted_carrier_id) && ['matched', 'in_transit', 'delivered'].includes(order.status) && (
-          <div className={cn(
-            'border rounded-2xl shadow-sm p-5 mb-6',
-            order.status === 'in_transit' ? 'bg-blue-50 border-blue-200' :
-            order.status === 'delivered' ? 'bg-green-50 border-green-200' :
-            'bg-white border-gray-100'
-          )}>
-            <div className="flex items-center justify-between mb-3">
+          <div className="border border-hairline rounded-card bg-surface p-5 mb-6">
+            <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
               <div className="flex items-center gap-2">
-                <Navigation size={16} className="text-blue-600" />
-                <span className="font-semibold text-gray-900">Трекинг рейса</span>
+                <Navigation size={16} className="text-accent" />
+                <span className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Трекинг рейса</span>
                 {order.tracking_status ? (
-                  <span className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded-full font-semibold">
+                  <span className="text-[11.5px] bg-accent-soft text-accent px-2.5 py-1 rounded-field font-semibold tracking-[0.06em] uppercase">
                     {TRACKING_STEPS[getTrackingStepIndex(order.tracking_status)]?.shortLabel ?? order.tracking_status}
                   </span>
                 ) : order.status === 'matched' ? (
-                  <span className="text-xs bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full font-semibold">⏸ Не в пути</span>
+                  <span className="inline-flex items-center gap-1.5 text-[11.5px] bg-surface-sunken text-ink-3 px-2.5 py-1 rounded-field font-semibold tracking-[0.06em] uppercase">
+                    <span className="w-1.5 h-1.5 rounded-full bg-ink-4" /> Не в пути
+                  </span>
                 ) : null}
               </div>
               <button
                 onClick={() => setTrackingDrawerOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors ease-terminal"
               >
                 <Navigation size={14} />
                 {user?.id === order.accepted_carrier_id && !order.tracking_status && order.status === 'matched'
-                  ? '🚛 Начать рейс'
+                  ? 'Начать рейс'
                   : 'Трекинг'}
               </button>
             </div>
@@ -1101,31 +1101,31 @@ export default function OrderDetailPage() {
                     return (
                       <div key={step.value} className="flex items-center gap-1 shrink-0">
                         <div className={cn(
-                          'w-7 h-7 rounded-full flex items-center justify-center text-xs border-2 transition-all',
-                          isDone && !isCurrent ? 'bg-blue-600 border-blue-600 text-white' :
-                          isCurrent ? 'bg-white border-blue-600 ring-2 ring-blue-100 text-blue-700' :
-                          'bg-white border-gray-200 text-gray-300'
+                          'w-7 h-7 rounded-full flex items-center justify-center text-xs border-2 transition-all ease-terminal',
+                          isDone && !isCurrent ? 'bg-accent border-accent text-white' :
+                          isCurrent ? 'bg-surface border-accent ring-2 ring-accent-soft text-accent' :
+                          'bg-surface border-hairline text-ink-4'
                         )} title={step.label}>
-                          {isDone && !isCurrent ? '✓' : isCurrent ? <span>{step.icon}</span> : <span className="text-[9px]">{idx + 1}</span>}
+                          {isDone && !isCurrent ? '✓' : isCurrent ? <span>{step.icon}</span> : <span className="text-[9px] font-mono">{idx + 1}</span>}
                         </div>
                         {idx < TRACKING_STEPS.length - 1 && (
-                          <div className={cn('w-3 h-0.5', isDone ? 'bg-blue-400' : 'bg-gray-200')} />
+                          <div className={cn('w-3 h-0.5', isDone ? 'bg-accent/50' : 'bg-hairline')} />
                         )}
                       </div>
                     )
                   })}
                 </div>
                 {order.tracking_updated_at && (
-                  <div className="text-xs text-gray-400">
+                  <div className="text-[11px] text-ink-4 font-mono tabular-nums">
                     Обновлено: {formatDateTime(order.tracking_updated_at)}
                   </div>
                 )}
               </>
             ) : order.status === 'matched' ? (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-ink-3">
                 {user?.id === order.accepted_carrier_id
-                  ? '👆 Нажмите «Начать рейс» чтобы запустить трекинг'
-                  : 'Ожидаем начала рейса от перевозчика...'}
+                  ? 'Нажмите «Начать рейс», чтобы запустить трекинг'
+                  : 'Ожидаем начала рейса от перевозчика…'}
               </p>
             ) : null}
           </div>
@@ -1143,10 +1143,10 @@ export default function OrderDetailPage() {
         {/* Отзывы (после доставки) */}
         {order.status === 'delivered' && (
           <div className="mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Отзывы</h2>
+            <h2 className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-3">Отзывы</h2>
             {canReview && (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
-                <div className="font-medium text-gray-900 mb-3">
+              <div className="bg-surface rounded-card border border-hairline p-5 mb-4">
+                <div className="font-medium text-ink mb-3">
                   Оцените {isOwner ? 'перевозчика' : 'клиента'}
                 </div>
                 <StarRating value={reviewRating} onChange={setReviewRating} />
@@ -1156,7 +1156,7 @@ export default function OrderDetailPage() {
                   placeholder="Комментарий (необязательно)"
                   rows={2}
                   maxLength={500}
-                  className="mt-3 w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  className="mt-3 w-full px-3 py-2 rounded-field border border-hairline bg-surface text-sm text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent resize-none"
                 />
                 <Button onClick={submitReview} loading={submittingReview} className="mt-3 w-full" disabled={reviewRating === 0}>
                   Отправить отзыв
@@ -1166,25 +1166,28 @@ export default function OrderDetailPage() {
             {reviews.length > 0 && (
               <div className="space-y-3">
                 {reviews.map(rv => (
-                  <div key={rv.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                  <div key={rv.id} className="bg-surface rounded-card border border-hairline p-4">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-gray-700">
+                      <span className="text-sm font-medium text-ink-2">
                         {rv.reviewer?.name} → {rv.reviewee?.name}
                       </span>
                       <div className="flex gap-0.5">
                         {[1, 2, 3, 4, 5].map(s => (
-                          <Star key={s} size={14} className={s <= rv.rating ? 'fill-amber-400 text-amber-400' : 'text-gray-200'} />
+                          <Star key={s} size={14} className={s <= rv.rating ? 'fill-warning text-warning' : 'text-ink-4/40'} />
                         ))}
                       </div>
                     </div>
-                    {rv.comment && <p className="text-sm text-gray-600">{rv.comment}</p>}
-                    <div className="text-xs text-gray-400 mt-1">{formatDateTime(rv.created_at)}</div>
+                    {rv.comment && <p className="text-sm text-ink-2">{rv.comment}</p>}
+                    <div className="text-[11px] text-ink-4 mt-1 font-mono tabular-nums">{formatDateTime(rv.created_at)}</div>
                   </div>
                 ))}
               </div>
             )}
             {reviews.length === 0 && !canReview && (
-              <div className="text-sm text-gray-400 text-center py-4">Отзывов пока нет</div>
+              <div className="flex flex-col items-center gap-2 text-center py-8">
+                <ContainerMark size={24} className="text-ink-4" />
+                <span className="text-sm text-ink-3">Отзывов пока нет</span>
+              </div>
             )}
           </div>
         )}
@@ -1192,14 +1195,14 @@ export default function OrderDetailPage() {
         {/* Кнопка «Откликнуться» для перевозчика */}
         {user?.role === 'carrier' && !isOwner && order.status === 'active' && (
           responses.some(r => r.carrier_id === user.id) ? (
-            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-2xl p-4 mb-4">
-              <CheckCircle size={18} className="text-green-600 shrink-0" />
-              <span className="text-green-800 text-sm font-medium">Вы уже откликнулись на этот рейс</span>
+            <div className="flex items-center gap-2 bg-success-soft border border-success/20 rounded-card p-4 mb-4">
+              <CheckCircle size={18} className="text-success shrink-0" />
+              <span className="text-success text-sm font-medium">Вы уже откликнулись на этот рейс</span>
             </div>
           ) : (
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-4">
-              <p className="text-sm font-semibold text-blue-900 mb-1">Хотите взять этот рейс?</p>
-              <p className="text-xs text-blue-700 mb-3">Откликнитесь — клиент увидит ваш отклик и свяжется с вами.</p>
+            <div className="bg-surface border border-hairline rounded-card p-5 mb-4">
+              <p className="text-[15px] font-semibold text-ink mb-1">Хотите взять этот рейс?</p>
+              <p className="text-[13px] text-ink-3 mb-4">Откликнитесь — клиент увидит ваш отклик и свяжется с вами.</p>
               <Button onClick={() => setRespondOpen(true)} className="w-full sm:w-auto">
                 Откликнуться на рейс
               </Button>
@@ -1208,13 +1211,15 @@ export default function OrderDetailPage() {
         )}
 
         {/* Отклики */}
-        <h2 className="text-lg font-semibold text-gray-900 mb-3">
-          Отклики ({responses.length})
-        </h2>
+        <div className="flex items-baseline gap-2.5 mb-3">
+          <h2 className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Отклики</h2>
+          <span className="font-mono text-[13px] tabular-nums text-ink-3">{responses.length}</span>
+        </div>
 
         {responses.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center text-gray-400">
-            Пока никто не откликнулся
+          <div className="bg-surface rounded-card border border-hairline flex flex-col items-center gap-3 py-12 px-6 text-center">
+            <ContainerMark size={26} className="text-ink-4" />
+            <span className="text-[15px] text-ink-3">Пока никто не откликнулся</span>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1225,40 +1230,41 @@ export default function OrderDetailPage() {
               return (
                 <div
                   key={r.id}
-                  className={`bg-white rounded-2xl border shadow-sm p-4 transition-colors ${
-                    isAccepted ? 'border-blue-300 bg-blue-50/30' : 'border-gray-100'
-                  }`}
+                  className={cn(
+                    'bg-surface rounded-card border p-4 transition-colors ease-terminal',
+                    isAccepted ? 'border-accent/40 shadow-row-active' : 'border-hairline'
+                  )}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                      <User size={18} className="text-blue-600" />
+                    <div className="w-10 h-10 rounded-full bg-accent-soft flex items-center justify-center shrink-0">
+                      <User size={18} className="text-accent" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <div className="font-semibold text-gray-900">{r.carrier?.name || 'Перевозчик'}</div>
+                        <div className="font-semibold text-ink">{r.carrier?.name || 'Перевозчик'}</div>
                         {isAccepted && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-field bg-accent-soft text-accent text-[11.5px] font-semibold tracking-[0.06em] uppercase">
                             <CheckCircle size={11} /> Выбран
                           </span>
                         )}
                         {rating && (
-                          <span className="flex items-center gap-1 text-xs text-amber-600">
-                            <Star size={12} className="fill-amber-400 text-amber-400" />
+                          <span className="flex items-center gap-1 text-[12px] text-ink-3 font-mono tabular-nums">
+                            <Star size={12} className="fill-warning text-warning" />
                             {rating.avg} ({rating.count})
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500">{r.carrier?.city}</div>
+                      <div className="text-sm text-ink-3">{r.carrier?.city}</div>
                       {r.message && (
-                        <p className="mt-2 text-sm text-gray-700 bg-gray-50 rounded-lg p-2">{r.message}</p>
+                        <p className="mt-2 text-sm text-ink-2 bg-surface-sunken rounded-field p-2.5">{r.message}</p>
                       )}
-                      <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      <div className="mt-3 flex items-center gap-2 flex-wrap">
                         {isOwner && <RevealPhone kind="order" id={order.id} targetUserId={r.carrier_id} />}
                         <Link
                           href={`/orders/${order.id}/chat?carrier=${r.carrier_id}`}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100 transition-colors"
+                          className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card bg-surface border border-hairline text-ink-2 text-sm font-medium hover:border-border-strong transition-colors ease-terminal"
                         >
-                          💬 Чат
+                          Чат
                         </Link>
                         {canAccept && (
                           <Button
@@ -1272,7 +1278,7 @@ export default function OrderDetailPage() {
                         )}
                       </div>
                     </div>
-                    <div className="text-xs text-gray-400 shrink-0">{formatDateTime(r.created_at)}</div>
+                    <div className="text-[11px] text-ink-4 shrink-0 font-mono tabular-nums">{formatDateTime(r.created_at)}</div>
                   </div>
                 </div>
               )
@@ -1283,11 +1289,11 @@ export default function OrderDetailPage() {
 
       {/* Edit modal */}
       {editOpen && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900">Редактировать заявку</h2>
-              <button onClick={() => setEditOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
+        <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface rounded-modal shadow-overlay w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-hairline">
+              <h2 className="text-lg font-semibold tracking-[-0.01em] text-ink">Редактировать заявку</h2>
+              <button onClick={() => setEditOpen(false)} className="p-1.5 rounded-card text-ink-3 hover:bg-surface-sunken transition-colors ease-terminal">
                 <X size={18} />
               </button>
             </div>
@@ -1302,9 +1308,9 @@ export default function OrderDetailPage() {
                 options={CONTAINER_TYPES.map(c => ({ value: c.value, label: c.label }))}
               />
               {REF_CONTAINER_TYPES.has(editContainer) && (
-                <label className="flex items-center gap-2 cursor-pointer p-2.5 rounded-xl border border-blue-200 bg-blue-50">
-                  <input type="checkbox" checked={editGenset} onChange={e => setEditGenset(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
-                  <span className="text-sm text-blue-800">⚡ {t.order.genset}</span>
+                <label className="flex items-center gap-2 cursor-pointer p-2.5 rounded-field border border-warning/30 bg-warning-soft">
+                  <input type="checkbox" checked={editGenset} onChange={e => setEditGenset(e.target.checked)} className="w-4 h-4 rounded border-hairline text-accent" />
+                  <span className="text-sm text-warning font-medium">{t.order.genset}</span>
                 </label>
               )}
               <div className="grid grid-cols-2 gap-3">
@@ -1330,20 +1336,20 @@ export default function OrderDetailPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Ставка</label>
+                <label className="block text-sm font-medium text-ink-2 mb-2">Ставка</label>
                 <label className="flex items-center gap-2 mb-2 cursor-pointer">
-                  <input type="checkbox" checked={editNegotiable} onChange={e => { setEditNegotiable(e.target.checked); if (e.target.checked) setEditPrice('') }} className="w-4 h-4 rounded border-gray-300 text-blue-600" />
-                  <span className="text-sm text-gray-700">Договорная</span>
+                  <input type="checkbox" checked={editNegotiable} onChange={e => { setEditNegotiable(e.target.checked); if (e.target.checked) setEditPrice('') }} className="w-4 h-4 rounded border-hairline text-accent" />
+                  <span className="text-sm text-ink-2">Договорная</span>
                 </label>
                 {!editNegotiable && (
                   <Input type="number" placeholder="Ставка в рублях" value={editPrice} onChange={e => setEditPrice(e.target.value)} min="0" />
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">{t.order.vatType}</label>
+                <label className="block text-sm font-medium text-ink-2 mb-2">{t.order.vatType}</label>
                 <div className="flex gap-2 flex-wrap">
                   {(['none', 'vat5', 'vat15', 'vat20', 'vat0'] as VatType[]).map(v => (
-                    <label key={v} className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors text-sm ${editVatType === v ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                    <label key={v} className={`flex items-center gap-2 px-3 py-2 rounded-field border cursor-pointer transition-colors ease-terminal text-sm ${editVatType === v ? 'border-accent bg-accent-soft text-accent font-medium' : 'border-hairline text-ink-2 hover:border-border-strong'}`}>
                       <input type="radio" name="editVatType" value={v} checked={editVatType === v} onChange={() => setEditVatType(v)} className="sr-only" />
                       {v === 'none' ? t.order.vatNone : v === 'vat5' ? t.order.vatVat5 : v === 'vat15' ? t.order.vatVat15 : v === 'vat20' ? t.order.vatVat20 : t.order.vatVat0}
                     </label>
@@ -1351,21 +1357,23 @@ export default function OrderDetailPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Особые условия</label>
+                <label className="block text-sm font-medium text-ink-2 mb-1.5">Особые условия</label>
                 <textarea
                   value={editNotes}
                   onChange={e => setEditNotes(e.target.value)}
                   placeholder="Опасный груз..."
                   rows={2}
                   maxLength={500}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  className="w-full px-3 py-2 rounded-field border border-hairline bg-surface text-sm text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent resize-none"
                 />
               </div>
-              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors">
-                <input type="checkbox" checked={editUrgent} onChange={e => setEditUrgent(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-red-500" />
+              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-field border border-hairline hover:border-border-strong transition-colors ease-terminal">
+                <input type="checkbox" checked={editUrgent} onChange={e => setEditUrgent(e.target.checked)} className="w-4 h-4 rounded border-hairline text-danger" />
                 <div>
-                  <div className="text-sm font-medium text-gray-900">🔴 Срочная заявка</div>
-                  <div className="text-xs text-gray-500">Будет выделена в ленте перевозчиков</div>
+                  <div className="text-sm font-medium text-ink flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-danger" /> Срочная заявка
+                  </div>
+                  <div className="text-xs text-ink-3">Будет выделена в ленте перевозчиков</div>
                 </div>
               </label>
               <Input
@@ -1377,27 +1385,27 @@ export default function OrderDetailPage() {
               {/* Дополнительные точки маршрута */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-medium text-gray-700">Доп. точки маршрута</label>
+                  <label className="text-sm font-medium text-ink-2">Доп. точки маршрута</label>
                   <button
                     type="button"
                     onClick={() => setEditStops(prev => [...prev, { address: '', comment: '' }])}
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                    className="text-xs text-accent hover:text-accent-hover font-medium"
                   >
                     + Добавить точку
                   </button>
                 </div>
                 {editStops.length === 0 && (
-                  <p className="text-xs text-gray-400 py-1">Нет дополнительных точек</p>
+                  <p className="text-xs text-ink-4 py-1">Нет дополнительных точек</p>
                 )}
                 <div className="space-y-2">
                   {editStops.map((s, i) => (
-                    <div key={i} className="bg-gray-50 rounded-xl p-3 space-y-2">
+                    <div key={i} className="bg-surface-sunken rounded-field p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-gray-600">Точка {i + 1}</span>
+                        <span className="text-xs font-medium text-ink-3">Точка {i + 1}</span>
                         <button
                           type="button"
                           onClick={() => setEditStops(prev => prev.filter((_, j) => j !== i))}
-                          className="text-xs text-red-500 hover:text-red-700"
+                          className="text-xs text-danger hover:text-[#8f3229]"
                         >
                           Удалить
                         </button>
@@ -1407,21 +1415,21 @@ export default function OrderDetailPage() {
                         placeholder="Адрес"
                         value={s.address}
                         onChange={e => setEditStops(prev => prev.map((x, j) => j === i ? { ...x, address: e.target.value } : x))}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 rounded-field border border-hairline bg-surface text-sm text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent"
                       />
                       <input
                         type="text"
                         placeholder="Комментарий (необязательно)"
                         value={s.comment}
                         onChange={e => setEditStops(prev => prev.map((x, j) => j === i ? { ...x, comment: e.target.value } : x))}
-                        className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-3 py-2 rounded-field border border-hairline bg-surface text-sm text-ink-2 placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent"
                       />
                     </div>
                   ))}
                 </div>
               </div>
             </div>
-            <div className="flex gap-3 p-5 border-t border-gray-100">
+            <div className="flex gap-3 p-5 border-t border-hairline">
               <Button onClick={saveEdit} loading={saving} className="flex-1">Сохранить</Button>
               <Button variant="secondary" onClick={() => setEditOpen(false)}>Отмена</Button>
             </div>
@@ -1431,21 +1439,21 @@ export default function OrderDetailPage() {
 
       {/* Agreed price modal */}
       {agreedPriceOpen && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900">Подтвердите стоимость рейса</h2>
-              <button onClick={() => { setAgreedPriceOpen(false); setPendingCarrierId(null) }} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
+        <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface rounded-modal shadow-overlay w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-hairline">
+              <h2 className="text-lg font-semibold tracking-[-0.01em] text-ink">Подтвердите стоимость рейса</h2>
+              <button onClick={() => { setAgreedPriceOpen(false); setPendingCarrierId(null) }} className="p-1.5 rounded-card text-ink-3 hover:bg-surface-sunken transition-colors ease-terminal">
                 <X size={18} />
               </button>
             </div>
             <div className="p-5 space-y-3">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-ink-2">
                 Укажите итоговую договорную стоимость рейса (необязательно). Сумма будет видна обеим сторонам.
               </p>
               <Input label="Сумма (₽)" type="number" value={agreedPriceInput} onChange={e => setAgreedPriceInput(e.target.value)} placeholder="Например: 85000" min="0" />
             </div>
-            <div className="flex gap-3 p-5 border-t border-gray-100">
+            <div className="flex gap-3 p-5 border-t border-hairline">
               <Button onClick={confirmAccept} className="flex-1">Принять перевозчика</Button>
               <Button variant="secondary" onClick={() => { setAgreedPriceOpen(false); setPendingCarrierId(null) }}>Отмена</Button>
             </div>
@@ -1455,16 +1463,16 @@ export default function OrderDetailPage() {
 
       {/* Review prompt modal */}
       {showReviewModal && canReview && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900">🎉 Рейс завершён!</h2>
-              <button onClick={() => setShowReviewModal(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
+        <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface rounded-modal shadow-overlay w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-hairline">
+              <h2 className="text-lg font-semibold tracking-[-0.01em] text-ink">Рейс завершён</h2>
+              <button onClick={() => setShowReviewModal(false)} className="p-1.5 rounded-card text-ink-3 hover:bg-surface-sunken transition-colors ease-terminal">
                 <X size={18} />
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-ink-2">
                 Оцените {isOwner ? 'перевозчика' : 'клиента'} — это поможет другим участникам платформы.
               </p>
               <StarRating value={reviewRating} onChange={setReviewRating} />
@@ -1474,7 +1482,7 @@ export default function OrderDetailPage() {
                 placeholder="Комментарий (необязательно)"
                 rows={2}
                 maxLength={500}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full px-3 py-2 rounded-field border border-hairline bg-surface text-sm text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent resize-none"
               />
               <div className="flex gap-2">
                 <Button onClick={async () => { await submitReview(); setShowReviewModal(false) }} loading={submittingReview} disabled={reviewRating === 0} className="flex-1">
@@ -1500,16 +1508,16 @@ export default function OrderDetailPage() {
 
       {/* Respond modal for carrier */}
       {respondOpen && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
-            <div className="flex items-center justify-between p-5 border-b border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900">Откликнуться на рейс</h2>
-              <button onClick={() => setRespondOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
+        <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-surface rounded-modal shadow-overlay w-full max-w-sm">
+            <div className="flex items-center justify-between p-5 border-b border-hairline">
+              <h2 className="text-lg font-semibold tracking-[-0.01em] text-ink">Откликнуться на рейс</h2>
+              <button onClick={() => setRespondOpen(false)} className="p-1.5 rounded-card text-ink-3 hover:bg-surface-sunken transition-colors ease-terminal">
                 <X size={18} />
               </button>
             </div>
             <div className="p-5 space-y-3">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-ink-2">
                 Добавьте сообщение для клиента — необязательно, но повышает шансы.
               </p>
               <textarea
@@ -1518,10 +1526,10 @@ export default function OrderDetailPage() {
                 placeholder="Например: готов выехать завтра утром, всё подходит"
                 rows={3}
                 maxLength={500}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                className="w-full px-3 py-2 rounded-field border border-hairline bg-surface text-sm text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent resize-none"
               />
             </div>
-            <div className="flex gap-3 p-5 border-t border-gray-100">
+            <div className="flex gap-3 p-5 border-t border-hairline">
               <Button onClick={handleRespond} loading={respondLoading} className="flex-1">Откликнуться</Button>
               <Button variant="secondary" onClick={() => setRespondOpen(false)}>Отмена</Button>
             </div>

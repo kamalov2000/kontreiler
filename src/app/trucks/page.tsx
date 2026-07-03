@@ -3,16 +3,23 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowRight, Filter } from 'lucide-react'
+import { Filter, X } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Select } from '@/components/ui/Select'
 import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
+import { RouteInline } from '@/components/ui/RouteInline'
+import { ContainerChip } from '@/components/ui/ContainerChip'
+import { ContainerMark } from '@/components/ui/ContainerMark'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Truck } from '@/types/database'
-import { formatDate, formatPrice } from '@/lib/utils'
+import { formatPrice } from '@/lib/utils'
 import { TRUCK_CONTAINER_TYPES, TRAILER_TYPES } from '@/lib/cities'
-import { RatingBadge } from '@/components/ui/RatingBadge'
+
+function readyShort(d?: string | null): string {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })
+}
 
 function TrucksContent() {
   const router = useRouter()
@@ -108,25 +115,37 @@ function TrucksContent() {
 
   return (
     <AppLayout>
-      <div className="max-w-2xl">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">Найти машину</h1>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-              hasFilters || showFilters
-                ? 'bg-blue-50 text-blue-700'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            <Filter size={15} />
-            Фильтры
-            {hasFilters && <span className="ml-1 text-xs bg-blue-600 text-white rounded-full px-1.5 py-0.5">!</span>}
-          </button>
+      {/* Шапка ленты */}
+      <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+        <div className="flex items-baseline gap-3">
+          <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">Найти машину</h1>
+          <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold tracking-[0.06em] uppercase text-success">
+            <span className="w-1.5 h-1.5 rounded-full bg-success" />Live
+          </span>
+          {!loading && (
+            <span className="font-mono text-[13px] tabular-nums text-ink-3">{trucks.length} свободных</span>
+          )}
         </div>
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className={`flex items-center gap-2 px-3 h-9 rounded-card text-sm transition-colors ${
+            hasFilters ? 'bg-accent text-white' : 'bg-surface border border-hairline text-ink-2 hover:border-border-strong'
+          }`}
+        >
+          <Filter size={16} />
+          Фильтры
+          {hasFilters && (
+            <span className="w-4 h-4 rounded-full bg-white text-accent text-xs flex items-center justify-center font-bold">
+              {[fromFilter, toFilter, typeFilter].filter(Boolean).length}
+            </span>
+          )}
+        </button>
+      </div>
 
-        {showFilters && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4 space-y-3">
+      {/* Панель фильтров */}
+      {showFilters && (
+        <div className="bg-surface rounded-card border border-hairline p-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <CityAutocomplete
               label="Откуда"
               value={fromFilter}
@@ -146,89 +165,118 @@ function TrucksContent() {
               options={TRUCK_CONTAINER_TYPES.map(c => ({ value: c.value, label: c.label }))}
               placeholder="Любой тип"
             />
-            {hasFilters && (
-              <button
-                onClick={() => router.push('/trucks')}
-                className="text-sm text-gray-500 hover:text-red-500 transition-colors"
-              >
-                Сбросить фильтры
-              </button>
-            )}
           </div>
-        )}
+          {hasFilters && (
+            <button
+              onClick={() => router.push('/trucks')}
+              className="mt-3 flex items-center gap-1 text-sm text-ink-3 hover:text-ink-2"
+            >
+              <X size={14} /> Сбросить фильтры
+            </button>
+          )}
+        </div>
+      )}
 
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin h-8 w-8 rounded-full border-4 border-blue-600 border-t-transparent" />
+      {/* Доска */}
+      <div className="border border-hairline rounded-card bg-surface overflow-x-auto">
+        <div className="min-w-[820px]">
+          {/* Шапка колонок */}
+          <div className="flex items-center gap-3.5 h-[34px] px-5 bg-surface-sunken border-b border-hairline text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">
+            <span className="w-[84px] flex-none">Номер</span>
+            <span className="flex-1">Маршрут</span>
+            <span className="w-[104px] flex-none">Контейнер</span>
+            <span className="w-[150px] flex-none">Параметры</span>
+            <span className="w-[64px] flex-none text-right">Готов</span>
+            <span className="w-[110px] flex-none text-right">Ставка</span>
           </div>
-        ) : trucks.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center text-gray-400">
-            <div className="text-4xl mb-3">🚛</div>
-            <p>{hasFilters ? 'Нет машин по выбранным фильтрам' : 'Нет доступных машин'}</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {trucks.map(truck => {
+
+          {loading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3.5 h-[56px] px-5 border-b border-hairline last:border-0">
+                <span className="w-[84px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+                <span className="flex-1 h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+                <span className="w-[104px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+                <span className="w-[110px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+              </div>
+            ))
+          ) : trucks.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 text-center py-16 px-6">
+              <ContainerMark size={28} className="text-ink-4" />
+              <span className="text-[15px] text-ink-3 max-w-[320px]">
+                {hasFilters ? 'По этим фильтрам свободных машин не найдено.' : 'Пока нет свободных машин на доске.'}
+              </span>
+              {hasFilters && (
+                <button onClick={() => router.push('/trucks')} className="text-sm font-medium text-accent hover:text-accent-hover">
+                  Сбросить фильтры
+                </button>
+              )}
+            </div>
+          ) : (
+            trucks.map(truck => {
               const containerLabel = TRUCK_CONTAINER_TYPES.find(c => c.value === truck.container_type)?.label || truck.container_type
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const carrier = (truck as any).carrier
-
+              const carrier = truck.carrier
               const rating = carrierRatings[truck.carrier_id]
+              const trailerLabel = truck.trailer_type
+                ? (TRAILER_TYPES.find(t => t.value === truck.trailer_type)?.label || truck.trailer_type)
+                : null
               return (
                 <Link
                   key={truck.id}
                   href={`/trucks/${truck.id}`}
-                  className="block bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:border-blue-200 hover:shadow-md transition-all"
+                  className="flex items-center gap-3.5 min-h-[56px] py-2 px-5 border-b border-hairline last:border-0 bg-surface cursor-pointer transition-colors ease-terminal hover:bg-accent-soft hover:shadow-row-active"
                 >
-                  <div className="flex items-center justify-between gap-2 mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-gray-900 text-lg">{truck.from_city}</span>
-                      <ArrowRight size={16} className="text-gray-400 shrink-0" />
-                      <span className="font-bold text-gray-900 text-lg">{truck.to_city}</span>
-                    </div>
-                    {truck.truck_number && (
-                      <span className="text-xs font-mono text-gray-400 bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100 shrink-0">
-                        {truck.truck_number}
+                  <span className="w-[84px] flex-none font-mono text-[13px] text-ink-3 truncate">
+                    {truck.truck_number || '—'}
+                  </span>
+                  <span className="flex-1 min-w-0 flex items-center gap-2">
+                    <RouteInline
+                      className="flex-1"
+                      from={truck.from_city}
+                      to={truck.to_city}
+                    />
+                    {carrier?.name && (
+                      <span className="text-xs text-ink-3 whitespace-nowrap truncate max-w-[140px]">
+                        {carrier.name}{carrier.city ? ` · ${carrier.city}` : ''}
                       </span>
                     )}
-                  </div>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    <span className="px-2.5 py-1 rounded-lg bg-gray-100 text-gray-700 text-sm">{containerLabel}</span>
-                    <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-sm font-medium">
-                      {formatPrice(truck.price, truck.is_negotiable)}
-                    </span>
-                    <span className="px-2.5 py-1 rounded-lg bg-green-50 text-green-700 text-sm">
-                      Готов {formatDate(truck.available_date)}
-                    </span>
-                    {truck.trailer_type && (
-                      <span className="px-2.5 py-1 rounded-lg bg-gray-50 text-gray-600 text-sm border border-gray-100">
-                        {TRAILER_TYPES.find(t => t.value === truck.trailer_type)?.label || truck.trailer_type}
+                    {rating && (
+                      <span className="font-mono text-[12px] text-ink-3 flex-none whitespace-nowrap">★ {rating.avg.toFixed(1)}</span>
+                    )}
+                  </span>
+                  <span className="w-[104px] flex-none">
+                    <ContainerChip label={containerLabel} />
+                  </span>
+                  <span className="w-[150px] flex-none flex flex-wrap items-center gap-1 leading-tight">
+                    {trailerLabel && (
+                      <span className="px-1.5 py-0.5 rounded-field border border-hairline bg-surface-sunken text-[11px] text-ink-2 whitespace-nowrap">
+                        {trailerLabel}
                       </span>
                     )}
                     {truck.payload && (
-                      <span className="px-2.5 py-1 rounded-lg bg-gray-50 text-gray-600 text-sm border border-gray-100">
+                      <span className="px-1.5 py-0.5 rounded-field border border-hairline bg-surface-sunken font-mono text-[11px] tabular-nums text-ink-2 whitespace-nowrap">
                         до {truck.payload} т
                       </span>
                     )}
                     {truck.long_distance && (
-                      <span className="px-2.5 py-1 rounded-lg bg-green-50 text-green-700 text-xs font-medium border border-green-100">
-                        🛣️ Дальние рейсы
+                      <span className="text-[10.5px] font-semibold tracking-[0.05em] uppercase text-success whitespace-nowrap">
+                        Дальние
                       </span>
                     )}
-                  </div>
-                  <div className="flex items-center justify-between gap-2">
-                    {carrier && (
-                      <div className="text-sm text-gray-500">
-                        {carrier.name}{carrier.city ? ` · ${carrier.city}` : ''}
-                      </div>
+                    {!trailerLabel && !truck.payload && !truck.long_distance && (
+                      <span className="text-ink-4 text-[13px]">—</span>
                     )}
-                    {rating && <RatingBadge avg={rating.avg} count={rating.count} />}
-                  </div>
+                  </span>
+                  <span className="w-[64px] flex-none text-right font-mono text-[13px] tabular-nums text-ink-3">
+                    {readyShort(truck.available_date)}
+                  </span>
+                  <span className="w-[110px] flex-none text-right font-mono text-[15px] font-medium tabular-nums text-ink">
+                    {formatPrice(truck.price, truck.is_negotiable)}
+                  </span>
                 </Link>
               )
-            })}
-          </div>
-        )}
+            })
+          )}
+        </div>
       </div>
     </AppLayout>
   )
