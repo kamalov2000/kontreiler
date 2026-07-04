@@ -178,10 +178,9 @@ export default function ProfilePage() {
     setSaving(true)
     const supabase = createClient()
 
-    // Общедоступные поля → users
+    // Общедоступные поля → users (телефон сюда БОЛЬШЕ НЕ пишем — он приватный)
     const update: Record<string, unknown> = {
       name,
-      phone: normalizePhone(phone),
       city,
     }
     if (user.role === 'carrier') {
@@ -196,6 +195,7 @@ export default function ProfilePage() {
     // Чувствительные реквизиты → приватная таблица user_private
     const priv = {
       id: user.id,
+      phone: normalizePhone(phone),
       kpp: kpp.trim() || null,
       ogrn: ogrn.trim() || null,
       legal_address: legalAddress.trim() || null,

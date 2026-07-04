@@ -59,6 +59,8 @@ export async function POST(req: Request) {
   if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   if (hidden) return NextResponse.json({ hidden: true, phone: null })
 
-  const { data: target } = await svc.from('users').select('phone').eq('id', targetUserId).single()
+  // Телефон живёт в приватной таблице user_private (own-row RLS); service_role
+  // обходит RLS, доступ уже проверен выше (участие в сделке + hide_phone).
+  const { data: target } = await svc.from('user_private').select('phone').eq('id', targetUserId).maybeSingle()
   return NextResponse.json({ phone: target?.phone ?? null })
 }

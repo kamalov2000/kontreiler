@@ -205,18 +205,19 @@ async function main() {
   })
   assert(!!fakeRev, 'RLS: посторонний не может оставить отзыв по чужому заказу', fakeRev?.code)
 
-  // ── Телефон закрыт от прямого чтения (обход hide_phone) ──
-  section('9. Телефон закрыт от чужих (column-level RLS)')
-  await admin.from('users').update({ phone: '+79990001122' }).eq('id', client.id)
+  // ── Телефон вынесен в user_private — закрыт от чужих (own-row RLS) ──
+  section('9. Телефон в user_private, закрыт от посторонних')
+  await admin.from('user_private').upsert({ id: client.id, phone: '+79990001122' }, { onConflict: 'id' })
 
-  const { data: leaked, error: leakErr } = await carrier2.client
-    .from('users').select('phone').eq('id', client.id).maybeSingle()
-  // ПРИМЕЧАНИЕ: приватность телефона временно откачена — грант SELECT на users
-  // восстановлен, чтобы не ломать select(*). Будет переделана переносом колонки
-  // phone в user_private. До тех пор это предупреждение, а не провал.
-  if (!!leakErr || !leaked?.phone) ok('Посторонний НЕ может прочитать чужой телефон из users')
-  else warn('Телефон виден посторонним (приватность отложена — TODO: перенести phone → user_private)')
+  // Колонки phone в общей таблице users больше нет — прямой утечки не существует
+  const { error: colErr } = await admin.from('users').select('phone').eq('id', client.id).maybeSingle()
+  assert(!!colErr, 'Колонка phone удалена из общей users (нет прямого чтения)', colErr?.message?.slice(0, 45))
 
+  // Посторонний НЕ может прочитать чужой телефон из user_private
+  const { data: leakedPhone } = await carrier2.client.from('user_private').select('phone').eq('id', client.id).maybeSingle()
+  assert(!leakedPhone?.phone, 'Посторонний НЕ читает чужой телефон из user_private (RLS)')
+
+  // Свой телефон доступен владельцу через SECURITY DEFINER get_own_phone()
   const { data: ownPhone } = await client.client.rpc('get_own_phone')
   assert(ownPhone === '+79990001122', 'Свой телефон доступен владельцу через get_own_phone()')
 
@@ -298,12 +299,14 @@ async function main() {
   // ── Профиль: сохранение публичных (users) + приватных (user_private) реквизитов ──
   section('15. Профиль: сохранение реквизитов для договор-заявки')
   const { error: pubErr } = await client.client.from('users')
-    .update({ name: 'ООО Ромашка', phone: '+79990002233', city: 'Казань', company_name: 'ООО Ромашка', inn: '7701234567' })
+    .update({ name: 'ООО Ромашка', city: 'Казань', company_name: 'ООО Ромашка', inn: '7701234567' })
     .eq('id', client.id)
   assert(!pubErr, 'Клиент сохраняет публичные реквизиты (users)', pubErr?.message)
   const { error: privErr2 } = await client.client.from('user_private')
-    .upsert({ id: client.id, kpp: '770101001', ogrn: '1027700132195', bank_name: 'Т-Банк', signatory_name: 'Иванов И.И.' }, { onConflict: 'id' })
+    .upsert({ id: client.id, phone: '+79990002233', kpp: '770101001', ogrn: '1027700132195', bank_name: 'Т-Банк', signatory_name: 'Иванов И.И.' }, { onConflict: 'id' })
   assert(!privErr2, 'Клиент сохраняет реквизиты договора (user_private)', privErr2?.message)
+  const { data: ownPhone2 } = await client.client.rpc('get_own_phone')
+  assert(ownPhone2 === '+79990002233', 'Телефон из профиля сохранился в user_private')
   const { data: back } = await client.client.from('user_private')
     .select('kpp, signatory_name').eq('id', client.id).single()
   assert(back?.kpp === '770101001' && back?.signatory_name === 'Иванов И.И.', 'Реквизиты договора читаются обратно')

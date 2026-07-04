@@ -25,6 +25,7 @@ export interface User {
 // доступна только владельцу (RLS) и серверу (service_role). Не в общей users.
 export interface UserPrivate {
   id: string
+  phone: string | null
   kpp: string | null
   ogrn: string | null
   legal_address: string | null
