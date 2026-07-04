@@ -19,6 +19,7 @@ import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { ContainerChip } from '@/components/ui/ContainerChip'
 import { ContainerMark } from '@/components/ui/ContainerMark'
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -134,7 +135,7 @@ export default function OrderDetailPage() {
   const [submittingReview, setSubmittingReview] = useState(false)
 
   // Bids (for auction/reduction orders)
-  const [bids, setBids] = useState<(Bid & { carrier?: { name: string | null } })[]>([])
+  const [bids, setBids] = useState<(Bid & { carrier?: { name: string | null; is_verified?: boolean } })[]>([])
   const [bidAmount, setBidAmount] = useState('')
   const [bidLoading, setBidLoading] = useState(false)
   const [stops, setStops] = useState<OrderStop[]>([])
@@ -175,10 +176,10 @@ export default function OrderDetailPage() {
       if (orderData.format === 'reduction' || orderData.format === 'auction') {
         const { data: bidsData } = await supabase
           .from('bids')
-          .select('*, carrier:users!carrier_id(name)')
+          .select('*, carrier:users!carrier_id(name, is_verified)')
           .eq('order_id', id)
           .order('created_at', { ascending: false })
-        setBids((bidsData || []) as (Bid & { carrier?: { name: string | null } })[])
+        setBids((bidsData || []) as (Bid & { carrier?: { name: string | null; is_verified?: boolean } })[])
       }
 
       const { data: responsesData } = await supabase
@@ -1015,7 +1016,10 @@ export default function OrderDetailPage() {
                 <div className="mt-3 space-y-1.5 max-h-40 overflow-y-auto">
                   {bids.map(b => (
                     <div key={b.id} className="flex items-center justify-between text-[13px] px-2.5 py-1.5 rounded-field bg-surface border border-hairline">
-                      <span className="font-medium text-ink-2">{b.carrier?.name || 'Перевозчик'}</span>
+                      <span className="font-medium text-ink-2 inline-flex items-center gap-1">
+                        {b.carrier?.name || 'Перевозчик'}
+                        <VerifiedBadge verified={b.carrier?.is_verified} iconOnly />
+                      </span>
                       <span className="font-mono tabular-nums text-accent">{b.amount.toLocaleString('ru-RU')} ₽</span>
                     </div>
                   ))}
@@ -1036,7 +1040,10 @@ export default function OrderDetailPage() {
               <CheckCircle size={16} className="text-accent" />
               <span className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Выбранный перевозчик</span>
             </div>
-            <div className="font-semibold text-ink text-[17px]">{acceptedResponse.carrier?.name}</div>
+            <div className="font-semibold text-ink text-[17px] flex items-center gap-2 flex-wrap">
+              {acceptedResponse.carrier?.name}
+              <VerifiedBadge verified={acceptedResponse.carrier?.is_verified} />
+            </div>
             {acceptedResponse.carrier?.city && (
               <div className="text-sm text-ink-3 mt-0.5">{acceptedResponse.carrier.city}</div>
             )}
@@ -1242,6 +1249,7 @@ export default function OrderDetailPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className="font-semibold text-ink">{r.carrier?.name || 'Перевозчик'}</div>
+                        <VerifiedBadge verified={r.carrier?.is_verified} />
                         {isAccepted && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-field bg-accent-soft text-accent text-[11.5px] font-semibold tracking-[0.06em] uppercase">
                             <CheckCircle size={11} /> Выбран

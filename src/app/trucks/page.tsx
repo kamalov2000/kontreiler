@@ -10,6 +10,7 @@ import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { RouteInline } from '@/components/ui/RouteInline'
 import { ContainerChip } from '@/components/ui/ContainerChip'
 import { ContainerMark } from '@/components/ui/ContainerMark'
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Truck } from '@/types/database'
@@ -50,7 +51,7 @@ function TrucksContent() {
       const supabase = createClient()
       let query = supabase
         .from('trucks')
-        .select('*, carrier:users!carrier_id(id, name, city)')
+        .select('*, carrier:users!carrier_id(id, name, city, is_verified)')
         .eq('status', 'active')
         .order('available_date', { ascending: true })
 
@@ -94,7 +95,7 @@ function TrucksContent() {
           // Refetch on any change
           let query = supabase
             .from('trucks')
-            .select('*, carrier:users!carrier_id(id, name, city)')
+            .select('*, carrier:users!carrier_id(id, name, city, is_verified)')
             .eq('status', 'active')
             .order('available_date', { ascending: true })
 
@@ -235,8 +236,9 @@ function TrucksContent() {
                       to={truck.to_city}
                     />
                     {carrier?.name && (
-                      <span className="text-xs text-ink-3 whitespace-nowrap truncate max-w-[140px]">
-                        {carrier.name}{carrier.city ? ` · ${carrier.city}` : ''}
+                      <span className="text-xs text-ink-3 whitespace-nowrap truncate max-w-[140px] inline-flex items-center gap-1">
+                        <span className="truncate">{carrier.name}{carrier.city ? ` · ${carrier.city}` : ''}</span>
+                        <VerifiedBadge verified={carrier.is_verified} iconOnly />
                       </span>
                     )}
                     {rating && (

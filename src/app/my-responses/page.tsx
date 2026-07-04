@@ -15,6 +15,7 @@ import { StatusPill } from '@/components/ui/StatusPill'
 import { ContainerChip } from '@/components/ui/ContainerChip'
 import { ContainerMark } from '@/components/ui/ContainerMark'
 import { Button } from '@/components/ui/Button'
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 
 type StatusFilter = 'all' | 'accepted' | 'pending' | 'rejected'
 
@@ -243,7 +244,10 @@ export default function MyResponsesPage() {
                 {/* Контакт клиента */}
                 <div className="p-3.5 rounded-field bg-surface-sunken border border-hairline">
                   <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Контакт клиента</div>
-                  <div className="text-[15px] font-medium text-ink">{client?.name}</div>
+                  <div className="text-[15px] font-medium text-ink flex items-center gap-2 flex-wrap">
+                    {client?.name}
+                    <VerifiedBadge verified={client?.is_verified} />
+                  </div>
                   {client?.city && <div className="text-sm text-ink-3">{client.city}</div>}
                   <div className="mt-3 flex items-center gap-2 flex-wrap">
                     <RevealPhone kind="order" id={order.id} targetUserId={order.client_id} className="inline-flex items-center gap-1.5 min-h-[36px] px-3 rounded-card border border-hairline bg-surface text-ink-2 text-sm font-medium hover:border-border-strong transition-colors" />

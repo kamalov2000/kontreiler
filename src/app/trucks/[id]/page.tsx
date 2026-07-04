@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button'
 import { StatusPill } from '@/components/ui/StatusPill'
 import { ContainerChip } from '@/components/ui/ContainerChip'
 import { ContainerMark } from '@/components/ui/ContainerMark'
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Truck, TruckResponse } from '@/types/database'
@@ -252,7 +253,10 @@ export default function TruckDetailPage() {
         {!isOwnTruck && carrier && (
           <div className="bg-surface border border-hairline rounded-card p-5 mb-6">
             <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-2.5">Перевозчик</div>
-            <div className="font-semibold text-ink text-[17px]">{carrier.name}</div>
+            <div className="font-semibold text-ink text-[17px] flex items-center gap-2 flex-wrap">
+              {carrier.name}
+              <VerifiedBadge verified={carrier.is_verified} />
+            </div>
             {carrier.city && (
               <div className="flex items-center gap-1 text-sm text-ink-3 mt-0.5">
                 <MapPin size={12} className="shrink-0" /> {carrier.city}
@@ -324,7 +328,10 @@ export default function TruckDetailPage() {
                           <User size={18} className="text-accent" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-ink">{client?.name || 'Клиент'}</div>
+                          <div className="font-semibold text-ink flex items-center gap-2 flex-wrap">
+                            {client?.name || 'Клиент'}
+                            <VerifiedBadge verified={client?.is_verified} />
+                          </div>
                           {client?.city && <div className="text-sm text-ink-3">{client.city}</div>}
                           {r.message && (
                             <p className="mt-2 text-sm text-ink-2 bg-surface-sunken rounded-field p-2.5">{r.message}</p>

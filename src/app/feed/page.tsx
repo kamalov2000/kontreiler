@@ -10,6 +10,7 @@ import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { RouteInline } from '@/components/ui/RouteInline'
 import { ContainerChip } from '@/components/ui/ContainerChip'
 import { ContainerMark } from '@/components/ui/ContainerMark'
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -120,7 +121,7 @@ function FeedContent() {
     const supabase = createClient()
     let query = supabase
       .from('orders')
-      .select('*, client:users!client_id(id, name, city)')
+      .select('*, client:users!client_id(id, name, city, is_verified)')
       .eq('status', 'active')
       .order('is_urgent', { ascending: false })
       .order('created_at', { ascending: false })
@@ -453,6 +454,7 @@ function FeedContent() {
                       urgent={order.format === 'urgent'}
                     />
                     {stopOrders.has(order.id) && <span title="Есть доп. точки" className="text-ink-4 text-xs flex-none">＋точки</span>}
+                    <VerifiedBadge verified={order.client?.is_verified} iconOnly />
                     {clientRating && (
                       <span className="font-mono text-[12px] text-ink-3 flex-none whitespace-nowrap">★ {clientRating.avg.toFixed(1)}</span>
                     )}

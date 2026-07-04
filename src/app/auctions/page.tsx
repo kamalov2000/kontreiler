@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { RouteInline } from '@/components/ui/RouteInline'
 import { ContainerChip } from '@/components/ui/ContainerChip'
 import { ContainerMark } from '@/components/ui/ContainerMark'
+import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -102,7 +103,7 @@ export default function AuctionsPage() {
 
     let query = supabase
       .from('orders')
-      .select('*, client:users!client_id(id, name, city)')
+      .select('*, client:users!client_id(id, name, city, is_verified)')
       .eq('format', formatTab)
       .order('auction_end_time', { ascending: true })
 
@@ -305,12 +306,14 @@ export default function AuctionsPage() {
                   <span className="w-[84px] flex-none font-mono text-[13px] text-ink-3">
                     {order.order_number ? formatOrderNumber(order.order_number) : '—'}
                   </span>
-                  <span className="flex-1 min-w-0">
+                  <span className="flex-1 min-w-0 flex items-center gap-2">
                     <RouteInline
+                      className="flex-1"
                       from={order.from_city}
                       to={order.to_city}
                       via={order.via_city}
                     />
+                    <VerifiedBadge verified={order.client?.is_verified} iconOnly />
                   </span>
                   <span className="w-[104px] flex-none">
                     <ContainerChip label={containerLabel} genset={order.requires_genset} />
