@@ -146,6 +146,11 @@ export async function GET(req: Request) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const element = React.createElement(ContractDocument, { data: contractData }) as any
   const filename = `dogovor-${contractData.orderNumber}.pdf`
+  // Заголовок Content-Disposition — только Latin-1. Номер заявки содержит
+  // кириллицу («КТ-…»), поэтому даём ASCII-безопасное имя + RFC 5987 filename*
+  // с UTF-8 для браузеров, которые понимают Unicode-имена.
+  const asciiName = filename.replace(/[^\x20-\x7E]/g, '_')
+  const disposition = `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(filename)}`
   try {
     const buffer = await renderToBuffer(element)
     const uint8 = new Uint8Array(buffer)
@@ -153,7 +158,7 @@ export async function GET(req: Request) {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': disposition,
         'Content-Length': String(uint8.byteLength),
       },
     })
