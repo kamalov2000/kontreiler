@@ -45,7 +45,7 @@ async function makeUser(role, extra = {}) {
   return { id: data.user.id, email, client }
 }
 
-const created = { userIds: [], orderIds: [] }
+const created = { userIds: [], orderIds: [], truckIds: [] }
 
 async function cleanup() {
   section('Очистка тестовых данных')
@@ -56,6 +56,11 @@ async function cleanup() {
     await admin.from('bids').delete().eq('order_id', oid)
     await admin.from('order_stops').delete().eq('order_id', oid)
     await admin.from('orders').delete().eq('id', oid)
+  }
+  for (const tid of created.truckIds) {
+    await admin.from('truck_messages').delete().eq('truck_id', tid)
+    await admin.from('truck_responses').delete().eq('truck_id', tid)
+    await admin.from('trucks').delete().eq('id', tid)
   }
   for (const uid of created.userIds) {
     await admin.from('notifications').delete().eq('user_id', uid)
@@ -310,6 +315,47 @@ async function main() {
   const { data: back } = await client.client.from('user_private')
     .select('kpp, signatory_name').eq('id', client.id).single()
   assert(back?.kpp === '770101001' && back?.signatory_name === 'Иванов И.И.', 'Реквизиты договора читаются обратно')
+
+  // ── Отмена заявки владельцем (позитивный путь) ──
+  section('16. Отмена заявки владельцем')
+  const { data: cancelOrder } = await client.client.from('orders').insert({
+    client_id: client.id, format: 'regular', from_city: 'Москва', to_city: 'Тула',
+    container_type: '20ft', ready_date: readyDate, expires_at: future, price: 50000, vat_type: 'none',
+  }).select().single()
+  created.orderIds.push(cancelOrder.id)
+  const { error: cancErr } = await client.client.from('orders')
+    .update({ status: 'cancelled' }).eq('id', cancelOrder.id)
+  assert(!cancErr, 'Владелец отменяет свою заявку', cancErr?.message)
+  const { data: cancCheck } = await admin.from('orders').select('status').eq('id', cancelOrder.id).single()
+  assert(cancCheck?.status === 'cancelled', 'Заявка в статусе cancelled')
+
+  // ── Грузовик: публикация → отклик клиента → приёмка перевозчиком ──
+  section('17. Грузовик: публикация, отклик, приёмка')
+  const { data: truck, error: truckErr } = await carrier.client.from('trucks').insert({
+    carrier_id: carrier.id, from_city: 'Москва', to_city: 'Казань',
+    container_type: '20ft', available_date: readyDate, price: 60000, is_negotiable: true,
+  }).select().single()
+  assert(!truckErr, 'Перевозчик публикует свободный грузовик', truckErr?.message)
+  if (truck?.id) created.truckIds.push(truck.id)
+  assert(truck?.status === 'active', 'Грузовик по умолчанию active')
+
+  // RLS: чужой перевозчик не может публиковать грузовик от имени другого
+  const { error: truckForge } = await carrier2.client.from('trucks').insert({
+    carrier_id: carrier.id, from_city: 'A', to_city: 'B',
+    container_type: '20ft', available_date: readyDate,
+  }).select().single()
+  assert(!!truckForge, 'RLS: нельзя опубликовать грузовик от чужого имени', truckForge?.code)
+
+  const { error: trErr } = await client.client.from('truck_responses').insert({
+    truck_id: truck.id, client_id: client.id, message: 'Возьмёте мой груз?',
+  })
+  assert(!trErr, 'Клиент откликнулся на грузовик', trErr?.message)
+
+  const { error: trAccErr } = await carrier.client.from('trucks')
+    .update({ status: 'busy' }).eq('id', truck.id)
+  assert(!trAccErr, 'Перевозчик принял заказ (грузовик → busy)', trAccErr?.message)
+  const { data: trCheck } = await admin.from('trucks').select('status').eq('id', truck.id).single()
+  assert(trCheck?.status === 'busy', 'Грузовик в статусе busy')
 
   await cleanup()
   finish()
