@@ -926,7 +926,9 @@ export default function OrderDetailPage() {
                 )}
               </div>
             )}
-            {order.expires_at && (
+            {/* Срок действия показываем только пока заявка активна (не принят перевозчик).
+                После принятия (matched/в пути/доставлено) отсчёт больше не актуален — п.5 */}
+            {order.status === 'active' && order.expires_at && (
               <div className="col-span-2">
                 <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Срок действия</div>
                 <ExpiryCountdown expiresAt={order.expires_at} />

@@ -108,7 +108,7 @@ export function TrackingDrawer({ open, onClose, order, isAcceptedCarrier, isOwne
             <span className="text-base font-semibold text-ink">Трекинг рейса</span>
             {order.order_number && (
               <span className="font-mono tabular-nums text-xs text-ink-3">
-                {formatOrderNumber(order.order_number)} · {order.from_city} → {order.to_city}
+                {formatOrderNumber(order.order_number)} · {order.from_city}{order.via_city ? ` → ${order.via_city}` : ''} → {order.to_city}
               </span>
             )}
           </div>

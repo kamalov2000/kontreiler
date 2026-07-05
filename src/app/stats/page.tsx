@@ -30,6 +30,16 @@ interface CarrierStats {
   monthly: MonthBar[]
 }
 
+// Компактный формат денег для узких карточек: миллионы → «1,2 млн ₽», иначе полное число.
+function formatMoneyShort(n: number): string {
+  if (!n || n <= 0) return '—'
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000
+    return `${m.toLocaleString('ru-RU', { minimumFractionDigits: m < 10 ? 1 : 0, maximumFractionDigits: 1 })} млн ₽`
+  }
+  return `${n.toLocaleString('ru-RU')} ₽`
+}
+
 function StatCard({
   icon: Icon,
   label,
@@ -46,7 +56,7 @@ function StatCard({
         <Icon size={16} strokeWidth={1.5} className="text-ink-3" />
         <span className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 leading-tight">{label}</span>
       </div>
-      <div className="font-mono text-3xl font-medium tabular-nums text-ink leading-none">{value}</div>
+      <div className="font-mono text-2xl sm:text-3xl font-medium tabular-nums text-ink leading-none break-words min-w-0">{value}</div>
     </div>
   )
 }
@@ -249,7 +259,7 @@ export default function StatsPage() {
               <StatCard
                 icon={Banknote}
                 label="Общая сумма рейсов"
-                value={clientStats.total_sum > 0 ? `${clientStats.total_sum.toLocaleString('ru-RU')} ₽` : '—'}
+                value={formatMoneyShort(clientStats.total_sum)}
                 color="amber"
               />
             </div>
@@ -303,7 +313,7 @@ export default function StatsPage() {
               <StatCard
                 icon={Banknote}
                 label="Заработано"
-                value={carrierStats.total_sum > 0 ? `${carrierStats.total_sum.toLocaleString('ru-RU')} ₽` : '—'}
+                value={formatMoneyShort(carrierStats.total_sum)}
                 color="amber"
               />
               <StatCard
