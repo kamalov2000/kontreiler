@@ -263,12 +263,12 @@ export default function AuctionsPage() {
 
       {/* Доска торгов */}
       <div className="border border-hairline rounded-card bg-surface overflow-x-auto">
-        <div className="min-w-[880px]">
+        <div className="min-w-[916px]">
           {/* Шапка колонок */}
           <div className="flex items-center gap-3.5 h-[34px] px-5 bg-surface-sunken border-b border-hairline text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">
             <span className="w-[84px] flex-none">№</span>
-            <span className="flex-1">Маршрут</span>
-            <span className="w-[104px] flex-none">Контейнер</span>
+            <span className="flex-1 min-w-[160px]">Маршрут</span>
+            <span className="w-[140px] flex-none">Контейнер</span>
             <span className="w-[80px] flex-none text-right">Вес, кг</span>
             <span className="w-[64px] flex-none text-right">Погрузка</span>
             <span className="w-[112px] flex-none text-right">Тек. ставка</span>
@@ -281,7 +281,7 @@ export default function AuctionsPage() {
               <div key={i} className="flex items-center gap-3.5 h-[56px] px-5 border-b border-hairline last:border-0">
                 <span className="w-[84px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
                 <span className="flex-1 h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
-                <span className="w-[104px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+                <span className="w-[140px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
                 <span className="w-[112px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
               </div>
             ))
@@ -306,17 +306,17 @@ export default function AuctionsPage() {
                   <span className="w-[84px] flex-none font-mono text-[13px] text-ink-3">
                     {order.order_number ? formatOrderNumber(order.order_number) : '—'}
                   </span>
-                  <span className="flex-1 min-w-0 flex items-center gap-2">
+                  <span className="flex-1 min-w-[160px] overflow-hidden flex items-center gap-2">
                     <RouteInline
-                      className="flex-1"
+                      className="flex-1 min-w-0"
                       from={order.from_city}
                       to={order.to_city}
                       via={order.via_city}
                     />
                     <VerifiedBadge verified={order.client?.is_verified} iconOnly />
                   </span>
-                  <span className="w-[104px] flex-none">
-                    <ContainerChip label={containerLabel} genset={order.requires_genset} />
+                  <span className="w-[140px] flex-none">
+                    <ContainerChip label={containerLabel} genset={order.requires_genset} wrap />
                   </span>
                   <span className="w-[80px] flex-none text-right font-mono text-[13px] tabular-nums text-ink-3">
                     {weightDisplay(order)}

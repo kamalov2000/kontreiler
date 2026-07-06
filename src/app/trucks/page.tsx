@@ -180,12 +180,12 @@ function TrucksContent() {
 
       {/* Доска */}
       <div className="border border-hairline rounded-card bg-surface overflow-x-auto">
-        <div className="min-w-[820px]">
+        <div className="min-w-[856px]">
           {/* Шапка колонок */}
           <div className="flex items-center gap-3.5 h-[34px] px-5 bg-surface-sunken border-b border-hairline text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">
             <span className="w-[84px] flex-none">Номер</span>
-            <span className="flex-1">Маршрут</span>
-            <span className="w-[104px] flex-none">Контейнер</span>
+            <span className="flex-1 min-w-[160px]">Маршрут</span>
+            <span className="w-[140px] flex-none">Контейнер</span>
             <span className="w-[150px] flex-none">Параметры</span>
             <span className="w-[64px] flex-none text-right">Готов</span>
             <span className="w-[110px] flex-none text-right">Ставка</span>
@@ -196,7 +196,7 @@ function TrucksContent() {
               <div key={i} className="flex items-center gap-3.5 h-[56px] px-5 border-b border-hairline last:border-0">
                 <span className="w-[84px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
                 <span className="flex-1 h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
-                <span className="w-[104px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
+                <span className="w-[140px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
                 <span className="w-[110px] flex-none h-3 rounded bg-[linear-gradient(90deg,#ECEFEE_25%,#F3F5F4_50%,#ECEFEE_75%)] bg-[length:400px_100%] animate-shimmer" />
               </div>
             ))
@@ -229,9 +229,9 @@ function TrucksContent() {
                   <span className="w-[84px] flex-none font-mono text-[13px] text-ink-3 truncate">
                     {truck.truck_number || '—'}
                   </span>
-                  <span className="flex-1 min-w-0 flex items-center gap-2">
+                  <span className="flex-1 min-w-[160px] overflow-hidden flex items-center gap-2">
                     <RouteInline
-                      className="flex-1"
+                      className="flex-1 min-w-0"
                       from={truck.from_city}
                       to={truck.to_city}
                     />
@@ -245,8 +245,8 @@ function TrucksContent() {
                       <span className="font-mono text-[12px] text-ink-3 flex-none whitespace-nowrap">★ {rating.avg.toFixed(1)}</span>
                     )}
                   </span>
-                  <span className="w-[104px] flex-none">
-                    <ContainerChip label={containerLabel} />
+                  <span className="w-[140px] flex-none">
+                    <ContainerChip label={containerLabel} wrap />
                   </span>
                   <span className="w-[150px] flex-none flex flex-wrap items-center gap-1 leading-tight">
                     {trailerLabel && (
