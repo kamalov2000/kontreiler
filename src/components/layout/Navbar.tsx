@@ -50,9 +50,18 @@ export function Navbar() {
 
   async function handleLogout() {
     const supabase = createClient()
-    await supabase.auth.signOut()
+    // scope:'local' — выходим локально, не дожидаясь обязательного ответа сервера.
+    // Плюс таймаут-гонка: при флапающей сети/VPN сетевой запрос может зависнуть, а
+    // кнопка выхода всё равно должна сработать. Редирект выполняем в любом случае.
+    try {
+      await Promise.race([
+        supabase.auth.signOut({ scope: 'local' }),
+        new Promise(res => setTimeout(res, 1500)),
+      ])
+    } catch {}
     toast.success(t.nav.logout)
     router.push('/auth/login')
+    router.refresh()
   }
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
