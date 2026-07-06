@@ -113,6 +113,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to update' }, { status: 500 })
   }
 
+  // Фиксируем факт прохождения этапа с датой/временем в историю (order_tracking_events).
+  // Для finish пишем финальную отметку 'delivered' («контейнер сдан»).
+  const eventStep = action === 'finish' ? 'delivered' : newTrackingStatus
+  const { error: eventErr } = await service
+    .from('order_tracking_events')
+    .insert({ order_id: orderId, step: eventStep })
+  if (eventErr) {
+    // Не валим весь запрос — статус уже обновлён; логируем для диагностики.
+    console.error('[TRACKING EVENT INSERT ERROR]', eventErr)
+  }
+
   return NextResponse.json({
     ok: true,
     tracking_status: newTrackingStatus,

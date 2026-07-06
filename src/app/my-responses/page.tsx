@@ -17,7 +17,7 @@ import { ContainerMark } from '@/components/ui/ContainerMark'
 import { Button } from '@/components/ui/Button'
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 
-type StatusFilter = 'all' | 'accepted' | 'pending' | 'rejected'
+type StatusFilter = 'all' | 'accepted' | 'completed' | 'pending' | 'rejected'
 
 export default function MyResponsesPage() {
   const { user, loading: userLoading } = useUser()
@@ -92,6 +92,7 @@ export default function MyResponsesPage() {
 
     // Status filter
     if (statusFilter === 'accepted' && order.accepted_carrier_id !== user?.id) return false
+    if (statusFilter === 'completed' && !(order.accepted_carrier_id === user?.id && order.status === 'delivered')) return false
     if (statusFilter === 'rejected' && !(order.accepted_carrier_id && order.accepted_carrier_id !== user?.id)) return false
     if (statusFilter === 'pending' && (order.accepted_carrier_id || ['cancelled', 'closed'].includes(order.status))) return false
 
@@ -107,10 +108,11 @@ export default function MyResponsesPage() {
   }), [responses, statusFilter, search, user])
 
   const statusBadgeOptions = [
-    { value: 'all',      label: 'Все' },
-    { value: 'accepted', label: 'Принятые' },
-    { value: 'pending',  label: 'Ожидание' },
-    { value: 'rejected', label: 'Отклонённые' },
+    { value: 'all',       label: 'Все' },
+    { value: 'accepted',  label: 'Принятые' },
+    { value: 'completed', label: 'Выполненные' },
+    { value: 'pending',   label: 'Ожидание' },
+    { value: 'rejected',  label: 'Отклонённые' },
   ]
 
   return (

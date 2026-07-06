@@ -357,6 +357,22 @@ async function main() {
   const { data: trCheck } = await admin.from('trucks').select('status').eq('id', truck.id).single()
   assert(trCheck?.status === 'busy', 'Грузовик в статусе busy')
 
+  // ── История этапов трекинга: видна участникам, закрыта посторонним ──
+  section('18. История этапов трекинга (order_tracking_events) — RLS')
+  await admin.from('order_tracking_events').insert([
+    { order_id: order.id, step: 'heading_to_pickup' },
+    { order_id: order.id, step: 'at_pickup_terminal' },
+  ])
+  const { data: carrierEvents } = await carrier.client.from('order_tracking_events').select('step').eq('order_id', order.id)
+  assert((carrierEvents?.length || 0) >= 2, 'Принятый перевозчик видит историю этапов')
+  const { data: ownerEvents } = await client.client.from('order_tracking_events').select('step').eq('order_id', order.id)
+  assert((ownerEvents?.length || 0) >= 2, 'Владелец заявки видит историю этапов')
+  const { data: strangerEvents } = await carrier2.client.from('order_tracking_events').select('step').eq('order_id', order.id)
+  assert((strangerEvents?.length || 0) === 0, 'RLS: посторонний НЕ видит историю этапов чужого рейса')
+  const { error: forgeEvent } = await carrier2.client.from('order_tracking_events')
+    .insert({ order_id: order.id, step: 'heading_to_pickup' })
+  assert(!!forgeEvent, 'RLS: напрямую вставить событие трекинга нельзя (только сервер)')
+
   await cleanup()
   finish()
 }
