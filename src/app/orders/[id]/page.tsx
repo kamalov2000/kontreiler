@@ -7,10 +7,13 @@ import {
   ArrowLeft, User, CheckCircle,
   MoreVertical, X, Edit2, Copy, RotateCcw, Ban, Star, Banknote,
   MapPin, Timer, Weight, TrendingDown, TrendingUp, FileText, Navigation,
+  ClipboardList, IdCard,
 } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderDocuments } from '@/components/orders/OrderDocuments'
 import { TrackingDrawer } from '@/components/orders/TrackingDrawer'
+import { DriverInfoModal } from '@/components/orders/DriverInfoModal'
+import { TnModal } from '@/components/orders/TnModal'
 import { RevealPhone } from '@/components/ui/RevealPhone'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -23,7 +26,7 @@ import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop } from '@/types/database'
+import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop, OrderDriverInfo } from '@/types/database'
 import { formatDateWithTime, formatDateTime, formatPrice, formatOrderNumber, readyDateBadge } from '@/lib/utils'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT, CONTAINER_UNIT_TARE } from '@/lib/cities'
 import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
@@ -152,6 +155,14 @@ export default function OrderDetailPage() {
   // Tracking drawer
   const [trackingDrawerOpen, setTrackingDrawerOpen] = useState(false)
 
+  // Транспортная накладная: данные водителя/ТС + модалки
+  const [driverInfo, setDriverInfo] = useState<OrderDriverInfo | null>(null)
+  const [driverModalOpen, setDriverModalOpen] = useState(false)
+  const [tnOpen, setTnOpen] = useState(false)
+  // Автоподсказку водителю показываем один раз за визит, иначе она будет
+  // всплывать после каждого «Позже».
+  const driverPromptShown = useRef(false)
+
   const isOwner = user?.id === order?.client_id
 
   useEffect(() => {
@@ -172,6 +183,15 @@ export default function OrderDetailPage() {
         .eq('order_id', id)
         .order('sort_order', { ascending: true })
       setStops((stopsData || []) as OrderStop[])
+
+      // Данные водителя/ТС для накладной. RLS отдаёт строку только участникам
+      // сделки — у остальных здесь просто ничего не вернётся.
+      const { data: driverData } = await supabase
+        .from('order_driver_info')
+        .select('*')
+        .eq('order_id', id)
+        .maybeSingle()
+      setDriverInfo((driverData as OrderDriverInfo | null) ?? null)
 
       if (orderData.format === 'reduction' || orderData.format === 'auction') {
         const { data: bidsData } = await supabase
@@ -405,6 +425,20 @@ export default function OrderDetailPage() {
     }
     setSaving(false)
   }
+
+  // Клиент принял перевозчика → перевозчику предлагаем внести водителя и ТС.
+  // Заполнять их может только он, поэтому подсказка всплывает у него при первом
+  // заходе на заявку после принятия, а не в момент нажатия «Принять» клиентом.
+  useEffect(() => {
+    if (loading || !order || !user) return
+    if (driverPromptShown.current) return
+    const isAcceptedCarrier = user.id === order.accepted_carrier_id
+    const needsDriver = !driverInfo?.driver_name
+    if (isAcceptedCarrier && needsDriver && ['matched', 'in_transit'].includes(order.status)) {
+      driverPromptShown.current = true
+      setDriverModalOpen(true)
+    }
+  }, [loading, order, user, driverInfo])
 
   async function handleDownloadContract() {
     if (!order) return
@@ -1067,6 +1101,26 @@ export default function OrderDetailPage() {
                   {downloadingContract ? 'Генерация...' : 'Договор-заявка PDF'}
                 </button>
               )}
+              {/* Транспортная накладная — обеим сторонам сделки, начиная со статуса matched */}
+              {(isOwner || user?.id === order.accepted_carrier_id) && (
+                <button
+                  onClick={() => setTnOpen(true)}
+                  className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card bg-surface border border-hairline text-ink-2 text-sm font-medium hover:border-border-strong transition-colors ease-terminal"
+                >
+                  <ClipboardList size={14} strokeWidth={1.5} />
+                  Сформировать ТН
+                </button>
+              )}
+              {/* Водителя и машину вносит только перевозчик */}
+              {user?.id === order.accepted_carrier_id && (
+                <button
+                  onClick={() => setDriverModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card bg-surface border border-hairline text-ink-2 text-sm font-medium hover:border-border-strong transition-colors ease-terminal"
+                >
+                  <IdCard size={14} strokeWidth={1.5} />
+                  {driverInfo?.driver_name ? 'Изменить данные водителя' : 'Добавить данные водителя'}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1504,6 +1558,29 @@ export default function OrderDetailPage() {
           </div>
         </div>
       )}
+      {/* Данные водителя и ТС — вносит принятый перевозчик */}
+      {user?.id === order.accepted_carrier_id && (
+        <DriverInfoModal
+          open={driverModalOpen}
+          onClose={() => setDriverModalOpen(false)}
+          orderId={order.id}
+          initial={driverInfo}
+          onSaved={setDriverInfo}
+        />
+      )}
+
+      {/* Транспортная накладная */}
+      {(isOwner || user?.id === order.accepted_carrier_id) && (
+        <TnModal
+          open={tnOpen}
+          onClose={() => setTnOpen(false)}
+          order={order}
+          stops={stops}
+          carrier={acceptedResponse?.carrier ?? null}
+          driverInfo={driverInfo}
+        />
+      )}
+
       {/* Tracking Drawer — задача 5 */}
       {order.tracking_enabled && (
         <TrackingDrawer

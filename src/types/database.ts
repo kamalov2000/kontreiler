@@ -144,6 +144,18 @@ export interface Notification {
   message?: string | null
 }
 
+// Данные водителя и ТС по заявке — для транспортной накладной (разделы 6,7,8,10,12).
+// Заполняет принятый перевозчик; читают обе стороны сделки (таблица order_driver_info).
+export interface OrderDriverInfo {
+  id: string
+  order_id: string
+  driver_name: string | null
+  vehicle_brand: string | null
+  vehicle_plate: string | null
+  trailer_plate: string | null
+  created_at: string
+}
+
 export interface OrderStop {
   id: string
   order_id: string
