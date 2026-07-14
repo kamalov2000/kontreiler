@@ -21,6 +21,22 @@ function str(v: unknown): string {
   return v.trim().slice(0, MAX_FIELD)
 }
 
+// В российском госномере разрешены только те 12 кириллических букв, начертание
+// которых совпадает с латинскими. Пользователи набирают номер вперемешку — с
+// латинской раскладки буквы выглядят так же, но это другие символы: номер
+// перестаёт искаться по базе и, строго говоря, не соответствует ПДД. Поэтому
+// латинские двойники приводим к кириллице.
+const PLATE_LOOKALIKES: Record<string, string> = {
+  A: 'А', B: 'В', C: 'С', E: 'Е', H: 'Н', K: 'К',
+  M: 'М', O: 'О', P: 'Р', T: 'Т', X: 'Х', Y: 'У',
+}
+
+function plate(v: unknown): string {
+  return str(v)
+    .toUpperCase()
+    .replace(/[ABCEHKMOPTXY]/g, ch => PLATE_LOOKALIKES[ch])
+}
+
 interface OrderAccess {
   id: string
   client_id: string
@@ -179,7 +195,7 @@ export async function POST(req: Request) {
     driverName: str(body.driver_name),
 
     vehicleTypeBrand: str(body.vehicle_type_brand),
-    vehiclePlate: str(body.vehicle_plate),
+    vehiclePlate: plate(body.vehicle_plate),
     ownershipType: str(body.ownership_type),
     ownershipDoc: str(body.ownership_doc),
     specialPermit: str(body.special_permit),

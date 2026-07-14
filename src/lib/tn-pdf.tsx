@@ -6,6 +6,8 @@ import {
   View,
   Font,
   StyleSheet,
+  Svg,
+  Line,
 } from '@react-pdf/renderer'
 import { PT_SERIF_REGULAR, PT_SERIF_BOLD, PT_SERIF_ITALIC } from './tn-fonts'
 
@@ -121,15 +123,18 @@ const BLACK = '#000'
 
 // Высота строки значения. Завязана на кегль value: если поднять кегль и забыть
 // про неё, текст сядет на линию поля. Вертикальные интервалы бланка выбраны
-// так, чтобы форма укладывалась ровно в два листа A4, как бумажный оригинал.
-const VALUE_LINE = 9.5
+// так, чтобы форма укладывалась ровно в два листа A4, как бумажный оригинал:
+// разделы 1–8 на первом листе, 9–12 на втором. Раздел 8 идёт с wrap={false},
+// поэтому лишние 2–3 пункта высоты выше по документу выбрасывают его целиком
+// на следующую страницу — после правки интервалов пересчитывай число страниц.
+const VALUE_LINE = 7.5
 
 const s = StyleSheet.create({
   page: {
     fontFamily: 'PTSerif',
     fontSize: 8,
-    paddingTop: 14,
-    paddingBottom: 18,
+    paddingTop: 12,
+    paddingBottom: 14,
     paddingHorizontal: 18,
     color: BLACK,
     lineHeight: 1.05,
@@ -154,7 +159,7 @@ const s = StyleSheet.create({
     borderBottomColor: BLACK,
     borderTopWidth: 0.6,
     borderTopColor: BLACK,
-    paddingVertical: 1,
+    paddingVertical: 0.5,
     paddingHorizontal: 3,
   },
   sectionTitle: { fontSize: 8, fontWeight: 'bold' },
@@ -163,16 +168,16 @@ const s = StyleSheet.create({
   // Колонка внутри row. flex здесь задаёт ШИРИНУ — использовать только в row,
   // иначе (в колоночном контейнере) flex-basis 0 схлопывает высоту в ноль и
   // содержимое наезжает на следующий раздел.
-  half: { flex: 1, paddingHorizontal: 3, paddingTop: 1.5, paddingBottom: 0.5 },
+  half: { flex: 1, paddingHorizontal: 3, paddingTop: 1, paddingBottom: 0.5 },
   // Те же отступы, но без flex — для блоков, лежащих в колоночном контейнере.
-  pad: { paddingHorizontal: 3, paddingTop: 1.5, paddingBottom: 0.5 },
+  pad: { paddingHorizontal: 3, paddingTop: 1, paddingBottom: 0.5 },
   vDivider: { borderLeftWidth: 0.6, borderLeftColor: BLACK },
 
   // Поле бланка: значение → линия → казённая подпись мелким курсивом
   value: { fontSize: 8.5, minHeight: VALUE_LINE },
   valueBold: { fontSize: 8.5, fontWeight: 'bold', minHeight: VALUE_LINE },
   line: { borderBottomWidth: 0.5, borderBottomColor: BLACK, marginTop: 0.5 },
-  caption: { fontSize: 6, fontStyle: 'italic', textAlign: 'center', marginTop: 0.5 },
+  caption: { fontSize: 6, fontStyle: 'italic', textAlign: 'center', marginTop: 0.3 },
 
   // Мелкая надпись без линии (пояснения вроде «Тип владения: 1 — собственность…»)
   note: { fontSize: 6.5, fontStyle: 'italic', paddingHorizontal: 3, paddingVertical: 1 },
@@ -254,22 +259,21 @@ function Sec({ title, children }: { title: string; children: React.ReactNode }) 
 }
 
 /**
- * Флажок бланка. Глифов ☐/☒ в шрифте нет, а «X» внутри бокса react-pdf обрезает
- * по высоте строки — поэтому отметка рисуется залитым квадратом.
+ * Флажок бланка: пустая рамка, отметка — косой крест, как её ставят от руки.
+ * Крест рисуется линиями, а не текстом: глифов ☐/☒ в шрифте нет, а «X» внутри
+ * бокса react-pdf обрезает по высоте строки.
  */
 function Check({ on, label }: { on: boolean; label: string }) {
+  const BOX = 8
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 2 }}>
-      <View
-        style={{
-          width: 8,
-          height: 8,
-          borderWidth: 0.6,
-          borderColor: BLACK,
-          padding: 1.4,
-        }}
-      >
-        {on && <View style={{ flex: 1, backgroundColor: BLACK }} />}
+      <View style={{ width: BOX, height: BOX, borderWidth: 0.6, borderColor: BLACK }}>
+        {on && (
+          <Svg viewBox={`0 0 ${BOX} ${BOX}`} style={{ width: '100%', height: '100%' }}>
+            <Line x1={1.5} y1={1.5} x2={BOX - 1.5} y2={BOX - 1.5} stroke={BLACK} strokeWidth={0.8} />
+            <Line x1={BOX - 1.5} y1={1.5} x2={1.5} y2={BOX - 1.5} stroke={BLACK} strokeWidth={0.8} />
+          </Svg>
+        )}
       </View>
       <Text style={{ fontSize: 7 }}>{label}</Text>
     </View>
@@ -558,12 +562,11 @@ export function TnDocument({ data }: { data: TnData }) {
             />
           </Full>
           <Two
-            left={<F value={data.pickupAddress} caption="(адрес места погрузки)" lines={2} />}
+            left={<F value={data.pickupAddress} caption="(адрес места погрузки)" />}
             right={
               <F
                 value={data.pickupDatetime}
                 caption="(заявленные дата и время подачи транспортного средства под погрузку)"
-                lines={2}
               />
             }
           />
