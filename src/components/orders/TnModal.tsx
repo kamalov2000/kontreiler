@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { Copy, Download, Lock } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
@@ -51,6 +51,20 @@ function money(n: number): string {
   return n.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+function parseMoney(v: string): number {
+  const n = parseFloat(v.replace(/\s/g, '').replace(',', '.'))
+  return isNaN(n) ? 0 : n
+}
+
+/** Тип владения ТС — нумерация из бланка (раздел 7). */
+const OWNERSHIP_TYPES = [
+  { value: '1', label: '1 — собственность' },
+  { value: '2', label: '2 — совместная собственность супругов' },
+  { value: '3', label: '3 — аренда' },
+  { value: '4', label: '4 — лизинг' },
+  { value: '5', label: '5 — безвозмездное пользование' },
+]
+
 /** Секция бланка: номер + заголовок + поля. */
 function FormSection({ no, title, children }: { no: string; title: string; children: React.ReactNode }) {
   return (
@@ -79,42 +93,96 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
   }, [order.from_city, order.via_city, order.to_city, stops])
 
   const orderNumber = order.order_number ?? `КТ-${order.id.slice(0, 6).toUpperCase()}`
-  const carrierRequisites = carrier
-    ? [carrier.company_name || carrier.name, carrier.inn ? `ИНН ${carrier.inn}` : null]
-        .filter(Boolean).join(', ')
-    : ''
 
   const pickupAddress = [order.from_city, order.from_city_address].filter(Boolean).join(', ')
   const unloadAddress = [order.to_city, order.to_city_address].filter(Boolean).join(', ')
   const pickupDatetime = [fmtDate(order.ready_date), order.ready_time].filter(Boolean).join(' ')
 
-  const vehicle = [driverInfo?.vehicle_brand, driverInfo?.vehicle_plate].filter(Boolean).join(', ')
+  // Масса одной строкой — как в бланке: «брутто 25 727,5 кг, нетто 24 000 кг».
+  const massLine = useMemo(() => {
+    const parts: string[] = []
+    if (order.weight_gross != null) parts.push(`брутто ${order.weight_gross} кг`)
+    if (order.weight_net != null) parts.push(`нетто ${order.weight_net} кг`)
+    return parts.join(', ')
+  }, [order.weight_gross, order.weight_net])
 
   // ── Состояние формы ──
+  // Шапка
   const [tnDate, setTnDate] = useState('')
   const [tnNumber, setTnNumber] = useState('')
+  const [copyNumber, setCopyNumber] = useState('1')
+  // 1 / 1а
+  const [shipperReq, setShipperReq] = useState('')
+  const [shipperIsForwarder, setShipperIsForwarder] = useState(false)
+  const [shipperPaymentBasis, setShipperPaymentBasis] = useState('')
+  const [serviceCustomer, setServiceCustomer] = useState('')
+  const [serviceContract, setServiceContract] = useState('')
+  // 2
   const [consignee, setConsignee] = useState('')
   const [deliveryAddress, setDeliveryAddress] = useState('')
+  // 3
+  const [containerNumber, setContainerNumber] = useState('')
   const [cargoName, setCargoName] = useState('')
   const [placesCount, setPlacesCount] = useState('')
   const [placesUnit, setPlacesUnit] = useState('шт')
-  const [weightGross, setWeightGross] = useState('')
-  const [weightNet, setWeightNet] = useState('')
+  const [packaging, setPackaging] = useState('')
+  const [cargoMass, setCargoMass] = useState('')
+  const [declaredValue, setDeclaredValue] = useState('')
+  // 4
+  const [docsDangerous, setDocsDangerous] = useState('')
+  const [docsCertificates, setDocsCertificates] = useState('')
+  const [docsShipping, setDocsShipping] = useState('')
+  // 5
   const [routeField, setRouteField] = useState('')
   const [deadline, setDeadline] = useState('')
   const [forwardingContact, setForwardingContact] = useState('')
+  const [specialRequirements, setSpecialRequirements] = useState('')
   const [temperature, setTemperature] = useState('')
   const [seal, setSeal] = useState('')
+  // 6
   const [carrierReqField, setCarrierReqField] = useState('')
   const [driverName, setDriverName] = useState('')
-  const [vehicleField, setVehicleField] = useState('')
-  const [trailerPlate, setTrailerPlate] = useState('')
+  // 7
+  const [vehicleTypeBrand, setVehicleTypeBrand] = useState('')
+  const [vehiclePlate, setVehiclePlate] = useState('')
+  const [ownershipType, setOwnershipType] = useState('1')
+  const [ownershipDoc, setOwnershipDoc] = useState('')
+  const [specialPermit, setSpecialPermit] = useState('')
+  // 8
+  const [loaderRequisites, setLoaderRequisites] = useState('')
+  const [loadingPointOwner, setLoadingPointOwner] = useState('')
   const [pickupAddrField, setPickupAddrField] = useState('')
   const [pickupDtField, setPickupDtField] = useState('')
-  const [containerNumber, setContainerNumber] = useState('')
+  const [massAtLoading, setMassAtLoading] = useState('')
+  // 10
   const [unloadAddrField, setUnloadAddrField] = useState('')
   const [unloadDtField, setUnloadDtField] = useState('')
+  // 12
   const [costNoVat, setCostNoVat] = useState('')
+  const [costCalcOrder, setCostCalcOrder] = useState('')
+  const [payerRequisites, setPayerRequisites] = useState('')
+
+  // Реквизиты сторон с юр. адресом лежат в приватной user_private: вторая
+  // сторона сделки прочитать их из браузера не может (RLS), поэтому префилл
+  // отдаёт сервер.
+  const prefill = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/generate-tn?order_id=${order.id}`)
+      if (!res.ok) return
+      const d = await res.json()
+      const shipper = String(d.shipper_requisites || '')
+      const carrierReq = String(d.carrier_requisites || '')
+      // Не затираем то, что пользователь уже успел ввести руками.
+      if (shipper) {
+        setShipperReq(v => v || shipper)
+        setLoaderRequisites(v => v || shipper)
+        setPayerRequisites(v => v || shipper)
+      }
+      if (carrierReq) setCarrierReqField(v => v || carrierReq)
+    } catch {
+      // Префилл — не критичный путь: поля просто останутся пустыми.
+    }
+  }, [order.id])
 
   // Автозаполнение при каждом открытии: дата ТН — СЕГОДНЯ (не дата создания заявки).
   useEffect(() => {
@@ -122,38 +190,80 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
     setCopyMode(false)
     setTnDate(new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }))
     setTnNumber(orderNumber)
+    setCopyNumber('1')
+
+    setShipperReq('')
+    setShipperIsForwarder(false)
+    setShipperPaymentBasis('')
+    setServiceCustomer('')
+    setServiceContract('')
+
     setConsignee('')
     setDeliveryAddress(unloadAddress)
+
+    setContainerNumber('')
     setCargoName('')
     setPlacesCount('')
     setPlacesUnit('шт')
-    setWeightGross(order.weight_gross != null ? String(order.weight_gross) : '')
-    setWeightNet(order.weight_net != null ? String(order.weight_net) : '')
+    setPackaging('')
+    setCargoMass(massLine)
+    setDeclaredValue('')
+
+    setDocsDangerous('')
+    setDocsCertificates('')
+    setDocsShipping('')
+
     setRouteField(route)
     setDeadline(fmtDateTime(order.arrival_time))
     setForwardingContact('')
+    setSpecialRequirements('')
     setTemperature('')
     setSeal('')
-    setCarrierReqField(carrierRequisites)
+
+    // Реквизиты перевозчика: показываем то, что доступно из карточки, а сервер
+    // в префилле дополнит юридическим адресом.
+    setCarrierReqField(
+      carrier
+        ? [carrier.company_name || carrier.name, carrier.inn ? `ИНН ${carrier.inn}` : null]
+            .filter(Boolean).join(', ')
+        : ''
+    )
     setDriverName(driverInfo?.driver_name ?? '')
-    setVehicleField(vehicle)
-    setTrailerPlate(driverInfo?.trailer_plate ?? '')
+
+    setVehicleTypeBrand(driverInfo?.vehicle_brand ?? '')
+    setVehiclePlate(driverInfo?.vehicle_plate ?? '')
+    setOwnershipType('1')
+    setOwnershipDoc('')
+    setSpecialPermit('')
+
+    setLoaderRequisites('')
+    setLoadingPointOwner('')
     setPickupAddrField(pickupAddress)
     setPickupDtField(pickupDatetime)
-    setContainerNumber('')
+    setMassAtLoading(massLine)
+
     setUnloadAddrField(unloadAddress)
     setUnloadDtField(fmtDateTime(order.arrival_time))
+
     const cost = order.agreed_price ?? order.price
     setCostNoVat(cost != null ? String(cost) : '')
-  }, [open, order, route, carrierRequisites, driverInfo, vehicle, pickupAddress, unloadAddress, pickupDatetime, orderNumber])
+    setCostCalcOrder('')
+    setPayerRequisites('')
 
-  // Стоимость с НДС считается из «без НДС» и ставки заявки.
+    prefill()
+  }, [open, order, route, carrier, driverInfo, pickupAddress, unloadAddress, pickupDatetime, orderNumber, massLine, prefill])
+
+  // Стоимость с НДС и сумма налога считаются из «без НДС» и ставки заявки.
   const vatPercent = VAT_PERCENT[order.vat_type] ?? 0
-  const costWithVat = useMemo(() => {
-    const base = parseFloat(costNoVat.replace(/\s/g, '').replace(',', '.'))
-    if (isNaN(base)) return ''
-    return money(base * (1 + vatPercent / 100))
+  const { vatAmount, costWithVat } = useMemo(() => {
+    const base = parseMoney(costNoVat)
+    if (!base) return { vatAmount: '', costWithVat: '' }
+    const tax = base * (vatPercent / 100)
+    return { vatAmount: money(tax), costWithVat: money(base + tax) }
   }, [costNoVat, vatPercent])
+
+  // В режиме копии редактируются только номер контейнера и дата.
+  const locked = copyMode
 
   async function handleDownload() {
     setDownloading(true)
@@ -167,31 +277,72 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
           tn_number: tnNumber,
           order_number: orderNumber,
           order_date: fmtDate(order.created_at),
+          copy_number: copyNumber,
+
+          shipper_requisites: shipperReq,
+          shipper_is_forwarder: shipperIsForwarder,
+          shipper_payment_basis: shipperPaymentBasis,
+          service_customer_requisites: serviceCustomer,
+          service_contract_requisites: serviceContract,
+
           consignee_requisites: consignee,
           delivery_address: deliveryAddress,
+
+          container_number: containerNumber,
           cargo_name: cargoName,
-          places_count: placesCount,
-          places_unit: placesUnit,
-          weight_gross: weightGross,
-          weight_net: weightNet,
+          cargo_packaging: [
+            [placesCount, placesCount ? placesUnit : ''].filter(Boolean).join(' '),
+            packaging,
+          ].filter(Boolean).join(', '),
+          cargo_mass: cargoMass,
+          declared_value: declaredValue,
+
+          docs_dangerous: docsDangerous,
+          docs_certificates: docsCertificates,
+          docs_shipping: docsShipping,
+
           route: routeField,
           delivery_deadline: deadline,
           forwarding_contact: forwardingContact,
-          // не-REF контейнер → секция температуры в PDF не печатается вовсе
-          temperature_mode: isRef ? temperature : null,
-          seal,
+          special_requirements: specialRequirements,
+          // Температурный режим — только для REF-контейнеров; ЗПУ печатается в той же ячейке бланка.
+          temperature_and_seal: [
+            isRef && temperature ? `температурный режим: ${temperature}` : '',
+            seal ? `ЗПУ: ${seal}` : '',
+          ].filter(Boolean).join('; '),
+
           carrier_requisites: carrierReqField,
           driver_name: driverName,
-          vehicle: vehicleField,
-          trailer_plate: trailerPlate,
+
+          vehicle_type_brand: vehicleTypeBrand,
+          vehicle_plate: vehiclePlate,
+          ownership_type: ownershipType,
+          ownership_doc: ownershipDoc,
+          special_permit: specialPermit,
+
+          loader_requisites: loaderRequisites,
+          loading_point_owner: loadingPointOwner,
           pickup_address: pickupAddrField,
           pickup_datetime: pickupDtField,
-          container_number: containerNumber,
+          mass_at_loading: massAtLoading,
+          places_at_loading: [placesCount, placesCount ? placesUnit : ''].filter(Boolean).join(' '),
+          packaging_at_loading: packaging,
+
           unload_address: unloadAddrField,
           unload_datetime: unloadDtField,
-          cost_no_vat: costNoVat ? money(parseFloat(costNoVat.replace(/\s/g, '').replace(',', '.')) || 0) : '',
+          mass_at_unloading: massAtLoading,
+
+          cost_no_vat: costNoVat ? money(parseMoney(costNoVat)) : '',
           vat_rate: vatLabel(order.vat_type),
+          vat_amount: vatAmount,
           cost_with_vat: costWithVat,
+          cost_calc_order: costCalcOrder,
+          // Первичный учётный документ составляют сами стороны сделки.
+          economic_subject_carrier: carrierReqField,
+          economic_subject_shipper: shipperReq,
+          economic_basis_carrier: '',
+          economic_basis_shipper: '',
+          payer_requisites: payerRequisites,
         }),
       })
 
@@ -216,9 +367,6 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
     }
   }
 
-  // В режиме копии редактируются только номер контейнера и дата.
-  const locked = copyMode
-
   return (
     <Modal
       open={open}
@@ -242,19 +390,67 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
         </div>
       )}
 
+      <p className="mb-4 text-[13px] text-ink-3">
+        Бланк по Приложению № 4 к Правилам перевозок грузов автомобильным транспортом.
+        Пустые поля печатаются линиями под запись от руки — фактические даты, оговорки и подписи
+        проставляются на погрузке и выгрузке.
+      </p>
+
       <div className="space-y-3.5">
         <FormSection no="1" title="Шапка">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-4">
             <Input label="Дата" value={tnDate} onChange={e => setTnDate(e.target.value)} />
             <Input label="Номер накладной" value={tnNumber} onChange={e => setTnNumber(e.target.value)} disabled={locked} />
+            <Input label="Экземпляр №" value={copyNumber} onChange={e => setCopyNumber(e.target.value)} disabled={locked} />
             <Input label="Дата заказа" value={fmtDate(order.created_at)} disabled />
           </div>
+        </FormSection>
+
+        <FormSection no="1" title="Грузоотправитель">
+          <Input
+            label="Реквизиты грузоотправителя"
+            placeholder="ООО «Ромашка», ИНН 7707083893, 198188, г. Санкт-Петербург, ул. Зайцева, д. 41"
+            value={shipperReq}
+            onChange={e => setShipperReq(e.target.value)}
+            disabled={locked}
+          />
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              checked={shipperIsForwarder}
+              onChange={e => setShipperIsForwarder(e.target.checked)}
+              disabled={locked}
+              className="h-4 w-4 rounded border-hairline text-accent"
+            />
+            <span className="text-sm text-ink-2">Грузоотправитель является экспедитором</span>
+          </label>
+          <Input
+            label="Основание расчётов иным лицом (при наличии)"
+            value={shipperPaymentBasis}
+            onChange={e => setShipperPaymentBasis(e.target.value)}
+            disabled={locked}
+          />
+        </FormSection>
+
+        <FormSection no="1а" title="Заказчик услуг по организации перевозки (при наличии)">
+          <Input
+            label="Реквизиты заказчика услуг"
+            value={serviceCustomer}
+            onChange={e => setServiceCustomer(e.target.value)}
+            disabled={locked}
+          />
+          <Input
+            label="Реквизиты договора на организацию перевозки"
+            value={serviceContract}
+            onChange={e => setServiceContract(e.target.value)}
+            disabled={locked}
+          />
         </FormSection>
 
         <FormSection no="2" title="Грузополучатель">
           <Input
             label="Реквизиты грузополучателя"
-            placeholder="ООО «Ромашка», ИНН 7707083893"
+            placeholder="ООО «Лог-СЛ», ИНН 5040107398, МО, Раменский р-н, с. Софьино"
             value={consignee}
             onChange={e => setConsignee(e.target.value)}
             disabled={locked}
@@ -268,13 +464,23 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
         </FormSection>
 
         <FormSection no="3" title="Груз">
-          <Input
-            label="Наименование груза"
-            placeholder="Товары народного потребления"
-            value={cargoName}
-            onChange={e => setCargoName(e.target.value)}
-            disabled={locked}
-          />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {/* Номера контейнера в заявке нет (там только тип) — вводится вручную.
+                В режиме копии это одно из двух редактируемых полей. */}
+            <Input
+              label="Контейнер №"
+              placeholder="DLRU0087364"
+              value={containerNumber}
+              onChange={e => setContainerNumber(e.target.value)}
+            />
+            <Input
+              label="Наименование груза"
+              placeholder="Товары народного потребления"
+              value={cargoName}
+              onChange={e => setCargoName(e.target.value)}
+              disabled={locked}
+            />
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="flex gap-2">
               <Input
@@ -300,11 +506,50 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Вес брутто, кг" value={weightGross} onChange={e => setWeightGross(e.target.value)} disabled={locked} />
-              <Input label="Вес нетто, кг" value={weightNet} onChange={e => setWeightNet(e.target.value)} disabled={locked} />
-            </div>
+            <Input
+              label="Маркировка, тара, упаковка"
+              placeholder="паллеты, стрейч-плёнка"
+              value={packaging}
+              onChange={e => setPackaging(e.target.value)}
+              disabled={locked}
+            />
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              label="Масса брутто / нетто, объём"
+              placeholder="брутто 25727.5 кг, нетто 24000 кг"
+              value={cargoMass}
+              onChange={e => setCargoMass(e.target.value)}
+              disabled={locked}
+            />
+            <Input
+              label="Объявленная стоимость (при необходимости)"
+              value={declaredValue}
+              onChange={e => setDeclaredValue(e.target.value)}
+              disabled={locked}
+            />
+          </div>
+        </FormSection>
+
+        <FormSection no="4" title="Сопроводительные документы (при наличии)">
+          <Input
+            label="Документы по ДОПОГ, санитарные, таможенные, карантинные"
+            value={docsDangerous}
+            onChange={e => setDocsDangerous(e.target.value)}
+            disabled={locked}
+          />
+          <Input
+            label="Сертификаты, паспорта качества, удостоверения"
+            value={docsCertificates}
+            onChange={e => setDocsCertificates(e.target.value)}
+            disabled={locked}
+          />
+          <Input
+            label="Документы об отгрузке, сопроводительная ведомость"
+            value={docsShipping}
+            onChange={e => setDocsShipping(e.target.value)}
+            disabled={locked}
+          />
         </FormSection>
 
         <FormSection no="5" title="Особые условия">
@@ -318,6 +563,12 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
               disabled={locked}
             />
           </div>
+          <Input
+            label="Фитосанитарные, таможенные и прочие требования"
+            value={specialRequirements}
+            onChange={e => setSpecialRequirements(e.target.value)}
+            disabled={locked}
+          />
           <div className="grid gap-3 sm:grid-cols-2">
             {/* Температурный режим — только для рефрижераторных контейнеров */}
             {isRef && (
@@ -346,57 +597,114 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
         <FormSection no="7" title="Транспортное средство">
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
-              label="Марка и госномер тягача"
-              value={vehicleField}
-              onChange={e => setVehicleField(e.target.value)}
+              label="Тип, марка, грузоподъёмность"
+              placeholder="Ситрак, 20 т"
+              value={vehicleTypeBrand}
+              onChange={e => setVehicleTypeBrand(e.target.value)}
               disabled={locked}
             />
             <Input
-              label="Госномер прицепа"
-              value={trailerPlate}
-              onChange={e => setTrailerPlate(e.target.value)}
+              label="Регистрационный номер ТС"
+              placeholder="О889РВ790"
+              value={vehiclePlate}
+              onChange={e => setVehiclePlate(e.target.value)}
               disabled={locked}
             />
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-[11.5px] font-semibold uppercase tracking-[0.06em] text-ink-3">
+                Тип владения
+              </label>
+              <select
+                value={ownershipType}
+                onChange={e => setOwnershipType(e.target.value)}
+                disabled={locked}
+                className="h-11 w-full rounded-field border border-hairline bg-surface px-2 text-[15px] text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40 disabled:bg-surface-sunken disabled:text-ink-4"
+              >
+                {OWNERSHIP_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+            {/* Документ основания владения обязателен только для аренды, лизинга и безвозмездного пользования */}
+            {['3', '4', '5'].includes(ownershipType) && (
+              <Input
+                label="Документ, подтверждающий владение"
+                placeholder="Договор аренды № 12 от 01.03.2026"
+                value={ownershipDoc}
+                onChange={e => setOwnershipDoc(e.target.value)}
+                disabled={locked}
+              />
+            )}
+          </div>
+          <Input
+            label="Специальное разрешение (при наличии)"
+            value={specialPermit}
+            onChange={e => setSpecialPermit(e.target.value)}
+            disabled={locked}
+          />
         </FormSection>
 
         <FormSection no="8" title="Приём груза">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              label="Реквизиты лица, осуществляющего погрузку"
+              value={loaderRequisites}
+              onChange={e => setLoaderRequisites(e.target.value)}
+              disabled={locked}
+            />
+            <Input
+              label="Владелец объекта инфраструктуры пункта погрузки"
+              placeholder="ООО «Терминал», ИНН 7707083893"
+              value={loadingPointOwner}
+              onChange={e => setLoadingPointOwner(e.target.value)}
+              disabled={locked}
+            />
+          </div>
           <Input label="Адрес места погрузки" value={pickupAddrField} onChange={e => setPickupAddrField(e.target.value)} disabled={locked} />
           <div className="grid gap-3 sm:grid-cols-2">
             <Input label="Заявленные дата и время подачи" value={pickupDtField} onChange={e => setPickupDtField(e.target.value)} disabled={locked} />
-            {/* Номера контейнера в заявке нет (там только тип) — вводится вручную.
-                В режиме копии это одно из двух редактируемых полей. */}
             <Input
-              label="Контейнер №"
-              placeholder="MSKU 123456-7"
-              value={containerNumber}
-              onChange={e => setContainerNumber(e.target.value)}
+              label="Масса брутто и метод определения"
+              placeholder="25727.5 кг, взвешивание"
+              value={massAtLoading}
+              onChange={e => setMassAtLoading(e.target.value)}
+              disabled={locked}
             />
           </div>
-          <Input label="ФИО водителя" value={driverName} disabled />
         </FormSection>
 
         <FormSection no="10" title="Выдача груза">
           <Input label="Адрес места выгрузки" value={unloadAddrField} onChange={e => setUnloadAddrField(e.target.value)} disabled={locked} />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Input label="Заявленные дата и время" value={unloadDtField} onChange={e => setUnloadDtField(e.target.value)} disabled={locked} />
-            <Input label="ФИО водителя" value={driverName} disabled />
-          </div>
+          <Input label="Заявленные дата и время подачи под выгрузку" value={unloadDtField} onChange={e => setUnloadDtField(e.target.value)} disabled={locked} />
         </FormSection>
 
         <FormSection no="12" title="Стоимость перевозки">
-          <Input label="Реквизиты перевозчика" value={carrierReqField} disabled />
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-4">
             <Input
-              label="Стоимость без НДС, ₽"
+              label="Без налога, ₽"
               value={costNoVat}
               onChange={e => setCostNoVat(e.target.value)}
               disabled={locked}
               className="font-mono tabular-nums"
             />
             <Input label="Налоговая ставка" value={vatLabel(order.vat_type)} disabled />
-            <Input label="Стоимость с НДС, ₽" value={costWithVat} disabled className="font-mono tabular-nums" />
+            <Input label="Сумма налога, ₽" value={vatAmount} disabled className="font-mono tabular-nums" />
+            <Input label="С налогом, ₽" value={costWithVat} disabled className="font-mono tabular-nums" />
           </div>
+          <Input
+            label="Порядок расчёта платы (при наличии)"
+            value={costCalcOrder}
+            onChange={e => setCostCalcOrder(e.target.value)}
+            disabled={locked}
+          />
+          <Input
+            label="Плательщик (от кого поступают денежные средства)"
+            value={payerRequisites}
+            onChange={e => setPayerRequisites(e.target.value)}
+            disabled={locked}
+          />
         </FormSection>
       </div>
 
