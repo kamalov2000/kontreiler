@@ -113,7 +113,6 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
   const [copyNumber, setCopyNumber] = useState('1')
   // 1 / 1а
   const [shipperReq, setShipperReq] = useState('')
-  const [shipperIsForwarder, setShipperIsForwarder] = useState(false)
   const [shipperPaymentBasis, setShipperPaymentBasis] = useState('')
   const [serviceCustomer, setServiceCustomer] = useState('')
   const [serviceContract, setServiceContract] = useState('')
@@ -193,7 +192,6 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
     setCopyNumber('1')
 
     setShipperReq('')
-    setShipperIsForwarder(false)
     setShipperPaymentBasis('')
     setServiceCustomer('')
     setServiceContract('')
@@ -280,7 +278,6 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
           copy_number: copyNumber,
 
           shipper_requisites: shipperReq,
-          shipper_is_forwarder: shipperIsForwarder,
           shipper_payment_basis: shipperPaymentBasis,
           service_customer_requisites: serviceCustomer,
           service_contract_requisites: serviceContract,
@@ -414,16 +411,6 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
             onChange={e => setShipperReq(e.target.value)}
             disabled={locked}
           />
-          <label className="flex cursor-pointer items-center gap-2">
-            <input
-              type="checkbox"
-              checked={shipperIsForwarder}
-              onChange={e => setShipperIsForwarder(e.target.checked)}
-              disabled={locked}
-              className="h-4 w-4 rounded border-hairline text-accent"
-            />
-            <span className="text-sm text-ink-2">Грузоотправитель является экспедитором</span>
-          </label>
           <Input
             label="Основание расчётов иным лицом (при наличии)"
             value={shipperPaymentBasis}

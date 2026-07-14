@@ -6,8 +6,6 @@ import {
   View,
   Font,
   StyleSheet,
-  Svg,
-  Line,
 } from '@react-pdf/renderer'
 import { PT_SERIF_REGULAR, PT_SERIF_BOLD, PT_SERIF_ITALIC } from './tn-fonts'
 
@@ -49,7 +47,6 @@ export interface TnData {
 
   // 1. Грузоотправитель
   shipperRequisites: string
-  shipperIsForwarder: boolean
   shipperPaymentBasis: string
 
   // 1а. Заказчик услуг по организации перевозки груза
@@ -153,10 +150,9 @@ const s = StyleSheet.create({
   // Внешняя рамка документа
   frame: { borderWidth: 0.8, borderColor: BLACK },
 
-  // Полоса-заголовок раздела: без заливки, отбивается только линиями
+  // Полоса-заголовок раздела: без заливки и без линии под текстом — разделы
+  // отбиваются друг от друга одной чертой сверху.
   sectionHead: {
-    borderBottomWidth: 0.6,
-    borderBottomColor: BLACK,
     borderTopWidth: 0.6,
     borderTopColor: BLACK,
     paddingVertical: 0.5,
@@ -259,22 +255,14 @@ function Sec({ title, children }: { title: string; children: React.ReactNode }) 
 }
 
 /**
- * Флажок бланка: пустая рамка, отметка — косой крест, как её ставят от руки.
- * Крест рисуется линиями, а не текстом: глифов ☐/☒ в шрифте нет, а «X» внутри
- * бокса react-pdf обрезает по высоте строки.
+ * Флажок бланка — всегда пустая рамка. Отметку ставят ручкой на распечатке:
+ * экспедиторский статус определяют на месте, и печатать за грузоотправителя
+ * готовый крест нельзя.
  */
-function Check({ on, label }: { on: boolean; label: string }) {
-  const BOX = 8
+function Check({ label }: { label: string }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 2 }}>
-      <View style={{ width: BOX, height: BOX, borderWidth: 0.6, borderColor: BLACK }}>
-        {on && (
-          <Svg viewBox={`0 0 ${BOX} ${BOX}`} style={{ width: '100%', height: '100%' }}>
-            <Line x1={1.5} y1={1.5} x2={BOX - 1.5} y2={BOX - 1.5} stroke={BLACK} strokeWidth={0.8} />
-            <Line x1={BOX - 1.5} y1={1.5} x2={1.5} y2={BOX - 1.5} stroke={BLACK} strokeWidth={0.8} />
-          </Svg>
-        )}
-      </View>
+      <View style={{ width: 8, height: 8, borderWidth: 0.6, borderColor: BLACK }} />
       <Text style={{ fontSize: 7 }}>{label}</Text>
     </View>
   )
@@ -341,7 +329,7 @@ export function TnDocument({ data }: { data: TnData }) {
             <View style={{ flex: 1, borderBottomWidth: 0.6, borderBottomColor: BLACK }}>
               <Head title="1. Грузоотправитель" />
               <View style={s.pad}>
-                <Check on={data.shipperIsForwarder} label="является экспедитором" />
+                <Check label="является экспедитором" />
                 <F
                   value={data.shipperRequisites}
                   caption="(реквизиты, позволяющие идентифицировать Грузоотправителя)"
@@ -661,7 +649,7 @@ export function TnDocument({ data }: { data: TnData }) {
             right={
               <F
                 caption="(оговорки и замечания перевозчика (при наличии) о дате и времени прибытия/убытия, о состоянии груза, тары, упаковки, маркировки, опломбирования, о массе груза и количестве грузовых мест)"
-                lines={2}
+                lines={1.5}
               />
             }
           />
@@ -669,7 +657,7 @@ export function TnDocument({ data }: { data: TnData }) {
             left={
               <F
                 caption="(должность, подпись, расшифровка подписи грузополучателя или уполномоченного грузоотправителем лица)"
-                lines={2}
+                lines={1.5}
               />
             }
             right={
@@ -689,14 +677,14 @@ export function TnDocument({ data }: { data: TnData }) {
             <View style={[s.half, { flex: 2 }]}>
               <F
                 caption="(краткое описание обстоятельств, послуживших основанием для отметки, сведения о коммерческих и иных актах, в том числе о погрузке/выгрузке груза)"
-                lines={2}
+                lines={1.5}
               />
             </View>
             <View style={[s.half, s.vDivider]}>
-              <F caption="(расчет и размер штрафа)" lines={2} />
+              <F caption="(расчет и размер штрафа)" lines={1.5} />
             </View>
             <View style={[s.half, s.vDivider]}>
-              <F caption="(подпись, дата)" lines={2} />
+              <F caption="(подпись, дата)" lines={1.5} />
             </View>
           </View>
 
@@ -768,13 +756,13 @@ export function TnDocument({ data }: { data: TnData }) {
             left={
               <F
                 caption="(подпись, расшифровка подписи лица, ответственного за оформление факта хозяйственной жизни со стороны Перевозчика (уполномоченного лица)"
-                lines={2}
+                lines={1.5}
               />
             }
             right={
               <F
                 caption="(подпись, расшифровка подписи лица, ответственного за оформление факта хозяйственной жизни со стороны Грузоотправителя (уполномоченного лица)"
-                lines={2}
+                lines={1.5}
               />
             }
           />
@@ -782,13 +770,13 @@ export function TnDocument({ data }: { data: TnData }) {
             left={
               <F
                 caption="(должность, основание полномочий физического лица, уполномоченного Перевозчиком (уполномоченным лицом), дата подписания)"
-                lines={2}
+                lines={1.5}
               />
             }
             right={
               <F
                 caption="(должность, основание полномочий физического лица, уполномоченного Грузоотправителем (уполномоченным лицом), дата подписания)"
-                lines={2}
+                lines={1.5}
               />
             }
           />

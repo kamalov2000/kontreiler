@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
+import { normalizePlate } from '@/lib/utils'
 import { OrderDriverInfo } from '@/types/database'
 
 interface Props {
@@ -44,8 +45,8 @@ export function DriverInfoModal({ open, onClose, orderId, initial, onSaved }: Pr
       order_id: orderId,
       driver_name: driverName.trim() || null,
       vehicle_brand: vehicleBrand.trim() || null,
-      vehicle_plate: vehiclePlate.trim() || null,
-      trailer_plate: trailerPlate.trim() || null,
+      vehicle_plate: normalizePlate(vehiclePlate) || null,
+      trailer_plate: normalizePlate(trailerPlate) || null,
     }
     // Одна строка на заявку (UNIQUE order_id) — повторное заполнение правит её.
     const { data, error } = await supabase

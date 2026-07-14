@@ -41,6 +41,24 @@ export function normalizePhone(raw: string): string {
   return raw
 }
 
+// В российском госномере разрешены только те 12 букв, начертание которых
+// совпадает с латинскими. Набранный с латинской раскладки номер выглядит
+// правильно, но состоит из ДРУГИХ символов: он перестаёт находиться поиском по
+// базе и не совпадает с номером в накладной. Приводим латинские двойники к
+// кириллице — и при сохранении в БД, и при генерации ТН.
+const PLATE_LOOKALIKES: Record<string, string> = {
+  A: 'А', B: 'В', C: 'С', E: 'Е', H: 'Н', K: 'К',
+  M: 'М', O: 'О', P: 'Р', T: 'Т', X: 'Х', Y: 'У',
+}
+
+export function normalizePlate(raw: string | null | undefined): string {
+  if (!raw) return ''
+  return raw
+    .trim()
+    .toUpperCase()
+    .replace(/[ABCEHKMOPTXY]/g, ch => PLATE_LOOKALIKES[ch])
+}
+
 // Форматирует телефон для отображения: +7 XXX XXX-XX-XX
 export function formatPhone(phone: string | null | undefined): string {
   if (!phone) return 'Нет телефона'

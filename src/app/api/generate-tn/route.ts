@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
 import { TnDocument, TnData } from '@/lib/tn-pdf'
+import { normalizePlate } from '@/lib/utils'
 
 // react-pdf требует Node-рантайм (не Edge); maxDuration — на холодный старт с рендером.
 export const runtime = 'nodejs'
@@ -21,20 +22,10 @@ function str(v: unknown): string {
   return v.trim().slice(0, MAX_FIELD)
 }
 
-// В российском госномере разрешены только те 12 кириллических букв, начертание
-// которых совпадает с латинскими. Пользователи набирают номер вперемешку — с
-// латинской раскладки буквы выглядят так же, но это другие символы: номер
-// перестаёт искаться по базе и, строго говоря, не соответствует ПДД. Поэтому
-// латинские двойники приводим к кириллице.
-const PLATE_LOOKALIKES: Record<string, string> = {
-  A: 'А', B: 'В', C: 'С', E: 'Е', H: 'Н', K: 'К',
-  M: 'М', O: 'О', P: 'Р', T: 'Т', X: 'Х', Y: 'У',
-}
-
+// Номер мог попасть в базу до нормализации (или прийти из формы ТН руками) —
+// приводим латинские двойники к кириллице и на выходе тоже.
 function plate(v: unknown): string {
-  return str(v)
-    .toUpperCase()
-    .replace(/[ABCEHKMOPTXY]/g, ch => PLATE_LOOKALIKES[ch])
+  return normalizePlate(str(v))
 }
 
 interface OrderAccess {
@@ -166,7 +157,6 @@ export async function POST(req: Request) {
     copyNumber: str(body.copy_number),
 
     shipperRequisites: str(body.shipper_requisites),
-    shipperIsForwarder: body.shipper_is_forwarder === true,
     shipperPaymentBasis: str(body.shipper_payment_basis),
 
     serviceCustomerRequisites: str(body.service_customer_requisites),
