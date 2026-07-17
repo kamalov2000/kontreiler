@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/service'
 import { createClient } from '@/lib/supabase/server'
 import { sendEmail } from '@/lib/email'
+import { renderEmail } from '@/lib/email-template'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -53,8 +54,13 @@ export async function POST(req: Request) {
         await sendEmail({
           to: clientAuth.user.email,
           subject: `Новый отклик на заявку ${order.from_city} → ${order.to_city}`,
-          html: `<p>Перевозчик <strong>${esc(carrier.name)}</strong> откликнулся на вашу заявку <strong>${esc(order.from_city)} → ${esc(order.to_city)}</strong>.</p>
-                 <p><a href="${APP_URL}/orders/${orderId}">Открыть заявку →</a></p>`,
+          html: renderEmail({
+            preview: `Перевозчик ${esc(carrier.name)} готов взять ваш груз`,
+            heading: 'Новый отклик на заявку',
+            bodyHtml: `<p style="margin:0 0 12px;">Перевозчик <strong style="color:#10201F;">${esc(carrier.name)}</strong> откликнулся на вашу заявку <strong style="color:#10201F;">${esc(order.from_city)} → ${esc(order.to_city)}</strong>.</p>
+              <p style="margin:0;">Откройте заявку, чтобы посмотреть отклик и связаться с перевозчиком.</p>`,
+            cta: { label: 'Открыть заявку', url: `${APP_URL}/orders/${orderId}` },
+          }),
         })
       }
     }
@@ -74,8 +80,13 @@ export async function POST(req: Request) {
         await sendEmail({
           to: carrierAuth.user.email,
           subject: `Ваш отклик принят: ${order.from_city} → ${order.to_city}`,
-          html: `<p>Клиент принял ваш отклик на заявку <strong>${esc(order.from_city)} → ${esc(order.to_city)}</strong>.</p>
-                 <p><a href="${APP_URL}/orders/${orderId}">Перейти к заявке →</a></p>`,
+          html: renderEmail({
+            preview: `Клиент выбрал вас перевозчиком по маршруту ${esc(order.from_city)} → ${esc(order.to_city)}`,
+            heading: 'Ваш отклик принят',
+            bodyHtml: `<p style="margin:0 0 12px;">Клиент принял ваш отклик на заявку <strong style="color:#10201F;">${esc(order.from_city)} → ${esc(order.to_city)}</strong>.</p>
+              <p style="margin:0;">Перейдите к заявке и в чат, чтобы согласовать детали рейса.</p>`,
+            cta: { label: 'Перейти к заявке', url: `${APP_URL}/orders/${orderId}` },
+          }),
         })
       }
     }
@@ -105,8 +116,13 @@ export async function POST(req: Request) {
         await sendEmail({
           to: recipientAuth.user.email,
           subject: `Новое сообщение в чате: ${order.from_city} → ${order.to_city}`,
-          html: `<p><strong>${esc(sender.name)}</strong> написал вам в чате по заявке <strong>${esc(order.from_city)} → ${esc(order.to_city)}</strong>.</p>
-                 <p><a href="${APP_URL}/orders/${orderId}/chat">Открыть чат →</a></p>`,
+          html: renderEmail({
+            preview: `${esc(sender.name)} написал вам по заявке ${esc(order.from_city)} → ${esc(order.to_city)}`,
+            heading: 'Новое сообщение в чате',
+            bodyHtml: `<p style="margin:0 0 12px;"><strong style="color:#10201F;">${esc(sender.name)}</strong> написал вам в чате по заявке <strong style="color:#10201F;">${esc(order.from_city)} → ${esc(order.to_city)}</strong>.</p>
+              <p style="margin:0;">Откройте чат, чтобы прочитать и ответить.</p>`,
+            cta: { label: 'Открыть чат', url: `${APP_URL}/orders/${orderId}/chat` },
+          }),
         })
       }
     }
@@ -126,8 +142,13 @@ export async function POST(req: Request) {
         await sendEmail({
           to: carrierAuth.user.email,
           subject: `Рейс завершён: ${order.from_city} → ${order.to_city}`,
-          html: `<p>Клиент подтвердил доставку по заявке <strong>${esc(order.from_city)} → ${esc(order.to_city)}</strong>. Рейс завершён.</p>
-                 <p><a href="${APP_URL}/orders/${orderId}">Открыть заявку →</a></p>`,
+          html: renderEmail({
+            preview: `Доставка по маршруту ${esc(order.from_city)} → ${esc(order.to_city)} подтверждена`,
+            heading: 'Рейс завершён',
+            bodyHtml: `<p style="margin:0 0 12px;">Клиент подтвердил доставку по заявке <strong style="color:#10201F;">${esc(order.from_city)} → ${esc(order.to_city)}</strong>. Рейс успешно завершён.</p>
+              <p style="margin:0;">Не забудьте оставить отзыв — это помогает другим участникам площадки.</p>`,
+            cta: { label: 'Открыть заявку', url: `${APP_URL}/orders/${orderId}` },
+          }),
         })
       }
     }
@@ -147,7 +168,12 @@ export async function POST(req: Request) {
         await sendEmail({
           to: carrierAuth.user.email,
           subject: `Заявка отменена: ${order.from_city} → ${order.to_city}`,
-          html: `<p>Клиент отменил заявку <strong>${esc(order.from_city)} → ${esc(order.to_city)}</strong>, на которую вы откликались.</p>`,
+          html: renderEmail({
+            preview: `Заявка ${esc(order.from_city)} → ${esc(order.to_city)} отменена клиентом`,
+            heading: 'Заявка отменена',
+            bodyHtml: `<p style="margin:0;">Клиент отменил заявку <strong style="color:#10201F;">${esc(order.from_city)} → ${esc(order.to_city)}</strong>, на которую вы откликались. Дополнительных действий не требуется.</p>`,
+            cta: { label: 'Смотреть другие заявки', url: `${APP_URL}/feed` },
+          }),
         })
       }
     }

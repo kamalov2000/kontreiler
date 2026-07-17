@@ -10,6 +10,7 @@ import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { RouteInline } from '@/components/ui/RouteInline'
 import { ContainerChip } from '@/components/ui/ContainerChip'
 import { ContainerMark } from '@/components/ui/ContainerMark'
+import { CompanyAvatar } from '@/components/ui/CompanyAvatar'
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
@@ -51,7 +52,7 @@ function TrucksContent() {
       const supabase = createClient()
       let query = supabase
         .from('trucks')
-        .select('*, carrier:users!carrier_id(id, name, city, is_verified)')
+        .select('*, carrier:users!carrier_id(id, name, city, is_verified, logo_url)')
         .eq('status', 'active')
         .order('available_date', { ascending: true })
 
@@ -95,7 +96,7 @@ function TrucksContent() {
           // Refetch on any change
           let query = supabase
             .from('trucks')
-            .select('*, carrier:users!carrier_id(id, name, city, is_verified)')
+            .select('*, carrier:users!carrier_id(id, name, city, is_verified, logo_url)')
             .eq('status', 'active')
             .order('available_date', { ascending: true })
 
@@ -235,9 +236,10 @@ function TrucksContent() {
                       from={truck.from_city}
                       to={truck.to_city}
                     />
-                    {carrier?.name && (
-                      <span className="text-xs text-ink-3 whitespace-nowrap truncate max-w-[140px] inline-flex items-center gap-1">
-                        <span className="truncate">{carrier.name}{carrier.city ? ` · ${carrier.city}` : ''}</span>
+                    {carrier && (
+                      <span className="text-xs text-ink-3 whitespace-nowrap inline-flex items-center gap-1.5 max-w-[168px]">
+                        <CompanyAvatar src={carrier.logo_url} size={22} />
+                        {carrier.name && <span className="truncate">{carrier.name}{carrier.city ? ` · ${carrier.city}` : ''}</span>}
                         <VerifiedBadge verified={carrier.is_verified} iconOnly />
                       </span>
                     )}
@@ -264,7 +266,12 @@ function TrucksContent() {
                         Дальние
                       </span>
                     )}
-                    {!trailerLabel && !truck.payload && !truck.long_distance && (
+                    {truck.has_genset && (
+                      <span className="px-1.5 py-0.5 rounded-field border border-accent/40 bg-accent-soft text-[10.5px] font-semibold tracking-[0.05em] uppercase text-accent whitespace-nowrap">
+                        Genset
+                      </span>
+                    )}
+                    {!trailerLabel && !truck.payload && !truck.long_distance && !truck.has_genset && (
                       <span className="text-ink-4 text-[13px]">—</span>
                     )}
                   </span>

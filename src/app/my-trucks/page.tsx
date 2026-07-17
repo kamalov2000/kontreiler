@@ -39,6 +39,7 @@ export default function MyTrucksPage() {
   const [editPayload, setEditPayload] = useState('')
   const [editTrailerType, setEditTrailerType] = useState('')
   const [editLongDistance, setEditLongDistance] = useState(false)
+  const [editHasGenset, setEditHasGenset] = useState(false)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -104,6 +105,7 @@ export default function MyTrucksPage() {
     setEditPayload(truck.payload ? String(truck.payload) : '')
     setEditTrailerType(truck.trailer_type || '')
     setEditLongDistance(truck.long_distance ?? false)
+    setEditHasGenset(truck.has_genset ?? false)
   }
 
   async function saveEdit() {
@@ -122,6 +124,7 @@ export default function MyTrucksPage() {
         payload: editPayload ? parseInt(editPayload) : null,
         trailer_type: editTrailerType || null,
         long_distance: editLongDistance,
+        has_genset: editHasGenset,
       })
       .eq('id', editTruck.id)
 
@@ -140,6 +143,7 @@ export default function MyTrucksPage() {
         payload: editPayload ? parseInt(editPayload) : null,
         trailer_type: editTrailerType || null,
         long_distance: editLongDistance,
+        has_genset: editHasGenset,
       } : t))
       setEditTruck(null)
     }
@@ -157,6 +161,7 @@ export default function MyTrucksPage() {
       ...(truck.payload ? { payload: String(truck.payload) } : {}),
       ...(truck.trailer_type ? { trailer: truck.trailer_type } : {}),
       ...(truck.long_distance ? { long: '1' } : {}),
+      ...(truck.has_genset ? { genset: '1' } : {}),
       ...(truck.notes ? { notes: truck.notes } : {}),
     })
     router.push(`/trucks/new?${qs}`)
@@ -192,7 +197,7 @@ export default function MyTrucksPage() {
         <Link href="/trucks/new">
           <Button size="md">
             <Plus size={16} className="mr-1" />
-            Разместить
+            Разместить машину
           </Button>
         </Link>
       </div>
@@ -340,6 +345,18 @@ export default function MyTrucksPage() {
                   <div className="text-xs text-ink-3">Межрегиональные и дальние маршруты</div>
                 </div>
               </label>
+              <label className="flex items-center gap-3 cursor-pointer p-3 rounded-card border border-hairline hover:border-border-strong transition-colors">
+                <input
+                  type="checkbox"
+                  checked={editHasGenset}
+                  onChange={e => setEditHasGenset(e.target.checked)}
+                  className="w-4 h-4 rounded border-hairline text-accent"
+                />
+                <div>
+                  <div className="text-sm font-medium text-ink">Genset (навесной генератор)</div>
+                  <div className="text-xs text-ink-3">Автономное питание для рефконтейнеров</div>
+                </div>
+              </label>
               <div>
                 <label className="block text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-2">Ставка</label>
                 <label className="flex items-center gap-2 mb-2 cursor-pointer">
@@ -449,6 +466,11 @@ function TruckRow({
               <span className="inline-flex items-center gap-1 text-[11px] font-medium uppercase px-1.5 py-0.5 rounded-field border border-success bg-success-soft text-success">
                 <RouteIcon size={11} />
                 Дальние рейсы
+              </span>
+            )}
+            {truck.has_genset && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium uppercase px-1.5 py-0.5 rounded-field border border-accent/40 bg-accent-soft text-accent">
+                Genset
               </span>
             )}
           </div>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, MessageCircle, MapPin, User, CheckCircle, Route } from 'lucide-react'
+import { ArrowLeft, MessageCircle, MapPin, User, CheckCircle, Route, Zap } from 'lucide-react'
 import { RevealPhone } from '@/components/ui/RevealPhone'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/Button'
@@ -231,6 +231,14 @@ export default function TruckDetailPage() {
                 <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Дальние рейсы</div>
                 <div className="inline-flex items-center gap-1.5 text-[15px] font-medium text-success">
                   <Route size={15} /> Готов
+                </div>
+              </div>
+            )}
+            {truck.has_genset && (
+              <div>
+                <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Genset</div>
+                <div className="inline-flex items-center gap-1.5 text-[15px] font-medium text-accent">
+                  <Zap size={15} /> Есть
                 </div>
               </div>
             )}

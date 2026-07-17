@@ -34,6 +34,7 @@ function NewTruckForm() {
   const [payload, setPayload] = useState(params.get('payload') || '')
   const [trailerType, setTrailerType] = useState(params.get('trailer') || '')
   const [longDistance, setLongDistance] = useState(params.get('long') === '1')
+  const [hasGenset, setHasGenset] = useState(params.get('genset') === '1')
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -83,6 +84,7 @@ function NewTruckForm() {
       payload: payload ? Number(payload) : null,
       trailer_type: trailerType || null,
       long_distance: longDistance,
+      has_genset: hasGenset,
     })
 
     if (error) {
@@ -210,6 +212,19 @@ function NewTruckForm() {
               <div>
                 <div className="text-[13px] font-medium text-ink">Готов к дальним рейсам</div>
                 <div className="text-xs text-ink-3">Межрегиональные и дальние маршруты</div>
+              </div>
+            </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                id="hasGenset"
+                type="checkbox"
+                checked={hasGenset}
+                onChange={e => setHasGenset(e.target.checked)}
+                className="w-4 h-4 rounded-field border-hairline text-accent focus:ring-accent"
+              />
+              <div>
+                <div className="text-[13px] font-medium text-ink">Genset (навесной генератор)</div>
+                <div className="text-xs text-ink-3">Автономное питание для рефконтейнеров</div>
               </div>
             </label>
             <div className="h-px bg-hairline" />

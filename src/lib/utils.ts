@@ -22,6 +22,17 @@ export function formatDateTime(date: string) {
   })
 }
 
+// UTC ISO из БД → строка для <input type="datetime-local"> в ЛОКАЛЬНОМ времени.
+// Нужно, чтобы поле показывало то же настенное время, что и остальной UI, и чтобы
+// повторное сохранение (new Date(value).toISOString()) не сдвигало значение на
+// величину часового пояса при каждом редактировании.
+export function toDatetimeLocal(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
 export function formatPrice(price: number | null, isNegotiable: boolean) {
   if (isNegotiable || !price) return 'Договорная'
   return `${price.toLocaleString('ru-RU')} ₽`

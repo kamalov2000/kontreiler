@@ -27,7 +27,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop, OrderDriverInfo } from '@/types/database'
-import { formatDateWithTime, formatDateTime, formatPrice, formatOrderNumber, readyDateBadge } from '@/lib/utils'
+import { formatDateWithTime, formatDateTime, formatPrice, formatOrderNumber, readyDateBadge, toDatetimeLocal } from '@/lib/utils'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT, CONTAINER_UNIT_TARE } from '@/lib/cities'
 import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
 import { toast } from 'sonner'
@@ -125,6 +125,10 @@ export default function OrderDetailPage() {
   const [editWeightGross, setEditWeightGross] = useState('')
   const [editWeightNet, setEditWeightNet] = useState('')
   const [editExpiresAt, setEditExpiresAt] = useState('')
+  // Исходное значение срока (для datetime-local). Сравниваем с ним, чтобы НЕ
+  // трогать expires_at в БД, если пользователь его не менял — иначе таймзонный
+  // round-trip сдвигал бы срок при каждом сохранении (баг: заявка «протухала»).
+  const [editExpiresInitial, setEditExpiresInitial] = useState('')
 
   // Agreed price modal
   const [agreedPriceOpen, setAgreedPriceOpen] = useState(false)
@@ -284,7 +288,9 @@ export default function OrderDetailPage() {
     setEditVatType(order.vat_type || 'none')
     setEditWeightGross(order.weight_gross ? String(order.weight_gross) : '')
     setEditWeightNet(order.weight_net ? String(order.weight_net) : '')
-    setEditExpiresAt(order.expires_at ? order.expires_at.slice(0, 16) : '')
+    const localExpires = toDatetimeLocal(order.expires_at)
+    setEditExpiresAt(localExpires)
+    setEditExpiresInitial(localExpires)
     setEditStops(stops.map(s => ({ id: s.id, address: s.address, comment: s.comment || '' })))
     setEditOpen(true)
     setMenuOpen(false)
@@ -318,8 +324,7 @@ export default function OrderDetailPage() {
     if (newGross !== order.weight_gross) changes.push(`Вес брутто: ${order.weight_gross ?? '—'} → ${newGross ?? '—'} кг`)
     if (newNet !== order.weight_net) changes.push(`Вес нетто: ${order.weight_net ?? '—'} → ${newNet ?? '—'} кг`)
 
-    const newExpires = editExpiresAt ? new Date(editExpiresAt).toISOString() : null
-    if (newExpires !== order.expires_at) changes.push('Изменён срок действия заявки')
+    if (editExpiresAt !== editExpiresInitial) changes.push('Изменён срок действия заявки')
     if ((editNotes.trim() || null) !== (order.notes || null)) changes.push('Изменены особые условия')
 
     const oldStops = stops.map(s => `${s.address}|${s.comment || ''}`).join('§')
@@ -338,6 +343,9 @@ export default function OrderDetailPage() {
       return
     }
     const changeSummary = buildChangeSummary()
+    // expires_at обновляем ТОЛЬКО если поле реально меняли — иначе не трогаем срок
+    const expiresChanged = editExpiresAt !== editExpiresInitial
+    const newExpiresAt = editExpiresAt ? new Date(editExpiresAt).toISOString() : null
     setSaving(true)
     const supabase = createClient()
     const { error } = await supabase
@@ -360,7 +368,7 @@ export default function OrderDetailPage() {
         vat_type: editVatType,
         weight_gross: editWeightGross ? parseInt(editWeightGross) : null,
         weight_net: editWeightNet ? parseInt(editWeightNet) : null,
-        expires_at: editExpiresAt ? new Date(editExpiresAt).toISOString() : null,
+        ...(expiresChanged ? { expires_at: newExpiresAt } : {}),
       })
       .eq('id', order.id)
 
@@ -405,7 +413,7 @@ export default function OrderDetailPage() {
         requires_genset: editGenset, vat_type: editVatType,
         weight_gross: editWeightGross ? parseInt(editWeightGross) : null,
         weight_net: editWeightNet ? parseInt(editWeightNet) : null,
-        expires_at: editExpiresAt ? new Date(editExpiresAt).toISOString() : null,
+        ...(expiresChanged ? { expires_at: newExpiresAt } : {}),
       } : prev)
 
       // Задача 8: Уведомить перевозчика(ов) о корректировке заявки с деталями.

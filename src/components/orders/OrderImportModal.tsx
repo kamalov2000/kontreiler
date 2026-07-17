@@ -8,11 +8,15 @@ import { CONTAINER_TYPES } from '@/lib/cities'
 import { VatType } from '@/types/database'
 import { toast } from 'sonner'
 
-// Заголовки шаблона (порядок = порядок колонок в Excel)
+// Заголовки шаблона (порядок = порядок колонок в Excel).
+// Только основные поля заявки — без доп. услуг (трекинг и т.п.), чтобы не захламлять.
 const H = {
   from:      'Откуда*',
+  fromAddr:  'Точный адрес откуда',
   via:       'Промежуточный город',
+  viaAddr:   'Точный адрес промежуточной точки',
   to:        'Куда*',
+  toAddr:    'Точный адрес куда',
   container: 'Тип контейнера*',
   date:      'Плановая дата* (ГГГГ-ММ-ДД)',
   time:      'Время (ЧЧ:ММ)',
@@ -36,38 +40,61 @@ interface ParsedRow {
 
 function pad(n: number) { return String(n).padStart(2, '0') }
 
-// Возвращает YYYY-MM-DD из Date / excel-serial / строки
+// Excel хранит даты числом (serial). Переводим в Date по эпохе Excel (1899-12-30)
+// БЕЗ привязки к таймзоне: календарные поля берём затем через getUTC*.
+// 25569 — число дней от эпохи Excel до 1970-01-01. Так «17.06» остаётся 17.06
+// на любой машине, без сдвига на сутки из-за часового пояса.
+function excelSerialToDate(serial: number): Date | null {
+  const ms = Math.round((serial - 25569) * 86400 * 1000)
+  const d = new Date(ms)
+  return isNaN(d.getTime()) ? null : d
+}
+
+// Возвращает YYYY-MM-DD из числа-serial / Date / строки — читаем «как есть».
 function parseDate(v: unknown): string | null {
   if (v == null || v === '') return null
+  if (typeof v === 'number' && isFinite(v)) {
+    const d = excelSerialToDate(v)
+    if (d) return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
+  }
   if (v instanceof Date && !isNaN(v.getTime())) {
-    return `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`
+    return `${v.getUTCFullYear()}-${pad(v.getUTCMonth() + 1)}-${pad(v.getUTCDate())}`
   }
   const s = String(v).trim()
   let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)
   if (m) return `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`
   m = s.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})/)
   if (m) return `${m[3]}-${pad(+m[2])}-${pad(+m[1])}`
-  const d = new Date(s)
-  return isNaN(d.getTime()) ? null : `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  return null
 }
 
-// Возвращает ISO-строку из Date / строки "YYYY-MM-DD HH:MM"
+// Возвращает ISO-строку из числа-serial / Date / строки "YYYY-MM-DD HH:MM".
+// Введённое время трактуем как локальное настенное (как ввёл пользователь).
 function parseDateTime(v: unknown): string | null {
   if (v == null || v === '') return null
-  if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString()
+  if (typeof v === 'number' && isFinite(v)) {
+    const d = excelSerialToDate(v)
+    if (d) return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), d.getUTCMinutes()).toISOString()
+  }
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return new Date(v.getUTCFullYear(), v.getUTCMonth(), v.getUTCDate(), v.getUTCHours(), v.getUTCMinutes()).toISOString()
+  }
   const s = String(v).trim().replace('T', ' ')
   const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})[ ]?(\d{1,2})?:?(\d{2})?/)
   if (m) {
     const d = new Date(+m[1], +m[2] - 1, +m[3], m[4] ? +m[4] : 0, m[5] ? +m[5] : 0)
     return isNaN(d.getTime()) ? null : d.toISOString()
   }
-  const dt = new Date(s)
-  return isNaN(dt.getTime()) ? null : dt.toISOString()
+  return null
 }
 
 function parseTime(v: unknown): string | null {
   if (v == null || v === '') return null
-  if (v instanceof Date && !isNaN(v.getTime())) return `${pad(v.getHours())}:${pad(v.getMinutes())}`
+  if (typeof v === 'number' && isFinite(v)) {
+    const d = excelSerialToDate(v)
+    if (d) return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`
+  }
+  if (v instanceof Date && !isNaN(v.getTime())) return `${pad(v.getUTCHours())}:${pad(v.getUTCMinutes())}`
   const m = String(v).trim().match(/^(\d{1,2}):(\d{2})/)
   return m ? `${pad(+m[1])}:${m[2]}` : null
 }
@@ -121,11 +148,23 @@ export function OrderImportModal({
   if (!open) return null
 
   async function downloadTemplate() {
-    const { utils, writeFile } = await import('xlsx')
-    const example: Record<string, string> = {
+    const ExcelJS = (await import('exceljs')).default
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('Заявки')
+
+    // Колонки (ключ = заголовок, чтобы addRow принимал объект по H.*)
+    ws.columns = TEMPLATE_HEADERS.map(h => ({
+      header: h, key: h, width: Math.max(16, h.length + 2),
+    }))
+
+    // Строка-пример
+    ws.addRow({
       [H.from]: 'Москва',
+      [H.fromAddr]: 'ул. Складочная, д. 1, терминал А',
       [H.via]: '',
+      [H.viaAddr]: '',
       [H.to]: 'Санкт-Петербург',
+      [H.toAddr]: 'Софийская ул., д. 100',
       [H.container]: '40HC',
       [H.date]: '2026-07-15',
       [H.time]: '09:00',
@@ -136,19 +175,49 @@ export function OrderImportModal({
       [H.urgent]: 'нет',
       [H.expires]: '2026-07-10 18:00',
       [H.notes]: 'Хрупкий груз',
+    })
+
+    // Шапка — жирная, с заливкой
+    const headerRow = ws.getRow(1)
+    headerRow.font = { bold: true }
+    headerRow.alignment = { vertical: 'middle', wrapText: true }
+    headerRow.height = 30
+
+    // Выпадающий список типов контейнеров в колонке «Тип контейнера»
+    // (значения из системы; matchContainer при импорте примет их как есть).
+    const containerCol = ws.getColumn(H.container)
+    const listFormula = `"${CONTAINER_TYPES.map(c => c.value).join(',')}"`
+    for (let r = 2; r <= 500; r++) {
+      ws.getCell(r, containerCol.number).dataValidation = {
+        type: 'list',
+        allowBlank: true,
+        formulae: [listFormula],
+        showErrorMessage: true,
+        errorStyle: 'warning',
+        errorTitle: 'Тип контейнера',
+        error: 'Выберите значение из списка: ' + CONTAINER_TYPES.map(c => c.value).join(', '),
+      }
     }
-    const ws = utils.json_to_sheet([example], { header: TEMPLATE_HEADERS as unknown as string[] })
-    ws['!cols'] = TEMPLATE_HEADERS.map(h => ({ wch: Math.max(14, h.length + 2) }))
-    const wb = utils.book_new()
-    utils.book_append_sheet(wb, ws, 'Заявки')
-    writeFile(wb, 'shablon_zayavok.xlsx')
+
+    const out = await wb.xlsx.writeBuffer()
+    const blob = new Blob([out], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'shablon_zayavok.xlsx'
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   async function handleFile(file: File) {
     setFileName(file.name)
     const { read, utils } = await import('xlsx')
     const buf = await file.arrayBuffer()
-    const wb = read(buf, { cellDates: true })
+    // Без cellDates: даты приходят числом-serial и парсятся через UTC —
+    // так исключаем сдвиг дня из-за часового пояса (17.06 остаётся 17.06).
+    const wb = read(buf)
     const ws = wb.Sheets[wb.SheetNames[0]]
     const rows = utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
 
@@ -159,6 +228,9 @@ export function OrderImportModal({
       const from = String(row[H.from] ?? '').trim()
       const to = String(row[H.to] ?? '').trim()
       const via = String(row[H.via] ?? '').trim()
+      const fromAddr = String(row[H.fromAddr] ?? '').trim()
+      const viaAddr = String(row[H.viaAddr] ?? '').trim()
+      const toAddr = String(row[H.toAddr] ?? '').trim()
       const container = matchContainer(row[H.container])
       const readyDate = parseDate(row[H.date])
       const expiresAt = parseDateTime(row[H.expires])
@@ -180,6 +252,9 @@ export function OrderImportModal({
         from_city: from,
         via_city: via || null,
         to_city: to,
+        from_city_address: fromAddr || null,
+        via_city_address: viaAddr || null,
+        to_city_address: toAddr || null,
         container_type: container,
         ready_date: readyDate,
         ready_time: parseTime(row[H.time]),

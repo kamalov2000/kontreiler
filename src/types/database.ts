@@ -19,6 +19,7 @@ export interface User {
   inn: string | null
   license_number: string | null
   onboarding_completed: boolean
+  logo_url: string | null
 }
 
 // Чувствительные реквизиты компании — приватная таблица user_private,
@@ -182,6 +183,7 @@ export interface Truck {
   payload: number | null           // грузоподъёмность, тонн
   trailer_type: string | null      // тип прицепа
   long_distance: boolean           // готовность к дальним рейсам
+  has_genset: boolean              // навесной генератор (Genset)
   // joined
   carrier?: User
 }

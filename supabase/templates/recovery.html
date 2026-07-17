@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light only" />
+  <title>Контрейл — сброс пароля</title>
+</head>
+<body style="margin:0;padding:0;background-color:#F3F5F4;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">Ссылка для восстановления пароля в Контрейл</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F3F5F4;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;">
+          <tr>
+            <td style="padding:4px 4px 20px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="vertical-align:middle;padding-right:10px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td width="34" height="34" align="center" valign="middle" bgcolor="#0E6E6E" style="width:34px;height:34px;border-radius:8px;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;font-weight:700;">К</td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="vertical-align:middle;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:19px;font-weight:700;letter-spacing:-0.02em;color:#10201F;">Контрейл</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#FBFCFB;border:1px solid #DDE3E1;border-radius:14px;overflow:hidden;">
+              <div style="height:4px;background-color:#0E6E6E;line-height:4px;font-size:0;">&nbsp;</div>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding:32px 36px 36px;">
+                    <h1 style="margin:0 0 16px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:22px;line-height:1.25;font-weight:700;letter-spacing:-0.01em;color:#10201F;">Восстановление пароля</h1>
+                    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#3A4A48;">
+                      <p style="margin:0 0 12px;">Вы запросили сброс пароля для аккаунта <strong style="color:#10201F;">Контрейл</strong>.</p>
+                      <p style="margin:0;">Нажмите кнопку ниже, чтобы задать новый пароль. Ссылка действует ограниченное время.</p>
+                    </div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0 8px;">
+                      <tr>
+                        <td align="center" bgcolor="#0E6E6E" style="border-radius:10px;">
+                          <a href="{{ .ConfirmationURL }}" target="_blank" style="display:inline-block;padding:13px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;line-height:1;color:#ffffff;text-decoration:none;border-radius:10px;">Задать новый пароль</a>
+                        </td>
+                      </tr>
+                    </table>
+                    <p style="margin:16px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.6;color:#64748B;">Если кнопка не работает, скопируйте ссылку в браузер:<br /><a href="{{ .ConfirmationURL }}" target="_blank" style="color:#0E6E6E;text-decoration:none;word-break:break-all;">{{ .ConfirmationURL }}</a></p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 36px 8px;">
+              <p style="margin:0 0 4px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;line-height:1.6;color:#3A4A48;">С уважением,<br /><strong style="color:#10201F;">команда Контрейл</strong></p>
+              <p style="margin:16px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.5;color:#94A3A0;">Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо — пароль останется прежним.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
+import { CompanyAvatar } from '@/components/ui/CompanyAvatar'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { createClient } from '@/lib/supabase/client'
@@ -13,8 +14,8 @@ import { SavedRoute, Review, CompanyMember } from '@/types/database'
 import { toast } from 'sonner'
 import { normalizePhone, formatDateTime } from '@/lib/utils'
 import {
-  User, Shield, CheckCircle, Trash2, Plus, MapPin, Star, Mail,
-  Users, Building2, Search, ChevronDown, ChevronUp,
+  Shield, CheckCircle, Trash2, Plus, MapPin, Star, Mail,
+  Users, Building2, Search, ChevronDown, ChevronUp, Camera,
 } from 'lucide-react'
 import { CONTAINER_TYPES } from '@/lib/cities'
 import { RatingBadge } from '@/components/ui/RatingBadge'
@@ -53,6 +54,11 @@ export default function ProfilePage() {
   const [lookingUp, setLookingUp] = useState(false)
   const [extOpen, setExtOpen] = useState(false)
 
+  // Логотип компании
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+
   // Saved routes
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([])
   const [routeFrom, setRouteFrom] = useState('')
@@ -79,6 +85,7 @@ export default function ProfilePage() {
       setCompanyName(user.company_name || '')
       setInn(user.inn || '')
       setLicenseNumber(user.license_number || '')
+      setLogoUrl(user.logo_url || null)
     }
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
@@ -247,6 +254,57 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleLogoFile(file: File) {
+    if (!user) return
+    // Клиентская валидация (RLS/бакет проверят повторно на сервере)
+    const allowed = ['image/png', 'image/jpeg', 'image/webp']
+    if (!allowed.includes(file.type)) {
+      toast.error('Допустимы только PNG, JPG или WEBP')
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Файл больше 2 МБ')
+      return
+    }
+    setUploadingLogo(true)
+    const supabase = createClient()
+    const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+    const path = `${user.id}/logo.${ext}`
+    const { error: upErr } = await supabase.storage
+      .from('company-logos')
+      .upload(path, file, { upsert: true, contentType: file.type, cacheControl: '3600' })
+    if (upErr) {
+      toast.error('Не удалось загрузить логотип')
+      setUploadingLogo(false)
+      return
+    }
+    const { data: pub } = supabase.storage.from('company-logos').getPublicUrl(path)
+    // Cache-busting: одинаковый путь при перезаливке того же формата
+    const publicUrl = `${pub.publicUrl}?v=${Date.now()}`
+    const { error: dbErr } = await supabase.from('users').update({ logo_url: publicUrl }).eq('id', user.id)
+    if (dbErr) {
+      toast.error('Логотип загружен, но не сохранён в профиле')
+    } else {
+      setLogoUrl(publicUrl)
+      toast.success('Логотип обновлён')
+    }
+    setUploadingLogo(false)
+  }
+
+  async function handleRemoveLogo() {
+    if (!user) return
+    setUploadingLogo(true)
+    const supabase = createClient()
+    // Удаляем возможные варианты форматов
+    await supabase.storage.from('company-logos').remove([
+      `${user.id}/logo.png`, `${user.id}/logo.jpg`, `${user.id}/logo.webp`,
+    ])
+    const { error } = await supabase.from('users').update({ logo_url: null }).eq('id', user.id)
+    if (error) toast.error('Не удалось удалить логотип')
+    else { setLogoUrl(null); toast.success('Логотип удалён') }
+    setUploadingLogo(false)
+  }
+
   async function handleResendEmail() {
     if (!email) return
     setResending(true)
@@ -350,8 +408,26 @@ export default function ProfilePage() {
         {/* Профиль */}
         <div className="bg-surface rounded-card border border-hairline p-6 mb-4">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-hairline">
-            <div className="w-12 h-12 rounded-card bg-accent-soft flex items-center justify-center shrink-0">
-              <User size={22} strokeWidth={1.5} className="text-accent" />
+            <div className="relative shrink-0">
+              <CompanyAvatar src={logoUrl} size={56} className="rounded-card" />
+              <button
+                type="button"
+                onClick={() => logoInputRef.current?.click()}
+                disabled={uploadingLogo}
+                title="Загрузить логотип компании"
+                className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full bg-accent text-white flex items-center justify-center border-2 border-surface hover:bg-accent-hover transition-colors disabled:opacity-60"
+              >
+                {uploadingLogo
+                  ? <span className="w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                  : <Camera size={13} strokeWidth={2} />}
+              </button>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleLogoFile(f); e.target.value = '' }}
+              />
             </div>
             <div className="min-w-0">
               <div className="font-semibold text-ink truncate">{user?.name || '—'}</div>
@@ -366,6 +442,15 @@ export default function ProfilePage() {
                   <span className="inline-flex items-center gap-1 text-accent">
                     <CheckCircle size={12} strokeWidth={1.5} /> {t.profile.emailVerified}
                   </span>
+                )}
+              </div>
+              <div className="mt-1.5 text-[12px] text-ink-4">
+                {logoUrl ? (
+                  <button type="button" onClick={handleRemoveLogo} disabled={uploadingLogo} className="text-danger hover:underline disabled:opacity-60">
+                    Удалить логотип
+                  </button>
+                ) : (
+                  <span>Логотип компании — PNG, JPG или WEBP, до 2 МБ</span>
                 )}
               </div>
             </div>
