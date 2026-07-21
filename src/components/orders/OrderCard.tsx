@@ -241,7 +241,7 @@ export function OrderCard({ order, showResponses, actions, extra, bidData, stops
           ) : (
             <div className="flex gap-3">
               {order.weight_gross && (
-                <span>Вес груза с контейнером: <strong className="font-mono tabular-nums text-ink-2">{(order.weight_gross + (CONTAINER_TARE_WEIGHT[order.container_type] ?? 0)).toLocaleString('ru-RU')} кг</strong></span>
+                <span>Вес груза с контейнером: <strong className="font-mono tabular-nums text-ink-2">{(order.weight_gross + (order.weight_tare ?? CONTAINER_TARE_WEIGHT[order.container_type] ?? 0)).toLocaleString('ru-RU')} кг</strong></span>
               )}
               {order.weight_net && (
                 <span>Нетто: <strong className="font-mono tabular-nums text-ink-2">{order.weight_net.toLocaleString('ru-RU')} кг</strong></span>

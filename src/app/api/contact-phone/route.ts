@@ -57,10 +57,13 @@ export async function POST(req: Request) {
   }
 
   if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
-  if (hidden) return NextResponse.json({ hidden: true, phone: null })
 
   // Телефон живёт в приватной таблице user_private (own-row RLS); service_role
   // обходит RLS, доступ уже проверен выше (участие в сделке + hide_phone).
-  const { data: target } = await svc.from('user_private').select('phone').eq('id', targetUserId).maybeSingle()
+  // hide_phone здесь — глобальный флаг приватности пользователя (профиль):
+  // работает для любой роли (в т.ч. перевозчик скрывает свой номер). Плюс к нему
+  // сохраняется per-order флаг клиента (order.hide_phone), уже учтённый выше.
+  const { data: target } = await svc.from('user_private').select('phone, hide_phone').eq('id', targetUserId).maybeSingle()
+  if (hidden || target?.hide_phone) return NextResponse.json({ hidden: true, phone: null })
   return NextResponse.json({ phone: target?.phone ?? null })
 }

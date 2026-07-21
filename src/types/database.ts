@@ -39,6 +39,7 @@ export interface UserPrivate {
   signatory_position: string | null
   signatory_basis: string | null
   default_obligations: string | null
+  hide_phone: boolean
 }
 
 export interface CompanyMember {
@@ -89,6 +90,7 @@ export interface Order {
   weight_net: number | null
   weight_gross_2: number | null
   weight_net_2: number | null
+  weight_tare: number | null
   downtime_rate: number | null
   ready_time: string | null
   was_expired: boolean

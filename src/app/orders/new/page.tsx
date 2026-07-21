@@ -65,6 +65,10 @@ function NewOrderForm() {
   const [weightNet2, setWeightNet2] = useState('')
   // Простой транспорта
   const [downtimeRate, setDowntimeRate] = useState('')
+  // Тара (вес пустого контейнера) — редактируемая, дефолт из словаря по типу
+  const [weightTare, setWeightTare] = useState(
+    String(CONTAINER_TARE_WEIGHT[(params.get('container') as ContainerType) || '20ft'] ?? '')
+  )
 
   // Трекинг рейса
   const [trackingEnabled, setTrackingEnabled] = useState(false)
@@ -111,11 +115,12 @@ function NewOrderForm() {
   const isRefContainer = REF_CONTAINER_TYPES.has(containerType)
   const isAuctionFormat = format === 'reduction' || format === 'auction'
   const is20DC2 = containerType === '20DC2'
-  const tarWeight = CONTAINER_TARE_WEIGHT[containerType] ?? 0
 
   function handleContainerChange(v: ContainerType) {
     setContainerType(v)
     if (!REF_CONTAINER_TYPES.has(v)) setRequiresGenset(false)
+    // Подставляем дефолтную тару нового типа (клиент может её изменить)
+    setWeightTare(String(CONTAINER_TARE_WEIGHT[v] ?? ''))
   }
 
   function validate() {
@@ -167,6 +172,7 @@ function NewOrderForm() {
       weight_net:   weightNet   ? parseInt(weightNet)   : null,
       weight_gross_2: is20DC2 && weightGross2 ? parseInt(weightGross2) : null,
       weight_net_2:   is20DC2 && weightNet2   ? parseInt(weightNet2)   : null,
+      weight_tare: !is20DC2 && weightTare ? parseInt(weightTare) : null,
       downtime_rate: downtimeRate ? parseInt(downtimeRate) : null,
       tracking_enabled: trackingEnabled,
       counterparties_only: counterpartiesOnly,
@@ -411,12 +417,29 @@ function NewOrderForm() {
               <span className={overline}>
                 Вес груза <span className="text-ink-4 normal-case tracking-normal font-normal">({t.common.optional})</span>
               </span>
-              <div className="mt-2 mb-2 px-3 py-2 rounded-field bg-surface-sunken text-xs text-ink-3">
-                {is20DC2
-                  ? <>Тара каждого контейнера: <strong className="font-mono tabular-nums text-ink-2">2 200 кг</strong> · Итого тара: <strong className="font-mono tabular-nums text-ink-2">4 400 кг</strong></>
-                  : <>Вес контейнера ({containerType}): <strong className="font-mono tabular-nums text-ink-2">{tarWeight.toLocaleString('ru-RU')} кг</strong></>
-                }
-              </div>
+              {is20DC2 ? (
+                <div className="mt-2 mb-2 px-3 py-2 rounded-field bg-surface-sunken text-xs text-ink-3">
+                  Тара каждого контейнера: <strong className="font-mono tabular-nums text-ink-2">2 200 кг</strong> · Итого тара: <strong className="font-mono tabular-nums text-ink-2">4 400 кг</strong>
+                </div>
+              ) : (
+                <div className="mt-2 mb-2">
+                  <Input
+                    id="weightTare"
+                    type="number"
+                    label={`Вес контейнера, тара (${containerType})`}
+                    value={weightTare}
+                    onChange={e => setWeightTare(e.target.value)}
+                    placeholder="кг"
+                    min="0"
+                    className="font-mono tabular-nums"
+                  />
+                  <p className="text-xs text-ink-4 mt-1">
+                    {isRefContainer
+                      ? 'Ориентировочный вес — у рефконтейнеров зависит от модели холодильной установки. Скорректируйте при необходимости.'
+                      : 'Подставлен типовой вес пустого контейнера. Можно изменить.'}
+                  </p>
+                </div>
+              )}
 
               {is20DC2 ? (
                 <div className="space-y-3">
@@ -725,6 +748,9 @@ function NewOrderForm() {
                 maxLength={500}
                 className="w-full px-3 py-2.5 rounded-field border border-hairline bg-surface text-sm text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent resize-none"
               />
+              <p className="text-xs text-ink-4 mt-1">
+                Комментарий к заявке — виден перевозчикам в ленте и в карточке заявки.
+              </p>
             </div>
 
             {/* Скрыть номер телефона */}

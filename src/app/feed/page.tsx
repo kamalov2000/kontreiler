@@ -11,6 +11,7 @@ import { RouteInline } from '@/components/ui/RouteInline'
 import { ContainerChip } from '@/components/ui/ContainerChip'
 import { ContainerMark } from '@/components/ui/ContainerMark'
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
+import { CompanyAvatar } from '@/components/ui/CompanyAvatar'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
@@ -30,7 +31,7 @@ function vatShort(v: string): string {
 }
 function weightDisplay(o: Order): string {
   if (!o.weight_gross) return '—'
-  const tare = CONTAINER_TARE_WEIGHT[o.container_type] ?? 0
+  const tare = o.weight_tare ?? CONTAINER_TARE_WEIGHT[o.container_type] ?? 0
   return (o.weight_gross + tare).toLocaleString('ru-RU')
 }
 function readyShort(d?: string | null): string {
@@ -121,7 +122,7 @@ function FeedContent() {
     const supabase = createClient()
     let query = supabase
       .from('orders')
-      .select('*, client:users!client_id(id, name, city, is_verified)')
+      .select('*, client:users!client_id(id, name, city, is_verified, logo_url)')
       .eq('status', 'active')
       .order('is_urgent', { ascending: false })
       .order('created_at', { ascending: false })
@@ -454,7 +455,13 @@ function FeedContent() {
                       urgent={order.format === 'urgent'}
                     />
                     {stopOrders.has(order.id) && <span title="Есть доп. точки" className="text-ink-4 text-xs flex-none">＋точки</span>}
-                    <VerifiedBadge verified={order.client?.is_verified} iconOnly />
+                    {order.client && (
+                      <span className="text-xs text-ink-3 whitespace-nowrap inline-flex items-center gap-1.5 max-w-[168px]">
+                        <CompanyAvatar src={order.client.logo_url} size={22} />
+                        {order.client.name && <span className="truncate">{order.client.name}{order.client.city ? ` · ${order.client.city}` : ''}</span>}
+                        <VerifiedBadge verified={order.client.is_verified} iconOnly />
+                      </span>
+                    )}
                     {clientRating && (
                       <span className="font-mono text-[12px] text-ink-3 flex-none whitespace-nowrap">★ {clientRating.avg.toFixed(1)}</span>
                     )}

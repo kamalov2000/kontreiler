@@ -132,6 +132,7 @@ export async function GET(req: Request) {
     price: order.price,
     vatLabel: vatLabel(order.vat_type),
     agreedPrice: order.agreed_price,
+    downtimeRate: order.downtime_rate ?? null,
     client: toParty(clientUser),
     carrier: carrierUser ? toParty(carrierUser) : {
       role: 'carrier',

@@ -119,6 +119,7 @@ export interface ContractData {
   price: number | null
   vatLabel: string
   agreedPrice: number | null
+  downtimeRate: number | null
   // Клиент
   client: PartyData
   // Перевозчик
@@ -204,16 +205,15 @@ export function ContractDocument({ data }: { data: ContractData }) {
         </View>
         <View style={s.divider} />
 
-        {/* Стороны */}
+        {/* Стороны — только сокращённое наименование, без реквизитов и подписанта.
+            Полные реквизиты сторон вынесены в п.6 (к местам подписей). */}
         <Text style={s.h2}>1. СТОРОНЫ</Text>
-        <View style={s.row}>
-          <View style={s.col}>
-            <PartyBlock party={data.client} title="ЗАКАЗЧИК" />
-          </View>
-          <View style={s.col}>
-            <PartyBlock party={data.carrier} title="ИСПОЛНИТЕЛЬ" />
-          </View>
-        </View>
+        <Text style={{ fontSize: 9, lineHeight: 1.5 }}>
+          <Text style={s.bold}>{data.client.companyName || data.client.name || '—'}</Text>
+          <Text>, именуемое в дальнейшем «Заказчик», и </Text>
+          <Text style={s.bold}>{data.carrier.companyName || data.carrier.name || '—'}</Text>
+          <Text>, именуемое в дальнейшем «Исполнитель», заключили настоящий Договор-заявку о нижеследующем.</Text>
+        </Text>
 
         {/* Маршрут */}
         <Text style={s.h2}>2. МАРШРУТ</Text>
@@ -262,7 +262,14 @@ export function ContractDocument({ data }: { data: ContractData }) {
           ) : (
             <TableRow k="Ставка" v="Договорная" />
           )}
-          <TableRow k="НДС" v={data.vatLabel} last />
+          {data.downtimeRate ? (
+            <>
+              <TableRow k="НДС" v={data.vatLabel} />
+              <TableRow k="Простой транспорта" v={`${data.downtimeRate.toLocaleString('ru-RU')} ₽/час`} last />
+            </>
+          ) : (
+            <TableRow k="НДС" v={data.vatLabel} last />
+          )}
         </View>
 
         {/* Обязанности */}
@@ -271,22 +278,19 @@ export function ContractDocument({ data }: { data: ContractData }) {
           <Text style={{ fontSize: 8, lineHeight: 1.6, color: '#333' }}>{obligations}</Text>
         </View>
 
-        {/* Подписи */}
-        <Text style={s.h2}>6. РЕКВИЗИТЫ И ПОДПИСИ</Text>
-        <View style={s.signRow}>
-          <View style={s.signBox}>
-            <Text style={[s.bold, { marginBottom: 4 }]}>ЗАКАЗЧИК</Text>
-            <Text style={{ fontSize: 8 }}>{data.client.companyName || data.client.name || '—'}</Text>
-            {data.client.inn && <Text style={{ fontSize: 8 }}>ИНН: {data.client.inn}</Text>}
+        {/* Реквизиты и подписи — полные реквизиты сторон здесь (перенесены из п.1),
+            места для подписей — сразу под реквизитами каждой стороны. */}
+        <Text style={s.h2}>6. РЕКВИЗИТЫ И ПОДПИСИ СТОРОН</Text>
+        <View style={s.row} wrap={false}>
+          <View style={s.col}>
+            <PartyBlock party={data.client} title="ЗАКАЗЧИК" />
             <View style={s.signLine} />
             <Text style={s.signLabel}>{data.client.signatoryName || '___________________'}</Text>
             <Text style={s.signLabel}>{data.client.signatoryPosition || 'подпись / расшифровка'}</Text>
             <Text style={[s.signLabel, { marginTop: 8 }]}>М.П.</Text>
           </View>
-          <View style={s.signBox}>
-            <Text style={[s.bold, { marginBottom: 4 }]}>ИСПОЛНИТЕЛЬ</Text>
-            <Text style={{ fontSize: 8 }}>{data.carrier.companyName || data.carrier.name || '—'}</Text>
-            {data.carrier.inn && <Text style={{ fontSize: 8 }}>ИНН: {data.carrier.inn}</Text>}
+          <View style={s.col}>
+            <PartyBlock party={data.carrier} title="ИСПОЛНИТЕЛЬ" />
             <View style={s.signLine} />
             <Text style={s.signLabel}>{data.carrier.signatoryName || '___________________'}</Text>
             <Text style={s.signLabel}>{data.carrier.signatoryPosition || 'подпись / расшифровка'}</Text>

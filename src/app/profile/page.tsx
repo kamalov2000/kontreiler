@@ -48,6 +48,7 @@ export default function ProfilePage() {
   const [signatoryPosition, setSignatoryPosition] = useState('')
   const [signatoryBasis, setSignatoryBasis] = useState('')
   const [defaultObligations, setDefaultObligations] = useState('')
+  const [hidePhone, setHidePhone] = useState(false)
 
   const [saving, setSaving] = useState(false)
   const [resending, setResending] = useState(false)
@@ -116,6 +117,7 @@ export default function ProfilePage() {
         setSignatoryPosition(data.signatory_position || '')
         setSignatoryBasis(data.signatory_basis || '')
         setDefaultObligations(data.default_obligations || '')
+        setHidePhone(!!data.hide_phone)
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
@@ -215,6 +217,7 @@ export default function ProfilePage() {
       signatory_position: signatoryPosition.trim() || null,
       signatory_basis: signatoryBasis.trim() || null,
       default_obligations: defaultObligations.trim() || null,
+      hide_phone: hidePhone,
     }
 
     const [{ error: uErr }, { error: pErr }] = await Promise.all([
@@ -470,6 +473,20 @@ export default function ProfilePage() {
           <form onSubmit={handleSave} className="space-y-4">
             <Input id="name" label={t.profile.nameLabel} value={name} onChange={e => setName(e.target.value)} required />
             <Input id="phone" type="tel" label={t.profile.phone} value={phone} onChange={e => setPhone(e.target.value)} required />
+            <label className="flex items-start gap-2.5 cursor-pointer select-none -mt-1">
+              <input
+                type="checkbox"
+                checked={hidePhone}
+                onChange={e => setHidePhone(e.target.checked)}
+                className="mt-0.5 w-4 h-4 shrink-0 accent-accent"
+              />
+              <span className="text-[13px] leading-snug text-ink-2">
+                Скрыть мой номер телефона
+                <span className="block text-[12px] text-ink-4">
+                  Контрагенты не увидят номер — только кнопку чата. Действует на все ваши заявки и рейсы.
+                </span>
+              </span>
+            </label>
             <Input id="city" label={t.profile.city} value={city} onChange={e => setCity(e.target.value)} required />
 
             {/* Реквизиты компании */}
