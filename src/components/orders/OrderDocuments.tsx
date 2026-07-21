@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Upload, Trash2, FileText, FileSpreadsheet, Loader2, ChevronUp, ChevronDown } from 'lucide-react'
+import { Upload, Trash2, FileText, FileSpreadsheet, Loader2, ChevronUp, ChevronDown, Paperclip } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -21,6 +21,8 @@ interface OrderDocumentsProps {
   orderId: string
   currentUserId: string
   canUpload: boolean
+  /** Меняется извне (напр. после сохранения ТН) — триггерит обновление списка/счётчика. */
+  refreshSignal?: number
 }
 
 function formatBytes(bytes: number | null) {
@@ -37,24 +39,44 @@ function fileMeta(name: string): { ext: string; isSheet: boolean } {
   return { ext, isSheet }
 }
 
-export function OrderDocuments({ orderId, currentUserId, canUpload }: OrderDocumentsProps) {
+export function OrderDocuments({ orderId, currentUserId, canUpload, refreshSignal }: OrderDocumentsProps) {
   const [docs, setDocs] = useState<Document[]>([])
   const [loaded, setLoaded] = useState(false)
   const [open, setOpen] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  // Счётчик файлов — грузим сразу (не дожидаясь раскрытия), чтобы показать индикатор.
+  const [count, setCount] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  async function loadDocs() {
+  const loadDocs = useCallback(async () => {
     const supabase = createClient()
     const { data } = await supabase
       .from('order_documents')
       .select('*, uploader:users!uploaded_by(name)')
       .eq('order_id', orderId)
       .order('created_at', { ascending: false })
-    setDocs((data || []) as Document[])
+    const list = (data || []) as Document[]
+    setDocs(list)
+    setCount(list.length)
     setLoaded(true)
-  }
+  }, [orderId])
+
+  const loadCount = useCallback(async () => {
+    const supabase = createClient()
+    const { count: c } = await supabase
+      .from('order_documents')
+      .select('id', { count: 'exact', head: true })
+      .eq('order_id', orderId)
+    setCount(c ?? 0)
+  }, [orderId])
+
+  // Первичная загрузка счётчика + реакция на внешний сигнал обновления.
+  useEffect(() => {
+    if (open) loadDocs()
+    else loadCount()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSignal])
 
   function toggle() {
     if (!open && !loaded) loadDocs()
@@ -100,6 +122,7 @@ export function OrderDocuments({ orderId, currentUserId, canUpload }: OrderDocum
       toast.error('Ошибка сохранения записи')
     } else {
       setDocs(prev => [data as Document, ...prev])
+      setCount(c => (c ?? 0) + 1)
       toast.success('Файл загружен')
     }
     setUploading(false)
@@ -112,6 +135,7 @@ export function OrderDocuments({ orderId, currentUserId, canUpload }: OrderDocum
     await supabase.storage.from('order-docs').remove([doc.file_path])
     await supabase.from('order_documents').delete().eq('id', doc.id)
     setDocs(prev => prev.filter(d => d.id !== doc.id))
+    setCount(c => Math.max(0, (c ?? 1) - 1))
     toast.success('Файл удалён')
     setDeletingId(null)
   }
@@ -136,8 +160,10 @@ export function OrderDocuments({ orderId, currentUserId, canUpload }: OrderDocum
       >
         <span className="flex items-center gap-2">
           <span className="text-[11.5px] font-semibold uppercase tracking-[0.06em] text-ink-3">Документы</span>
-          {loaded && docs.length > 0 && (
-            <span className="font-mono tabular-nums text-xs text-ink-3">{docs.length}</span>
+          {count != null && count > 0 && (
+            <span className="inline-flex items-center gap-1 px-1.5 h-5 rounded-full bg-accent-soft text-accent font-mono tabular-nums text-[11px] font-semibold">
+              <Paperclip size={11} strokeWidth={2} />{count}
+            </span>
           )}
         </span>
         {open

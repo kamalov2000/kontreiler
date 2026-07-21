@@ -159,6 +159,19 @@ export interface OrderDriverInfo {
   created_at: string
 }
 
+// Версия (редакция) транспортной накладной по заявке — архив редакций ТН.
+// data — плоский снимок всех полей формы TnModal (для повторного редактирования).
+export interface OrderTnVersion {
+  id: string
+  order_id: string
+  created_by: string
+  data: Record<string, string>
+  doc_path: string | null
+  doc_name: string | null
+  created_at: string
+  author?: { name: string | null }
+}
+
 export interface OrderStop {
   id: string
   order_id: string

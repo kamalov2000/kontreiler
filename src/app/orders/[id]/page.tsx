@@ -163,6 +163,8 @@ export default function OrderDetailPage() {
   const [driverInfo, setDriverInfo] = useState<OrderDriverInfo | null>(null)
   const [driverModalOpen, setDriverModalOpen] = useState(false)
   const [tnOpen, setTnOpen] = useState(false)
+  // Сигнал обновления списка документов (растёт при сохранении ТН в документы)
+  const [docsRefresh, setDocsRefresh] = useState(0)
   // Автоподсказку водителю показываем один раз за визит, иначе она будет
   // всплывать после каждого «Позже».
   const driverPromptShown = useRef(false)
@@ -1208,6 +1210,7 @@ export default function OrderDetailPage() {
             orderId={order.id}
             currentUserId={user!.id}
             canUpload={isOwner || user?.id === order.accepted_carrier_id}
+            refreshSignal={docsRefresh}
           />
         )}
 
@@ -1586,6 +1589,8 @@ export default function OrderDetailPage() {
           stops={stops}
           carrier={acceptedResponse?.carrier ?? null}
           driverInfo={driverInfo}
+          currentUserId={user!.id}
+          onSaved={() => setDocsRefresh(n => n + 1)}
         />
       )}
 

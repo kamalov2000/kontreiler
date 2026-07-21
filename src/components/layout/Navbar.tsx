@@ -36,6 +36,7 @@ export function Navbar() {
         { href: '/auctions', label: 'Торги' },
         { href: '/counterparties', label: 'Контрагенты' },
         { href: '/stats', label: t.nav.stats },
+        { href: '/help', label: 'Помощь' },
       ]
     : isCarrier
     ? [
@@ -45,6 +46,7 @@ export function Navbar() {
         { href: '/my-trucks', label: t.nav.myTrucks },
         { href: '/counterparties', label: 'Контрагенты' },
         { href: '/stats', label: t.nav.stats },
+        { href: '/help', label: 'Помощь' },
       ]
     : []
 

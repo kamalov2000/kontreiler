@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { Copy, Download, Lock } from 'lucide-react'
+import { Copy, Download, Lock, Save, Archive, FileText, ExternalLink, Trash2, Loader2 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
-import { Order, OrderStop, OrderDriverInfo, User, VatType } from '@/types/database'
+import { createClient } from '@/lib/supabase/client'
+import { formatDateTime } from '@/lib/utils'
+import { Order, OrderStop, OrderDriverInfo, OrderTnVersion, User, VatType } from '@/types/database'
 
 interface Props {
   open: boolean
@@ -15,6 +17,9 @@ interface Props {
   stops: OrderStop[]
   carrier: User | null
   driverInfo: OrderDriverInfo | null
+  currentUserId: string
+  /** Вызывается после сохранения ТН в документы — чтобы родитель обновил список файлов. */
+  onSaved?: () => void
 }
 
 /** Ставка НДС в процентах. `vat20` = 22% — ключ enum легаси, ставка актуальная (как в договоре и торгах). */
@@ -78,11 +83,16 @@ function FormSection({ no, title, children }: { no: string; title: string; child
   )
 }
 
-export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Props) {
+export function TnModal({ open, onClose, order, stops, carrier, driverInfo, currentUserId, onSaved }: Props) {
   const [downloading, setDownloading] = useState(false)
+  const [saving, setSaving] = useState(false)
   // Режим копии: дубль накладной по тому же маршруту, где меняются только
   // номер контейнера и дата (несколько контейнеров одним рейсом).
   const [copyMode, setCopyMode] = useState(false)
+  // Вкладки: форма ↔ архив редакций
+  const [tab, setTab] = useState<'form' | 'archive'>('form')
+  const [versions, setVersions] = useState<OrderTnVersion[]>([])
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const isRef = order.container_type.includes('REF')
 
@@ -183,10 +193,25 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
     }
   }, [order.id])
 
+  // Архив редакций ТН по заявке. restoreLatest — подставить последнюю версию в форму.
+  const loadVersions = useCallback(async (restoreLatest = false) => {
+    const supabase = createClient()
+    const { data } = await supabase
+      .from('order_tn_versions')
+      .select('*, author:users!created_by(name)')
+      .eq('order_id', order.id)
+      .order('created_at', { ascending: false })
+    const list = (data || []) as OrderTnVersion[]
+    setVersions(list)
+    if (restoreLatest && list[0]?.data) applyForm(list[0].data)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.id])
+
   // Автозаполнение при каждом открытии: дата ТН — СЕГОДНЯ (не дата создания заявки).
   useEffect(() => {
     if (!open) return
     setCopyMode(false)
+    setTab('form')
     setTnDate(new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' }))
     setTnNumber(orderNumber)
     setCopyNumber('1')
@@ -249,7 +274,9 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
     setPayerRequisites('')
 
     prefill()
-  }, [open, order, route, carrier, driverInfo, pickupAddress, unloadAddress, pickupDatetime, orderNumber, massLine, prefill])
+    // Загружаем архив редакций и подставляем последнюю сохранённую версию поверх автозаполнения.
+    loadVersions(true)
+  }, [open, order, route, carrier, driverInfo, pickupAddress, unloadAddress, pickupDatetime, orderNumber, massLine, prefill, loadVersions])
 
   // Стоимость с НДС и сумма налога считаются из «без НДС» и ставки заявки.
   const vatPercent = VAT_PERCENT[order.vat_type] ?? 0
@@ -263,13 +290,58 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
   // В режиме копии редактируются только номер контейнера и дата.
   const locked = copyMode
 
-  async function handleDownload() {
-    setDownloading(true)
-    try {
-      const res = await fetch('/api/generate-tn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+  // Плоский снимок всех редактируемых полей формы — сохраняется как версия ТН
+  // и подставляется при повторном открытии/восстановлении из архива.
+  const gatherForm = useCallback((): Record<string, string> => ({
+    tnDate, tnNumber, copyNumber,
+    shipperReq, shipperPaymentBasis, serviceCustomer, serviceContract,
+    consignee, deliveryAddress,
+    containerNumber, cargoName, placesCount, placesUnit, packaging, cargoMass, declaredValue,
+    docsDangerous, docsCertificates, docsShipping,
+    routeField, deadline, forwardingContact, specialRequirements, temperature, seal,
+    carrierReqField, driverName,
+    vehicleTypeBrand, vehiclePlate, ownershipType, ownershipDoc, specialPermit,
+    loaderRequisites, loadingPointOwner, pickupAddrField, pickupDtField, massAtLoading,
+    unloadAddrField, unloadDtField,
+    costNoVat, costCalcOrder, payerRequisites,
+  }), [
+    tnDate, tnNumber, copyNumber, shipperReq, shipperPaymentBasis, serviceCustomer, serviceContract,
+    consignee, deliveryAddress, containerNumber, cargoName, placesCount, placesUnit, packaging, cargoMass,
+    declaredValue, docsDangerous, docsCertificates, docsShipping, routeField, deadline, forwardingContact,
+    specialRequirements, temperature, seal, carrierReqField, driverName, vehicleTypeBrand, vehiclePlate,
+    ownershipType, ownershipDoc, specialPermit, loaderRequisites, loadingPointOwner, pickupAddrField,
+    pickupDtField, massAtLoading, unloadAddrField, unloadDtField, costNoVat, costCalcOrder, payerRequisites,
+  ])
+
+  // Восстановление полей из сохранённой версии. Отсутствующие ключи не трогаем.
+  function applyForm(d: Record<string, unknown>) {
+    const S = (v: unknown) => (v == null ? '' : String(v))
+    const setters: Record<string, (v: string) => void> = {
+      tnDate: setTnDate, tnNumber: setTnNumber, copyNumber: setCopyNumber,
+      shipperReq: setShipperReq, shipperPaymentBasis: setShipperPaymentBasis,
+      serviceCustomer: setServiceCustomer, serviceContract: setServiceContract,
+      consignee: setConsignee, deliveryAddress: setDeliveryAddress,
+      containerNumber: setContainerNumber, cargoName: setCargoName, placesCount: setPlacesCount,
+      placesUnit: setPlacesUnit, packaging: setPackaging, cargoMass: setCargoMass, declaredValue: setDeclaredValue,
+      docsDangerous: setDocsDangerous, docsCertificates: setDocsCertificates, docsShipping: setDocsShipping,
+      routeField: setRouteField, deadline: setDeadline, forwardingContact: setForwardingContact,
+      specialRequirements: setSpecialRequirements, temperature: setTemperature, seal: setSeal,
+      carrierReqField: setCarrierReqField, driverName: setDriverName,
+      vehicleTypeBrand: setVehicleTypeBrand, vehiclePlate: setVehiclePlate, ownershipType: setOwnershipType,
+      ownershipDoc: setOwnershipDoc, specialPermit: setSpecialPermit,
+      loaderRequisites: setLoaderRequisites, loadingPointOwner: setLoadingPointOwner,
+      pickupAddrField: setPickupAddrField, pickupDtField: setPickupDtField, massAtLoading: setMassAtLoading,
+      unloadAddrField: setUnloadAddrField, unloadDtField: setUnloadDtField,
+      costNoVat: setCostNoVat, costCalcOrder: setCostCalcOrder, payerRequisites: setPayerRequisites,
+    }
+    for (const [k, set] of Object.entries(setters)) {
+      if (k in d) set(S(d[k]))
+    }
+  }
+
+  // Тело запроса на генерацию PDF (используется и при скачивании, и при сохранении).
+  function buildBody() {
+    return {
           order_id: order.id,
           tn_date: tnDate,
           tn_number: tnNumber,
@@ -340,16 +412,29 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
           economic_basis_carrier: '',
           economic_basis_shipper: '',
           payer_requisites: payerRequisites,
-        }),
-      })
+    }
+  }
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        toast.error(err.error || 'Ошибка генерации накладной')
-        return
-      }
+  // Рендер PDF на сервере. Возвращает Blob или null (ошибка уже показана тостом).
+  async function renderPdf(): Promise<Blob | null> {
+    const res = await fetch('/api/generate-tn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildBody()),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err.error || 'Ошибка генерации накладной')
+      return null
+    }
+    return res.blob()
+  }
 
-      const blob = await res.blob()
+  async function handleDownload() {
+    setDownloading(true)
+    try {
+      const blob = await renderPdf()
+      if (!blob) return
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -364,6 +449,73 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
     }
   }
 
+  // Сохранить редакцию: рендер PDF → в bucket order-docs → запись в «Документы»
+  // заказа + версия в архив ТН. Скачивание не нужно — файл сразу в документах.
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const blob = await renderPdf()
+      if (!blob) return
+      const supabase = createClient()
+      const path = `${order.id}/tn-${Date.now()}.pdf`
+      const { error: upErr } = await supabase.storage
+        .from('order-docs')
+        .upload(path, blob, { contentType: 'application/pdf' })
+      if (upErr) {
+        toast.error('Не удалось сохранить файл в документы')
+        return
+      }
+      const docName = `ТН ${tnNumber || ''} от ${tnDate || ''}`.trim() + '.pdf'
+      const { error: docErr } = await supabase.from('order_documents').insert({
+        order_id: order.id,
+        uploaded_by: currentUserId,
+        file_name: docName,
+        file_path: path,
+        file_size: blob.size,
+      })
+      if (docErr) {
+        toast.error('Файл сохранён, но не добавлен в список документов')
+      }
+      const { error: verErr } = await supabase.from('order_tn_versions').insert({
+        order_id: order.id,
+        created_by: currentUserId,
+        data: gatherForm(),
+        doc_path: path,
+        doc_name: docName,
+      })
+      if (verErr) {
+        toast.error('Документ добавлен, но редакция не попала в архив')
+      } else {
+        toast.success('ТН сохранена в «Документы» заказа')
+      }
+      loadVersions()
+      onSaved?.()
+    } catch {
+      toast.error('Ошибка при сохранении накладной')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleOpenVersion(v: OrderTnVersion) {
+    if (!v.doc_path) return
+    const supabase = createClient()
+    const { data } = await supabase.storage.from('order-docs').createSignedUrl(v.doc_path, 60)
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank')
+    else toast.error('Не удалось открыть файл')
+  }
+
+  // Удаляем только запись архива. Сам PDF остаётся в «Документах» заказа — там
+  // его можно удалить отдельно (у кого загружен). Так не остаётся битых ссылок.
+  async function handleDeleteVersion(v: OrderTnVersion) {
+    setDeletingId(v.id)
+    const supabase = createClient()
+    await supabase.from('order_tn_versions').delete().eq('id', v.id)
+    setVersions(prev => prev.filter(x => x.id !== v.id))
+    setDeletingId(null)
+    toast.success('Редакция убрана из архива')
+  }
+
   return (
     <Modal
       open={open}
@@ -371,6 +523,26 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
       title="Транспортная накладная"
       className="sm:max-w-2xl"
     >
+      {/* Вкладки: форма ↔ архив редакций */}
+      <div className="mb-4 flex gap-1 rounded-card border border-hairline bg-surface-sunken p-1">
+        <button
+          type="button"
+          onClick={() => setTab('form')}
+          className={`flex-1 h-9 rounded-field text-[13px] font-medium transition-colors ${tab === 'form' ? 'bg-surface text-ink shadow-sm' : 'text-ink-3 hover:text-ink'}`}
+        >
+          Форма
+        </button>
+        <button
+          type="button"
+          onClick={() => { setTab('archive'); loadVersions() }}
+          className={`flex-1 h-9 rounded-field text-[13px] font-medium transition-colors inline-flex items-center justify-center gap-1.5 ${tab === 'archive' ? 'bg-surface text-ink shadow-sm' : 'text-ink-3 hover:text-ink'}`}
+        >
+          <Archive size={14} strokeWidth={1.5} /> Архив{versions.length ? ` · ${versions.length}` : ''}
+        </button>
+      </div>
+
+      {tab === 'form' ? (
+      <>
       {copyMode && (
         <div className="mb-4 flex items-start gap-2 rounded-card border border-hairline bg-accent-soft px-3.5 py-2.5">
           <Lock size={14} className="mt-0.5 shrink-0 text-accent" strokeWidth={1.5} />
@@ -696,9 +868,13 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
       </div>
 
       <div className="mt-5 flex flex-wrap gap-2">
-        <Button onClick={handleDownload} loading={downloading} className="flex-1">
+        <Button onClick={handleSave} loading={saving} disabled={downloading} className="flex-1">
+          <Save size={15} className="mr-1.5" strokeWidth={1.5} />
+          Сохранить в документы
+        </Button>
+        <Button variant="secondary" onClick={handleDownload} loading={downloading} disabled={saving}>
           <Download size={15} className="mr-1.5" strokeWidth={1.5} />
-          Скачать PDF
+          Скачать
         </Button>
         <Button
           variant="secondary"
@@ -707,12 +883,62 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo }: Pr
             setContainerNumber('')
             toast.info('Копия: измените номер контейнера и дату')
           }}
-          disabled={downloading || copyMode}
+          disabled={downloading || saving || copyMode}
         >
           <Copy size={15} className="mr-1.5" strokeWidth={1.5} />
-          Копировать накладную
+          Копия
         </Button>
       </div>
+      </>
+      ) : (
+        <div className="space-y-2.5">
+          {versions.length === 0 ? (
+            <p className="py-8 text-center text-sm text-ink-4">
+              Сохранённых редакций пока нет. Заполните форму и нажмите «Сохранить в документы».
+            </p>
+          ) : versions.map(v => (
+            <div key={v.id} className="flex items-center gap-2.5 rounded-card border border-hairline bg-surface px-3 py-2.5">
+              <span className="w-8 h-8 rounded-field bg-danger-soft flex items-center justify-center shrink-0">
+                <FileText size={16} className="text-danger" />
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] font-medium text-ink truncate">{v.doc_name || 'Транспортная накладная'}</div>
+                <div className="font-mono tabular-nums text-[11px] text-ink-4">
+                  {formatDateTime(v.created_at)}{v.author?.name ? ` · ${v.author.name}` : ''}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { applyForm(v.data); setTab('form'); toast.info('Редакция загружена в форму') }}
+                className="h-8 px-2.5 rounded-field text-[12px] font-medium text-accent hover:bg-accent-soft transition-colors shrink-0"
+              >
+                В форму
+              </button>
+              {v.doc_path && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenVersion(v)}
+                  title="Открыть PDF"
+                  className="w-8 h-8 flex items-center justify-center rounded-field text-ink-4 hover:text-accent hover:bg-accent-soft transition-colors shrink-0"
+                >
+                  <ExternalLink size={15} />
+                </button>
+              )}
+              {v.created_by === currentUserId && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteVersion(v)}
+                  disabled={deletingId === v.id}
+                  title="Убрать из архива"
+                  className="w-8 h-8 flex items-center justify-center rounded-field text-ink-4 hover:text-danger hover:bg-danger-soft transition-colors shrink-0"
+                >
+                  {deletingId === v.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={15} />}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </Modal>
   )
 }
