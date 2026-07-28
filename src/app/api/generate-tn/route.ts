@@ -5,6 +5,7 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
 import { TnDocument, TnData } from '@/lib/tn-pdf'
 import { normalizePlate } from '@/lib/utils'
+import { isDocGenerationBlocked, DRIVER_GATE_MESSAGE } from '@/lib/driver-gate'
 
 // react-pdf требует Node-рантайм (не Edge); maxDuration — на холодный старт с рендером.
 export const runtime = 'nodejs'
@@ -33,6 +34,7 @@ interface OrderAccess {
   client_id: string
   accepted_carrier_id: string | null
   status: string
+  format: string
   order_number: string | null
   created_at: string
 }
@@ -58,7 +60,7 @@ async function loadOrderForParty(
   const supabase = createServiceClient()
   const { data: order } = await supabase
     .from('orders')
-    .select('id, client_id, accepted_carrier_id, status, order_number, created_at')
+    .select('id, client_id, accepted_carrier_id, status, format, order_number, created_at')
     .eq('id', orderId)
     .single()
 
@@ -145,6 +147,12 @@ export async function POST(req: Request) {
   const res = await loadOrderForParty(typeof body.order_id === 'string' ? body.order_id : '')
   if ('error' in res) return res.error
   const { order } = res
+
+  // Накладная без водителя и машины юридически пуста — не формируем её ни одной
+  // из сторон, пока перевозчик не внёс обязательные данные.
+  if (await isDocGenerationBlocked(createServiceClient(), order.id, order.format)) {
+    return NextResponse.json({ error: DRIVER_GATE_MESSAGE }, { status: 403 })
+  }
 
   const orderNumber = order.order_number ?? `КТ-${order.id.slice(0, 6).toUpperCase()}`
   const tnNumber = str(body.tn_number) || orderNumber

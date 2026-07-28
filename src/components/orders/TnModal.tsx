@@ -224,8 +224,12 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo, curr
     setConsignee('')
     setDeliveryAddress(unloadAddress)
 
-    setContainerNumber('')
-    setCargoName('')
+    // Наименование груза и номер контейнера клиент вводит один раз при
+    // скачивании договора-заявки — здесь они лишь подставляются как заготовка.
+    // Обратно в заявку не пишем: в режиме копии номер контейнера намеренно
+    // меняется под каждый экземпляр накладной.
+    setContainerNumber(order.container_number ?? '')
+    setCargoName(order.cargo_name ?? '')
     setPlacesCount('')
     setPlacesUnit('шт')
     setPackaging('')

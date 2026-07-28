@@ -86,12 +86,22 @@ function Field({ label, value }: { label: string; value?: string | null }) {
   )
 }
 
-function TableRow({ k, v, last }: { k: string; v?: string | null; last?: boolean }) {
-  if (!v) return null
+/**
+ * Таблица «ключ — значение». Пустые строки отбрасываются, а разделитель снимается
+ * у последней ВИДИМОЙ строки — иначе под ней остаётся висячая линия, когда
+ * хвостовые поля не заполнены.
+ */
+function Rows({ items }: { items: { k: string; v?: string | null }[] }) {
+  const visible = items.filter(i => i.v)
+  if (visible.length === 0) return null
   return (
-    <View style={last ? s.tableRowLast : s.tableRow}>
-      <Text style={s.tableKey}>{k}</Text>
-      <Text style={s.tableVal}>{v}</Text>
+    <View style={s.table}>
+      {visible.map((it, i) => (
+        <View key={it.k} style={i === visible.length - 1 ? s.tableRowLast : s.tableRow}>
+          <Text style={s.tableKey}>{it.k}</Text>
+          <Text style={s.tableVal}>{it.v}</Text>
+        </View>
+      ))}
     </View>
   )
 }
@@ -106,7 +116,12 @@ export interface ContractData {
   viaAddress: string | null
   toCity: string
   toAddress: string | null
+  // Контактные лица на погрузке и выгрузке (раздел 2)
+  senderPhone: string | null
+  receiverPhone: string | null
   // Параметры груза
+  cargoName: string | null
+  containerNumber: string | null
   containerType: string
   containerLabel: string
   weightGross: number | null
@@ -124,8 +139,19 @@ export interface ContractData {
   client: PartyData
   // Перевозчик
   carrier: PartyData
+  // Водитель и ТС — вносит перевозчик. Для обычных и срочных заявок договор без
+  // них не формируется вовсе, для торгов/редукциона могут быть пустыми.
+  driver: DriverData | null
   // Обязательства (берутся из профиля клиента или стандартные)
   obligations: string
+}
+
+export interface DriverData {
+  name: string | null
+  passport: string | null
+  vehicleBrand: string | null
+  vehiclePlate: string | null
+  trailerPlate: string | null
 }
 
 export interface PartyData {
@@ -215,62 +241,47 @@ export function ContractDocument({ data }: { data: ContractData }) {
           <Text>, именуемое в дальнейшем «Исполнитель», заключили настоящий Договор-заявку о нижеследующем.</Text>
         </Text>
 
-        {/* Маршрут */}
+        {/* Маршрут. Телефоны контактных лиц — сразу под своим пунктом. */}
         <Text style={s.h2}>2. МАРШРУТ</Text>
-        <View style={s.table}>
-          <TableRow k="Пункт отправления" v={data.fromCity + (data.fromAddress ? ` — ${data.fromAddress}` : '')} />
-          {data.viaCity && (
-            <TableRow k="Транзитный пункт" v={data.viaCity + (data.viaAddress ? ` — ${data.viaAddress}` : '')} />
-          )}
-          <TableRow k="Пункт назначения" v={data.toCity + (data.toAddress ? ` — ${data.toAddress}` : '')} last />
-        </View>
+        <Rows items={[
+          { k: 'Пункт отправления', v: data.fromCity + (data.fromAddress ? ` — ${data.fromAddress}` : '') },
+          { k: 'Телефон отправителя', v: data.senderPhone },
+          { k: 'Транзитный пункт', v: data.viaCity ? data.viaCity + (data.viaAddress ? ` — ${data.viaAddress}` : '') : null },
+          { k: 'Пункт назначения', v: data.toCity + (data.toAddress ? ` — ${data.toAddress}` : '') },
+          { k: 'Телефон грузополучателя', v: data.receiverPhone },
+        ]} />
 
-        {/* Параметры */}
+        {/* Параметры груза и транспорта, включая назначенного водителя и ТС */}
         <Text style={s.h2}>3. ПАРАМЕТРЫ ГРУЗА И ТРАНСПОРТА</Text>
-        <View style={s.table}>
-          <TableRow k="Тип контейнера" v={data.containerLabel} />
-          <TableRow k="Дата погрузки" v={data.readyDate} />
-          {data.weightGross && (
-            <TableRow k="Вес брутто (Конт. 1)" v={`${data.weightGross.toLocaleString('ru-RU')} кг`} />
-          )}
-          {data.weightNet && (
-            <TableRow k="Вес нетто (Конт. 1)" v={`${data.weightNet.toLocaleString('ru-RU')} кг`} />
-          )}
-          {data.weightGross2 && (
-            <TableRow k="Вес брутто (Конт. 2)" v={`${data.weightGross2.toLocaleString('ru-RU')} кг`} />
-          )}
-          {data.weightNet2 && (
-            <TableRow k="Вес нетто (Конт. 2)" v={`${data.weightNet2.toLocaleString('ru-RU')} кг`} />
-          )}
-          <TableRow
-            k="Генераторная установка"
-            v={data.requiresGenset ? 'Требуется' : 'Не требуется'}
-            last={!data.agreedPrice && !data.price}
-          />
-        </View>
+        <Rows items={[
+          { k: 'Наименование груза', v: data.cargoName },
+          { k: 'Номер контейнера', v: data.containerNumber },
+          { k: 'Тип контейнера', v: data.containerLabel },
+          { k: 'Дата погрузки', v: data.readyDate },
+          { k: 'Вес брутто (Конт. 1)', v: data.weightGross ? `${data.weightGross.toLocaleString('ru-RU')} кг` : null },
+          { k: 'Вес нетто (Конт. 1)', v: data.weightNet ? `${data.weightNet.toLocaleString('ru-RU')} кг` : null },
+          { k: 'Вес брутто (Конт. 2)', v: data.weightGross2 ? `${data.weightGross2.toLocaleString('ru-RU')} кг` : null },
+          { k: 'Вес нетто (Конт. 2)', v: data.weightNet2 ? `${data.weightNet2.toLocaleString('ru-RU')} кг` : null },
+          { k: 'Генераторная установка', v: data.requiresGenset ? 'Требуется' : 'Не требуется' },
+          { k: 'Водитель', v: data.driver?.name },
+          { k: 'Паспортные данные водителя', v: data.driver?.passport },
+          { k: 'Транспортное средство', v: data.driver?.vehicleBrand },
+          { k: 'Госномер тягача', v: data.driver?.vehiclePlate },
+          { k: 'Госномер прицепа', v: data.driver?.trailerPlate },
+        ]} />
 
         {/* Ставка */}
         <Text style={s.h2}>4. СТАВКА И ОПЛАТА</Text>
-        <View style={s.table}>
-          {data.agreedPrice ? (
-            <>
-              <TableRow k="Согласованная ставка" v={`${data.agreedPrice.toLocaleString('ru-RU')} ₽`} />
-              {data.price && <TableRow k="Первоначальная ставка" v={`${data.price.toLocaleString('ru-RU')} ₽`} />}
-            </>
-          ) : data.price ? (
-            <TableRow k="Ставка" v={`${data.price.toLocaleString('ru-RU')} ₽`} />
-          ) : (
-            <TableRow k="Ставка" v="Договорная" />
-          )}
-          {data.downtimeRate ? (
-            <>
-              <TableRow k="НДС" v={data.vatLabel} />
-              <TableRow k="Простой транспорта" v={`${data.downtimeRate.toLocaleString('ru-RU')} ₽/час`} last />
-            </>
-          ) : (
-            <TableRow k="НДС" v={data.vatLabel} last />
-          )}
-        </View>
+        <Rows items={[
+          ...(data.agreedPrice
+            ? [
+                { k: 'Согласованная ставка', v: `${data.agreedPrice.toLocaleString('ru-RU')} ₽` },
+                { k: 'Первоначальная ставка', v: data.price ? `${data.price.toLocaleString('ru-RU')} ₽` : null },
+              ]
+            : [{ k: 'Ставка', v: data.price ? `${data.price.toLocaleString('ru-RU')} ₽` : 'Договорная' }]),
+          { k: 'НДС', v: data.vatLabel },
+          { k: 'Простой транспорта', v: data.downtimeRate ? `${data.downtimeRate.toLocaleString('ru-RU')} ₽/час` : null },
+        ]} />
 
         {/* Обязанности */}
         <Text style={s.h2}>5. ОБЯЗАННОСТИ СТОРОН</Text>

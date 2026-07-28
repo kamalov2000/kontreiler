@@ -5,6 +5,7 @@ import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
 import { ContractDocument, ContractData, PartyData } from '@/lib/contract-pdf'
 import { CONTAINER_TYPES } from '@/lib/cities'
+import { isDocGenerationBlocked, DRIVER_GATE_MESSAGE } from '@/lib/driver-gate'
 
 // react-pdf требует Node-рантайм (не Edge). maxDuration — чтобы холодный старт
 // с рендером PDF и загрузкой шрифта не упирался в дефолтный лимит функции.
@@ -88,6 +89,20 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Договор доступен после принятия отклика' }, { status: 422 })
   }
 
+  // Договор-заявка без водителя и машины неполон — не формируем его, пока
+  // перевозчик не внёс обязательные данные (кнопки в UI при этом задизейблены,
+  // но запрос можно послать и напрямую).
+  if (await isDocGenerationBlocked(supabase, orderId, order.format)) {
+    return NextResponse.json({ error: DRIVER_GATE_MESSAGE }, { status: 403 })
+  }
+
+  // Данные водителя и ТС — идут в раздел 3 договора
+  const { data: driverInfo } = await supabase
+    .from('order_driver_info')
+    .select('driver_name, passport_data, vehicle_brand, vehicle_plate, trailer_plate')
+    .eq('order_id', orderId)
+    .maybeSingle()
+
   // Загружаем данные перевозчика
   let carrierUser = null
   if (order.accepted_carrier_id) {
@@ -121,6 +136,10 @@ export async function GET(req: Request) {
     viaAddress: order.via_city_address,
     toCity: order.to_city,
     toAddress: order.to_city_address,
+    senderPhone: order.sender_contact_phone ?? null,
+    receiverPhone: order.receiver_contact_phone ?? null,
+    cargoName: order.cargo_name ?? null,
+    containerNumber: order.container_number ?? null,
     containerType: order.container_type,
     containerLabel,
     weightGross: order.weight_gross,
@@ -141,6 +160,13 @@ export async function GET(req: Request) {
       bankName: null, bankAccount: null, bankCorrAccount: null, bankBik: null,
       signatoryName: null, signatoryPosition: null, signatoryBasis: null,
     },
+    driver: driverInfo ? {
+      name: driverInfo.driver_name,
+      passport: driverInfo.passport_data,
+      vehicleBrand: driverInfo.vehicle_brand,
+      vehiclePlate: driverInfo.vehicle_plate,
+      trailerPlate: driverInfo.trailer_plate,
+    } : null,
     obligations: clientUser?.default_obligations ?? '',
   }
 

@@ -97,6 +97,14 @@ export interface Order {
   vat_type: VatType
   requires_genset: boolean
   notes: string | null
+  // Общие поля документов: клиент дозаполняет их один раз при первом скачивании
+  // договора-заявки, дальше они подтягиваются и в договор, и в ТН.
+  cargo_name: string | null
+  container_number: string | null
+  sender_contact_phone: string | null
+  receiver_contact_phone: string | null
+  // false = перевозчик заменил данные водителя, клиент ещё не закрыл баннер
+  driver_info_seen: boolean
   hide_phone: boolean
   agreed_price: number | null
   order_number: string | null
@@ -133,6 +141,7 @@ export type NotificationType =
   | 'order_delivered' | 'trip_done'
   | 'order_cancelled'
   | 'order_changed'
+  | 'driver_info_changed'
   | 'review_request'
   | 'auction_won' | 'auction_ended'
 
@@ -147,16 +156,30 @@ export interface Notification {
   message?: string | null
 }
 
-// Данные водителя и ТС по заявке — для транспортной накладной (разделы 6,7,8,10,12).
-// Заполняет принятый перевозчик; читают обе стороны сделки (таблица order_driver_info).
+// Данные водителя и ТС по заявке — для транспортной накладной (разделы 6,7,8,10,12)
+// и договора-заявки. Заполняет принятый перевозчик; читают обе стороны сделки
+// (таблица order_driver_info).
+// Обязательны driver_name, vehicle_plate, driver_phone: пока их нет, клиенту не
+// отдаются ТН и договор-заявка. В БД колонки nullable (таблица старше правила),
+// обязательность держит CHECK ... NOT VALID + проверки в UI и на сервере.
+// passport_data в интерфейсе не показываем — только в PDF.
 export interface OrderDriverInfo {
   id: string
   order_id: string
   driver_name: string | null
+  driver_phone: string | null
+  passport_data: string | null
   vehicle_brand: string | null
   vehicle_plate: string | null
   trailer_plate: string | null
   created_at: string
+  updated_at: string
+}
+
+// Заполнены ли обязательные данные водителя — от этого зависит доступ клиента
+// к документам по заявке.
+export function hasRequiredDriverInfo(info: OrderDriverInfo | null | undefined): boolean {
+  return !!(info?.driver_name?.trim() && info?.vehicle_plate?.trim() && info?.driver_phone?.trim())
 }
 
 // Версия (редакция) транспортной накладной по заявке — архив редакций ТН.

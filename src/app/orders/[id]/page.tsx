@@ -7,12 +7,13 @@ import {
   ArrowLeft, User, CheckCircle,
   MoreVertical, X, Edit2, Copy, RotateCcw, Ban, Star, Banknote,
   MapPin, Timer, Weight, TrendingDown, TrendingUp, FileText, Navigation,
-  ClipboardList, IdCard,
+  ClipboardList, IdCard, Phone, AlertTriangle,
 } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderDocuments } from '@/components/orders/OrderDocuments'
 import { TrackingDrawer } from '@/components/orders/TrackingDrawer'
 import { DriverInfoModal } from '@/components/orders/DriverInfoModal'
+import { ContractFieldsModal } from '@/components/orders/ContractFieldsModal'
 import { TnModal } from '@/components/orders/TnModal'
 import { RevealPhone } from '@/components/ui/RevealPhone'
 import { Button } from '@/components/ui/Button'
@@ -26,8 +27,8 @@ import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop, OrderDriverInfo } from '@/types/database'
-import { formatDateWithTime, formatDateTime, formatPrice, formatOrderNumber, readyDateBadge, toDatetimeLocal } from '@/lib/utils'
+import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop, OrderDriverInfo, hasRequiredDriverInfo } from '@/types/database'
+import { formatDateWithTime, formatDateTime, formatPrice, formatOrderNumber, formatPhone, readyDateBadge, toDatetimeLocal } from '@/lib/utils'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT, CONTAINER_UNIT_TARE } from '@/lib/cities'
 import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
 import { toast } from 'sonner'
@@ -163,6 +164,8 @@ export default function OrderDetailPage() {
   const [driverInfo, setDriverInfo] = useState<OrderDriverInfo | null>(null)
   const [driverModalOpen, setDriverModalOpen] = useState(false)
   const [tnOpen, setTnOpen] = useState(false)
+  // Дозаполнение полей документа перед скачиванием договора-заявки
+  const [contractFieldsOpen, setContractFieldsOpen] = useState(false)
   // Сигнал обновления списка документов (растёт при сохранении ТН в документы)
   const [docsRefresh, setDocsRefresh] = useState(0)
   // Автоподсказку водителю показываем один раз за визит, иначе она будет
@@ -170,6 +173,13 @@ export default function OrderDetailPage() {
   const driverPromptShown = useRef(false)
 
   const isOwner = user?.id === order?.client_id
+
+  // Пока перевозчик не внёс ФИО, госномер тягача и телефон водителя, документы
+  // по заявке не формируются — ни ТН, ни договор-заявка (то же правило продублировано
+  // на сервере). Торги и редукцион оформляются иначе, их не блокируем.
+  const docsGated = order ? ['regular', 'urgent'].includes(order.format) : false
+  const driverReady = hasRequiredDriverInfo(driverInfo)
+  const docsBlocked = docsGated && !driverReady
 
   useEffect(() => {
     async function fetch() {
@@ -443,12 +453,21 @@ export default function OrderDetailPage() {
     if (loading || !order || !user) return
     if (driverPromptShown.current) return
     const isAcceptedCarrier = user.id === order.accepted_carrier_id
-    const needsDriver = !driverInfo?.driver_name
+    const needsDriver = !hasRequiredDriverInfo(driverInfo)
     if (isAcceptedCarrier && needsDriver && ['matched', 'in_transit'].includes(order.status)) {
       driverPromptShown.current = true
       setDriverModalOpen(true)
     }
   }, [loading, order, user, driverInfo])
+
+  // Клиент закрыл баннер о замене водителя. Заявку по RLS правит только он —
+  // поэтому здесь обычный update, без серверного роута.
+  async function dismissDriverBanner() {
+    if (!order) return
+    setOrder(prev => prev ? { ...prev, driver_info_seen: true } : prev)
+    const supabase = createClient()
+    await supabase.from('orders').update({ driver_info_seen: true }).eq('id', order.id)
+  }
 
   async function handleDownloadContract() {
     if (!order) return
@@ -1079,6 +1098,25 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
+        {/* Перевозчик заменил водителя или машину уже после того, как клиент мог
+            скачать документы — старые экземпляры устарели. Флаг снимает сервер
+            при замене, поднимает клиент крестиком. */}
+        {isOwner && order.driver_info_seen === false && (
+          <div className="mb-6 flex items-start gap-3 rounded-card border border-warning/40 bg-warning-soft p-4">
+            <AlertTriangle size={18} strokeWidth={1.5} className="mt-0.5 shrink-0 text-warning" />
+            <p className="flex-1 text-sm text-ink-2">
+              Данные по водителю изменены — скачайте документы заново.
+            </p>
+            <button
+              onClick={dismissDriverBanner}
+              aria-label="Закрыть"
+              className="shrink-0 rounded-field p-1 text-ink-3 transition-colors hover:bg-surface hover:text-ink"
+            >
+              <X size={16} strokeWidth={1.5} />
+            </button>
+          </div>
+        )}
+
         {/* Выбранный перевозчик */}
         {(isMatched || ['in_transit', 'delivered', 'closed', 'cancelled'].includes(order.status)) && acceptedResponse && (
           <div className="bg-surface border border-hairline rounded-card p-5 mb-6">
@@ -1103,9 +1141,9 @@ export default function OrderDetailPage() {
               </Link>
               {(isOwner || user?.id === order.accepted_carrier_id) && (
                 <button
-                  onClick={handleDownloadContract}
-                  disabled={downloadingContract}
-                  className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card bg-surface border border-hairline text-ink-2 text-sm font-medium hover:border-border-strong transition-colors ease-terminal disabled:opacity-50"
+                  onClick={() => setContractFieldsOpen(true)}
+                  disabled={downloadingContract || docsBlocked}
+                  className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card bg-surface border border-hairline text-ink-2 text-sm font-medium hover:border-border-strong transition-colors ease-terminal disabled:opacity-50 disabled:hover:border-hairline disabled:cursor-not-allowed"
                 >
                   <FileText size={14} />
                   {downloadingContract ? 'Генерация...' : 'Договор-заявка PDF'}
@@ -1115,7 +1153,8 @@ export default function OrderDetailPage() {
               {(isOwner || user?.id === order.accepted_carrier_id) && (
                 <button
                   onClick={() => setTnOpen(true)}
-                  className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card bg-surface border border-hairline text-ink-2 text-sm font-medium hover:border-border-strong transition-colors ease-terminal"
+                  disabled={docsBlocked}
+                  className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card bg-surface border border-hairline text-ink-2 text-sm font-medium hover:border-border-strong transition-colors ease-terminal disabled:opacity-50 disabled:hover:border-hairline disabled:cursor-not-allowed"
                 >
                   <ClipboardList size={14} strokeWidth={1.5} />
                   Сформировать ТН
@@ -1125,12 +1164,65 @@ export default function OrderDetailPage() {
               {user?.id === order.accepted_carrier_id && (
                 <button
                   onClick={() => setDriverModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card bg-surface border border-hairline text-ink-2 text-sm font-medium hover:border-border-strong transition-colors ease-terminal"
+                  className={cn(
+                    'inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card text-sm font-medium transition-colors ease-terminal',
+                    // Пока данных нет, документы у клиента заблокированы — подсвечиваем действие.
+                    driverReady
+                      ? 'bg-surface border border-hairline text-ink-2 hover:border-border-strong'
+                      : 'bg-accent text-white hover:bg-accent-hover'
+                  )}
                 >
                   <IdCard size={14} strokeWidth={1.5} />
-                  {driverInfo?.driver_name ? 'Изменить данные водителя' : 'Добавить данные водителя'}
+                  {driverReady ? 'Изменить данные по водителю' : 'Внести данные по водителю'}
                 </button>
               )}
+            </div>
+
+            {/* Почему кнопки документов недоступны */}
+            {docsBlocked && (isOwner || user?.id === order.accepted_carrier_id) && (
+              <p className="mt-2.5 text-[13px] text-ink-3">
+                Документы станут доступны после того как перевозчик внесёт данные по водителю
+                и транспортному средству
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Назначенный водитель — виден обеим сторонам. Паспортные данные тут
+            намеренно не показываем: они уходят только в документы. */}
+        {driverReady && (isOwner || user?.id === order.accepted_carrier_id) && (
+          <div className="bg-surface border border-hairline rounded-card p-5 mb-6">
+            <div className="flex items-center gap-2 mb-2.5">
+              <CheckCircle size={16} className="text-success" />
+              <span className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Водитель назначен</span>
+            </div>
+            <div className="font-semibold text-ink text-[17px]">{driverInfo!.driver_name}</div>
+            <div className="mt-3 grid gap-x-8 gap-y-2 sm:grid-cols-2">
+              <div>
+                <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Тягач</div>
+                <div className="font-mono tabular-nums text-[15px] text-ink">
+                  {driverInfo!.vehicle_plate}
+                  {driverInfo!.vehicle_brand && (
+                    <span className="ml-2 font-sans text-[13px] text-ink-3">{driverInfo!.vehicle_brand}</span>
+                  )}
+                </div>
+              </div>
+              {driverInfo!.trailer_plate && (
+                <div>
+                  <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Прицеп</div>
+                  <div className="font-mono tabular-nums text-[15px] text-ink">{driverInfo!.trailer_plate}</div>
+                </div>
+              )}
+              <div>
+                <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">Телефон</div>
+                <a
+                  href={`tel:${driverInfo!.driver_phone}`}
+                  className="inline-flex items-center gap-1.5 font-mono tabular-nums text-[15px] text-accent hover:text-accent-hover transition-colors ease-terminal"
+                >
+                  <Phone size={14} strokeWidth={1.5} />
+                  {formatPhone(driverInfo!.driver_phone)}
+                </a>
+              </div>
             </div>
           </div>
         )}
@@ -1577,6 +1669,22 @@ export default function OrderDetailPage() {
           orderId={order.id}
           initial={driverInfo}
           onSaved={setDriverInfo}
+        />
+      )}
+
+      {/* Дозаполнение полей документа перед скачиванием договора-заявки */}
+      {(isOwner || user?.id === order.accepted_carrier_id) && (
+        <ContractFieldsModal
+          open={contractFieldsOpen}
+          onClose={() => setContractFieldsOpen(false)}
+          order={order}
+          ownPhone={isOwner ? (user?.phone ?? null) : null}
+          onSaved={updates => setOrder(prev => prev ? { ...prev, ...updates } : prev)}
+          onConfirm={async () => {
+            setContractFieldsOpen(false)
+            await handleDownloadContract()
+          }}
+          downloading={downloadingContract}
         />
       )}
 
