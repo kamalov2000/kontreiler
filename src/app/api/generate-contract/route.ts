@@ -89,10 +89,11 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Договор доступен после принятия отклика' }, { status: 422 })
   }
 
-  // Договор-заявка без водителя и машины неполон — не формируем его, пока
-  // перевозчик не внёс обязательные данные (кнопки в UI при этом задизейблены,
-  // но запрос можно послать и напрямую).
-  if (await isDocGenerationBlocked(supabase, orderId, order.format)) {
+  // Клиенту договор-заявка без водителя и машины неполон — не формируем его,
+  // пока перевозчик не внёс обязательные данные (кнопка в UI при этом
+  // задизейблена, но запрос можно послать и напрямую). Перевозчику отдаём:
+  // ему бланк нужен заранее, чтобы дозаполнить руками в дороге.
+  if (await isDocGenerationBlocked(supabase, orderId, order.format, isClient)) {
     return NextResponse.json({ error: DRIVER_GATE_MESSAGE }, { status: 403 })
   }
 

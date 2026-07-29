@@ -174,12 +174,13 @@ export default function OrderDetailPage() {
 
   const isOwner = user?.id === order?.client_id
 
-  // Пока перевозчик не внёс ФИО, госномер тягача и телефон водителя, документы
-  // по заявке не формируются — ни ТН, ни договор-заявка (то же правило продублировано
-  // на сервере). Торги и редукцион оформляются иначе, их не блокируем.
+  // Пока перевозчик не внёс ФИО, госномер тягача и телефон водителя, клиент не
+  // формирует документы — ни ТН, ни договор-заявку (то же правило продублировано
+  // на сервере). Перевозчика не блокируем: ему пустой бланк нужен заранее, чтобы
+  // дозаполнить руками в дороге. Торги и редукцион оформляются иначе — вне гейта.
   const docsGated = order ? ['regular', 'urgent'].includes(order.format) : false
   const driverReady = hasRequiredDriverInfo(driverInfo)
-  const docsBlocked = docsGated && !driverReady
+  const docsBlocked = docsGated && !driverReady && isOwner
 
   useEffect(() => {
     async function fetch() {
@@ -1179,9 +1180,18 @@ export default function OrderDetailPage() {
             </div>
 
             {/* Почему кнопки документов недоступны */}
-            {docsBlocked && (isOwner || user?.id === order.accepted_carrier_id) && (
+            {docsBlocked && (
               <p className="mt-2.5 text-[13px] text-ink-3">
                 Документы станут доступны после того как перевозчик внесёт данные по водителю
+                и транспортному средству
+              </p>
+            )}
+
+            {/* Перевозчику документы доступны всегда — но клиенту они закрыты,
+                пока он не внесёт водителя. */}
+            {docsGated && !driverReady && user?.id === order.accepted_carrier_id && (
+              <p className="mt-2.5 text-[13px] text-ink-3">
+                Клиент не сможет скачать документы, пока вы не внесёте данные по водителю
                 и транспортному средству
               </p>
             )}

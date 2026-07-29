@@ -146,11 +146,12 @@ export async function POST(req: Request) {
 
   const res = await loadOrderForParty(typeof body.order_id === 'string' ? body.order_id : '')
   if ('error' in res) return res.error
-  const { order } = res
+  const { order, userId } = res
 
-  // Накладная без водителя и машины юридически пуста — не формируем её ни одной
-  // из сторон, пока перевозчик не внёс обязательные данные.
-  if (await isDocGenerationBlocked(createServiceClient(), order.id, order.format)) {
+  // Клиенту накладная без водителя и машины бесполезна — не формируем, пока
+  // перевозчик не внёс обязательные данные. Самому перевозчику пустой бланк
+  // отдаём: он берёт его в рейс и дозаполняет руками.
+  if (await isDocGenerationBlocked(createServiceClient(), order.id, order.format, order.client_id === userId)) {
     return NextResponse.json({ error: DRIVER_GATE_MESSAGE }, { status: 403 })
   }
 
