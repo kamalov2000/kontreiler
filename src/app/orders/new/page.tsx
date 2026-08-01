@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
@@ -13,7 +13,8 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { RouteInline } from '@/components/ui/RouteInline'
 import { ContainerMark } from '@/components/ui/ContainerMark'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT } from '@/lib/cities'
-import { ContainerType, VatType, OrderFormat } from '@/types/database'
+import { ContainerType, VatType, OrderFormat, Order, OrderStop } from '@/types/database'
+import { normalizePhone, toDatetimeLocal } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Calculator, Plus, Trash2, X } from 'lucide-react'
 
@@ -108,10 +109,119 @@ function NewOrderForm() {
   const [hidePhone, setHidePhone] = useState(false)
   const [notes, setNotes] = useState(params.get('notes') || '')
 
+  // Данные для документов — хранятся на заявке и подставляются в договор-заявку
+  // и транспортную накладную. Раньше заполнялись только при первом скачивании
+  // договора; здесь их можно внести сразу, а при дублировании они переносятся.
+  const [cargoName, setCargoName] = useState('')
+  const [containerNumber, setContainerNumber] = useState('')
+  const [senderPhone, setSenderPhone] = useState('')
+  const [receiverPhone, setReceiverPhone] = useState('')
+
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const isDuplicate = params.has('from')
+  // Дублирование: id исходной заявки. Пока она грузится, форму не показываем —
+  // иначе поля на глазах перещёлкивались бы с пустых на заполненные.
+  const duplicateId = params.get('duplicate')
+  const [prefilling, setPrefilling] = useState(!!duplicateId)
+  const isDuplicate = !!duplicateId || params.has('from')
+
+  useEffect(() => {
+    if (!duplicateId) return
+    let active = true
+
+    async function loadSource() {
+      const supabase = createClient()
+      const [{ data: src }, { data: srcStops }] = await Promise.all([
+        supabase.from('orders').select('*').eq('id', duplicateId).single(),
+        supabase.from('order_stops').select('*').eq('order_id', duplicateId)
+          .order('sort_order', { ascending: true }),
+      ])
+      if (!active) return
+      if (!src) {
+        toast.error('Не удалось загрузить исходную заявку — заполните форму заново')
+        setPrefilling(false)
+        return
+      }
+      const o = src as Order
+
+      // Маршрут
+      setFromCity(o.from_city)
+      setFromCityAddress(o.from_city_address ?? '')
+      setViaCity(o.via_city ?? '')
+      setViaCityAddress(o.via_city_address ?? '')
+      setToCity(o.to_city)
+      setToCityAddress(o.to_city_address ?? '')
+      const extra = (srcStops ?? []) as OrderStop[]
+      if (extra.length > 0) {
+        setHasExtraStops(true)
+        setStops(extra.map(s => ({ address: s.address, comment: s.comment ?? '' })))
+      }
+
+      // Груз
+      setContainerType(o.container_type)
+      setRequiresGenset(!!o.requires_genset)
+      setWeightGross(o.weight_gross != null ? String(o.weight_gross) : '')
+      setWeightNet(o.weight_net != null ? String(o.weight_net) : '')
+      setWeightGross2(o.weight_gross_2 != null ? String(o.weight_gross_2) : '')
+      setWeightNet2(o.weight_net_2 != null ? String(o.weight_net_2) : '')
+      // Тара могла быть отредактирована клиентом — переносим его значение,
+      // а не типовое из словаря.
+      setWeightTare(
+        o.weight_tare != null
+          ? String(o.weight_tare)
+          : String(CONTAINER_TARE_WEIGHT[o.container_type] ?? '')
+      )
+
+      // Сроки. Срок действия копируем, только если он ещё не истёк: протухшая
+      // дата сожгла бы новую заявку в момент публикации — тогда оставляем
+      // дефолтные «+7 дней».
+      setReadyDate(o.ready_date ?? '')
+      setReadyTime(o.ready_time ?? '')
+      if (o.expires_at && new Date(o.expires_at).getTime() > Date.now()) {
+        setExpiresAt(toDatetimeLocal(o.expires_at))
+      }
+
+      // Формат и ставка
+      setFormat(o.format)
+      setPrice(o.price != null ? String(o.price) : '')
+      setIsNegotiable(!!o.is_negotiable)
+      setVatType(o.vat_type ?? 'none')
+      setDowntimeRate(o.downtime_rate != null ? String(o.downtime_rate) : '')
+      if (o.format === 'reduction' || o.format === 'auction') {
+        setAuctionStartPrice(o.auction_start_price != null ? String(o.auction_start_price) : '')
+        setAuctionMinPrice(o.auction_min_price != null ? String(o.auction_min_price) : '')
+        setAuctionMaxPrice(o.auction_max_price != null ? String(o.auction_max_price) : '')
+        setAuctionUseStep(o.auction_step != null)
+        setAuctionStep(o.auction_step != null ? String(o.auction_step) : '')
+        setAuctionAutoWinner(o.auction_auto_winner)
+        setAuctionAutoExtend(o.auction_auto_extend)
+        // Время окончания торгов из прошлой заявки почти всегда в прошлом —
+        // берём его только если оно ещё впереди.
+        if (o.auction_end_time && new Date(o.auction_end_time).getTime() > Date.now()) {
+          setAuctionEndTime(toDatetimeLocal(o.auction_end_time))
+        }
+      }
+
+      // Дополнительно
+      setNotes(o.notes ?? '')
+      setHidePhone(!!o.hide_phone)
+      setTrackingEnabled(!!o.tracking_enabled)
+      setCounterpartiesOnly(!!o.counterparties_only)
+
+      // Данные для документов
+      setCargoName(o.cargo_name ?? '')
+      setContainerNumber(o.container_number ?? '')
+      setSenderPhone(o.sender_contact_phone ?? '')
+      setReceiverPhone(o.receiver_contact_phone ?? '')
+
+      setPrefilling(false)
+    }
+
+    loadSource()
+    return () => { active = false }
+  }, [duplicateId])
+
   const isRefContainer = REF_CONTAINER_TYPES.has(containerType)
   const isAuctionFormat = format === 'reduction' || format === 'auction'
   const is20DC2 = containerType === '20DC2'
@@ -178,6 +288,10 @@ function NewOrderForm() {
       counterparties_only: counterpartiesOnly,
       requires_genset: requiresGenset,
       notes: notes.trim() || null,
+      cargo_name: cargoName.trim() || null,
+      container_number: containerNumber.trim().toUpperCase() || null,
+      sender_contact_phone: senderPhone.trim() ? normalizePhone(senderPhone.trim()) : null,
+      receiver_contact_phone: receiverPhone.trim() ? normalizePhone(receiverPhone.trim()) : null,
       arrival_time: null,
       auction_start_price: isAuctionFormat ? parseInt(auctionStartPrice) : null,
       auction_end_time: isAuctionFormat ? new Date(auctionEndTime).toISOString() : null,
@@ -223,6 +337,16 @@ function NewOrderForm() {
     { value: 'reduction', label: t.order.formatReduction, hint: t.order.formatReductionHint },
     { value: 'auction',   label: t.order.formatAuction,   hint: t.order.formatAuctionHint },
   ]
+
+  if (prefilling) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin h-8 w-8 rounded-full border-4 border-accent border-t-transparent" />
+        </div>
+      </AppLayout>
+    )
+  }
 
   return (
     <AppLayout>
@@ -727,6 +851,53 @@ function NewOrderForm() {
                 className="font-mono tabular-nums"
               />
               <p className="text-xs text-ink-4 mt-1">Указывается после выполнения перевозки</p>
+            </div>
+          </div>
+
+          {/* Данные для документов — необязательны при публикации, но если внести
+              их сразу, договор-заявка и ТН соберутся без дозаполнения. */}
+          <div className={sectionCard}>
+            <span className={overline}>
+              Данные для документов <span className="text-ink-4 normal-case tracking-normal font-normal">({t.common.optional})</span>
+            </span>
+            <p className="text-xs text-ink-4 -mt-2">
+              Попадут в договор-заявку и транспортную накладную. Можно заполнить позже —
+              при первом скачивании договора.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Input
+                id="cargoName"
+                label="Наименование груза"
+                value={cargoName}
+                onChange={e => setCargoName(e.target.value)}
+                placeholder="Оборудование в ящиках"
+              />
+              <Input
+                id="containerNumber"
+                label="Номер контейнера"
+                value={containerNumber}
+                onChange={e => setContainerNumber(e.target.value)}
+                placeholder="MSKU1234567"
+                className="font-mono"
+              />
+              <Input
+                id="senderPhone"
+                type="tel"
+                label="Телефон сотрудника-отправителя"
+                value={senderPhone}
+                onChange={e => setSenderPhone(e.target.value)}
+                placeholder="+7 900 123-45-67"
+                className="font-mono tabular-nums"
+              />
+              <Input
+                id="receiverPhone"
+                type="tel"
+                label="Телефон грузополучателя/грузоотправителя"
+                value={receiverPhone}
+                onChange={e => setReceiverPhone(e.target.value)}
+                placeholder="+7 900 123-45-67"
+                className="font-mono tabular-nums"
+              />
             </div>
           </div>
 

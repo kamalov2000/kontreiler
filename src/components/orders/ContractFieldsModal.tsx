@@ -96,7 +96,7 @@ export function ContractFieldsModal({
           onChange={e => setSenderPhone(e.target.value)}
         />
         <Input
-          label="Телефон грузополучателя"
+          label="Телефон грузополучателя/грузоотправителя"
           type="tel"
           placeholder="+7 900 123-45-67"
           value={receiverPhone}

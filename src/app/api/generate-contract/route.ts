@@ -20,6 +20,16 @@ function formatDate(iso: string): string {
   })
 }
 
+// Дата и время погрузки/выгрузки: «3 августа 2026 г., 14:30».
+// ready_date — колонка DATE («2026-08-03»): подставляем полночь явно, иначе
+// строка читается как UTC и в зонах западнее Гринвича дата уезжает на сутки.
+// ready_time — VARCHAR(5), «14:30»; если не задано, остаётся одна дата.
+function formatLoadingDateTime(date: string, time: string | null): string {
+  const d = new Date(`${date.slice(0, 10)}T00:00:00`)
+  const dateStr = d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+  return time ? `${dateStr}, ${time}` : dateStr
+}
+
 function vatLabel(vat: string | null): string {
   if (vat === 'vat20') return 'НДС 22%'
   if (vat === 'vat0')  return 'НДС 0%'
@@ -148,7 +158,7 @@ export async function GET(req: Request) {
     weightGross2: order.weight_gross_2,
     weightNet2: order.weight_net_2,
     requiresGenset: !!order.requires_genset,
-    readyDate: formatDate(order.ready_date),
+    readyDate: formatLoadingDateTime(order.ready_date, order.ready_time ?? null),
     price: order.price,
     vatLabel: vatLabel(order.vat_type),
     agreedPrice: order.agreed_price,

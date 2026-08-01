@@ -129,6 +129,7 @@ export interface ContractData {
   weightGross2: number | null
   weightNet2: number | null
   requiresGenset: boolean
+  /** Готовая строка «3 августа 2026 г., 14:30» (время — если задано в заявке). */
   readyDate: string
   // Ставки
   price: number | null
@@ -247,8 +248,8 @@ export function ContractDocument({ data }: { data: ContractData }) {
           { k: 'Пункт отправления', v: data.fromCity + (data.fromAddress ? ` — ${data.fromAddress}` : '') },
           { k: 'Телефон отправителя', v: data.senderPhone },
           { k: 'Транзитный пункт', v: data.viaCity ? data.viaCity + (data.viaAddress ? ` — ${data.viaAddress}` : '') : null },
+          { k: 'Телефон грузополучателя/грузоотправителя', v: data.receiverPhone },
           { k: 'Пункт назначения', v: data.toCity + (data.toAddress ? ` — ${data.toAddress}` : '') },
-          { k: 'Телефон грузополучателя', v: data.receiverPhone },
         ]} />
 
         {/* Параметры груза и транспорта, включая назначенного водителя и ТС */}
@@ -257,7 +258,7 @@ export function ContractDocument({ data }: { data: ContractData }) {
           { k: 'Наименование груза', v: data.cargoName },
           { k: 'Номер контейнера', v: data.containerNumber },
           { k: 'Тип контейнера', v: data.containerLabel },
-          { k: 'Дата погрузки', v: data.readyDate },
+          { k: 'Дата и время погрузки/выгрузки', v: data.readyDate },
           { k: 'Вес брутто (Конт. 1)', v: data.weightGross ? `${data.weightGross.toLocaleString('ru-RU')} кг` : null },
           { k: 'Вес нетто (Конт. 1)', v: data.weightNet ? `${data.weightNet.toLocaleString('ru-RU')} кг` : null },
           { k: 'Вес брутто (Конт. 2)', v: data.weightGross2 ? `${data.weightGross2.toLocaleString('ru-RU')} кг` : null },
@@ -272,13 +273,12 @@ export function ContractDocument({ data }: { data: ContractData }) {
 
         {/* Ставка */}
         <Text style={s.h2}>4. СТАВКА И ОПЛАТА</Text>
+        {/* Первоначальную ставку в договор не выносим: юридически значима только
+            та, о которой стороны договорились. */}
         <Rows items={[
-          ...(data.agreedPrice
-            ? [
-                { k: 'Согласованная ставка', v: `${data.agreedPrice.toLocaleString('ru-RU')} ₽` },
-                { k: 'Первоначальная ставка', v: data.price ? `${data.price.toLocaleString('ru-RU')} ₽` : null },
-              ]
-            : [{ k: 'Ставка', v: data.price ? `${data.price.toLocaleString('ru-RU')} ₽` : 'Договорная' }]),
+          data.agreedPrice
+            ? { k: 'Согласованная ставка', v: `${data.agreedPrice.toLocaleString('ru-RU')} ₽` }
+            : { k: 'Ставка', v: data.price ? `${data.price.toLocaleString('ru-RU')} ₽` : 'Договорная' },
           { k: 'НДС', v: data.vatLabel },
           { k: 'Простой транспорта', v: data.downtimeRate ? `${data.downtimeRate.toLocaleString('ru-RU')} ₽/час` : null },
         ]} />

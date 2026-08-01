@@ -587,18 +587,14 @@ export default function OrderDetailPage() {
     setStatusChanging(false)
   }
 
+  // Дублируем заявку целиком — вместе с адресами, доп. точками, весами, форматом
+  // и полями документов. Тащить это через query-строку бессмысленно (там одних
+  // только точек маршрута произвольное число), поэтому отдаём форме id исходной
+  // заявки, а она читает её сама. Новым остаётся только номер заявки.
   function duplicateOrder() {
     if (!order) return
     setMenuOpen(false)
-    const qs = new URLSearchParams({
-      from: order.from_city, to: order.to_city,
-      container: order.container_type, date: order.ready_date,
-      ...(order.price ? { price: String(order.price) } : {}),
-      ...(order.is_negotiable ? { negotiable: '1' } : {}),
-      ...(order.is_urgent ? { urgent: '1' } : {}),
-      ...(order.notes ? { notes: order.notes } : {}),
-    })
-    router.push(`/orders/new?${qs}`)
+    router.push(`/orders/new?duplicate=${order.id}`)
   }
 
 
@@ -1142,7 +1138,10 @@ export default function OrderDetailPage() {
               </Link>
               {(isOwner || user?.id === order.accepted_carrier_id) && (
                 <button
-                  onClick={() => setContractFieldsOpen(true)}
+                  // Поля документа (груз, контейнер, телефоны) заполняет только
+                  // клиент — перевозчику модалку не показываем, он сразу получает
+                  // PDF с тем, что клиент уже внёс.
+                  onClick={() => (isOwner ? setContractFieldsOpen(true) : handleDownloadContract())}
                   disabled={downloadingContract || docsBlocked}
                   className="inline-flex items-center gap-1.5 min-h-[36px] px-3.5 rounded-card bg-surface border border-hairline text-ink-2 text-sm font-medium hover:border-border-strong transition-colors ease-terminal disabled:opacity-50 disabled:hover:border-hairline disabled:cursor-not-allowed"
                 >
@@ -1682,13 +1681,14 @@ export default function OrderDetailPage() {
         />
       )}
 
-      {/* Дозаполнение полей документа перед скачиванием договора-заявки */}
-      {(isOwner || user?.id === order.accepted_carrier_id) && (
+      {/* Дозаполнение полей документа перед скачиванием договора-заявки.
+          Только клиенту: это его данные, перевозчик их не редактирует. */}
+      {isOwner && (
         <ContractFieldsModal
           open={contractFieldsOpen}
           onClose={() => setContractFieldsOpen(false)}
           order={order}
-          ownPhone={isOwner ? (user?.phone ?? null) : null}
+          ownPhone={user?.phone ?? null}
           onSaved={updates => setOrder(prev => prev ? { ...prev, ...updates } : prev)}
           onConfirm={async () => {
             setContractFieldsOpen(false)
