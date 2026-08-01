@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
+import { useLanguage } from '@/contexts/LanguageContext'
 import { normalizePhone } from '@/lib/utils'
 import { Order } from '@/types/database'
 
@@ -27,12 +28,15 @@ interface Props {
  * наименование груза и номер контейнера (раздел 3 договора-заявки), телефоны
  * контактных лиц на погрузке и выгрузке (раздел 2).
  *
- * Поля хранятся на заявке и переиспользуются транспортной накладной — клиент
- * заполняет их один раз, дальше модалка открывается уже с ними.
+ * Поля хранятся на заявке, поэтому клиент заполняет их один раз — дальше модалка
+ * открывается уже с ними. Наименование груза и номер контейнера переиспользует
+ * форма транспортной накладной; телефоны в ТН не идут — в бланке Приложения № 4
+ * для них нет отдельной строки.
  */
 export function ContractFieldsModal({
   open, onClose, order, ownPhone, onSaved, onConfirm, downloading,
 }: Props) {
+  const { t } = useLanguage()
   const [cargoName, setCargoName] = useState('')
   const [containerNumber, setContainerNumber] = useState('')
   const [senderPhone, setSenderPhone] = useState('')
@@ -61,7 +65,7 @@ export function ContractFieldsModal({
     const { error } = await supabase.from('orders').update(updates).eq('id', order.id)
     setSaving(false)
     if (error) {
-      toast.error('Не удалось сохранить данные для документа')
+      toast.error(t.order.docsSaveError)
       return
     }
     onSaved(updates)
@@ -69,34 +73,31 @@ export function ContractFieldsModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Данные для договора-заявки">
-      <p className="mb-4 text-sm text-ink-3">
-        Эти поля попадут в договор-заявку и подставятся в транспортную накладную.
-        Достаточно заполнить один раз — в следующий раз они уже будут здесь.
-      </p>
+    <Modal open={open} onClose={onClose} title={t.order.docsModalTitle}>
+      <p className="mb-4 text-sm text-ink-3">{t.order.docsModalHint}</p>
 
       <div className="space-y-3">
         <Input
-          label="Наименование груза"
-          placeholder="Оборудование в ящиках"
+          label={t.order.cargoName}
+          placeholder={t.order.cargoNamePlaceholder}
           value={cargoName}
           onChange={e => setCargoName(e.target.value)}
         />
         <Input
-          label="Номер контейнера"
+          label={t.order.containerNumber}
           placeholder="MSKU1234567"
           value={containerNumber}
           onChange={e => setContainerNumber(e.target.value)}
         />
         <Input
-          label="Телефон сотрудника-отправителя"
+          label={t.order.phoneLoading}
           type="tel"
           placeholder="+7 900 123-45-67"
           value={senderPhone}
           onChange={e => setSenderPhone(e.target.value)}
         />
         <Input
-          label="Телефон грузополучателя/грузоотправителя"
+          label={t.order.phoneUnloading}
           type="tel"
           placeholder="+7 900 123-45-67"
           value={receiverPhone}
@@ -106,10 +107,10 @@ export function ContractFieldsModal({
 
       <div className="mt-5 flex gap-2">
         <Button onClick={handleSubmit} loading={saving || downloading} className="flex-1">
-          {downloading ? 'Формируем...' : 'Скачать договор-заявку'}
+          {downloading ? t.order.docsGenerating : t.order.docsDownload}
         </Button>
         <Button variant="secondary" onClick={onClose} disabled={saving || downloading}>
-          Отмена
+          {t.common.cancel}
         </Button>
       </div>
     </Modal>

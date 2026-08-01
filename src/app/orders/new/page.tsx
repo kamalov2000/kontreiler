@@ -858,23 +858,20 @@ function NewOrderForm() {
               их сразу, договор-заявка и ТН соберутся без дозаполнения. */}
           <div className={sectionCard}>
             <span className={overline}>
-              Данные для документов <span className="text-ink-4 normal-case tracking-normal font-normal">({t.common.optional})</span>
+              {t.order.docsTitle} <span className="text-ink-4 normal-case tracking-normal font-normal">({t.common.optional})</span>
             </span>
-            <p className="text-xs text-ink-4 -mt-2">
-              Попадут в договор-заявку и транспортную накладную. Можно заполнить позже —
-              при первом скачивании договора.
-            </p>
+            <p className="text-xs text-ink-4 -mt-2">{t.order.docsHint}</p>
             <div className="grid sm:grid-cols-2 gap-3">
               <Input
                 id="cargoName"
-                label="Наименование груза"
+                label={t.order.cargoName}
                 value={cargoName}
                 onChange={e => setCargoName(e.target.value)}
-                placeholder="Оборудование в ящиках"
+                placeholder={t.order.cargoNamePlaceholder}
               />
               <Input
                 id="containerNumber"
-                label="Номер контейнера"
+                label={t.order.containerNumber}
                 value={containerNumber}
                 onChange={e => setContainerNumber(e.target.value)}
                 placeholder="MSKU1234567"
@@ -883,7 +880,7 @@ function NewOrderForm() {
               <Input
                 id="senderPhone"
                 type="tel"
-                label="Телефон сотрудника-отправителя"
+                label={t.order.phoneLoading}
                 value={senderPhone}
                 onChange={e => setSenderPhone(e.target.value)}
                 placeholder="+7 900 123-45-67"
@@ -892,7 +889,7 @@ function NewOrderForm() {
               <Input
                 id="receiverPhone"
                 type="tel"
-                label="Телефон грузополучателя/грузоотправителя"
+                label={t.order.phoneUnloading}
                 value={receiverPhone}
                 onChange={e => setReceiverPhone(e.target.value)}
                 placeholder="+7 900 123-45-67"

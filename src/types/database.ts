@@ -97,8 +97,10 @@ export interface Order {
   vat_type: VatType
   requires_genset: boolean
   notes: string | null
-  // Общие поля документов: клиент дозаполняет их один раз при первом скачивании
-  // договора-заявки, дальше они подтягиваются и в договор, и в ТН.
+  // Поля документов: клиент дозаполняет их один раз при первом скачивании
+  // договора-заявки. cargo_name и container_number подтягиваются и в ТН;
+  // телефоны контактных лиц идут только в договор-заявку (раздел 2) — в бланке
+  // ТН по Приложению № 4 отдельной строки под телефон нет.
   cargo_name: string | null
   container_number: string | null
   sender_contact_phone: string | null
