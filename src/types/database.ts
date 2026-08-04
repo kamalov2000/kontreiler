@@ -107,6 +107,11 @@ export interface Order {
   receiver_contact_phone: string | null
   // false = перевозчик заменил данные водителя, клиент ещё не закрыл баннер
   driver_info_seen: boolean
+  // Момент, когда accepted_carrier_id был заполнен — точка отсчёта для
+  // напоминаний о данных водителя (см. send_driver_info_reminders)
+  matched_at: string | null
+  driver_info_reminder_count: number
+  driver_info_reminder_last_sent_at: string | null
   hide_phone: boolean
   agreed_price: number | null
   order_number: string | null
@@ -143,9 +148,10 @@ export type NotificationType =
   | 'order_delivered' | 'trip_done'
   | 'order_cancelled'
   | 'order_changed'
-  | 'driver_info_changed'
+  | 'driver_info_changed' | 'driver_info_reminder'
   | 'review_request'
   | 'auction_won' | 'auction_ended'
+  | 'route_match'
 
 export interface Notification {
   id: string

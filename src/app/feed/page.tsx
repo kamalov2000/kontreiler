@@ -16,24 +16,12 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, SavedRoute } from '@/types/database'
-import { CONTAINER_TYPES, CONTAINER_TARE_WEIGHT } from '@/lib/cities'
+import { CONTAINER_TYPES } from '@/lib/cities'
 import { toast } from 'sonner'
 import { Filter, X, Bookmark, Search } from 'lucide-react'
 import Link from 'next/link'
-import { formatOrderNumber, formatPrice } from '@/lib/utils'
+import { formatOrderNumber, formatPrice, weightWithTareDisplay, vatLabel } from '@/lib/utils'
 
-function vatShort(v: string): string {
-  if (v === 'vat20') return 'с НДС 20%'
-  if (v === 'vat15') return 'с НДС 15%'
-  if (v === 'vat5') return 'с НДС 5%'
-  if (v === 'vat0') return 'НДС 0%'
-  return 'без НДС'
-}
-function weightDisplay(o: Order): string {
-  if (!o.weight_gross) return '—'
-  const tare = o.weight_tare ?? CONTAINER_TARE_WEIGHT[o.container_type] ?? 0
-  return (o.weight_gross + tare).toLocaleString('ru-RU')
-}
 function readyShort(d?: string | null): string {
   if (!d) return '—'
   return new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })
@@ -470,7 +458,7 @@ function FeedContent() {
                     <ContainerChip label={containerLabel} genset={order.requires_genset} wrap />
                   </span>
                   <span className="w-[84px] flex-none text-right font-mono text-[13px] tabular-nums text-ink-3">
-                    {weightDisplay(order)}
+                    {weightWithTareDisplay(order)}
                   </span>
                   <span className="w-[64px] flex-none text-right font-mono text-[13px] tabular-nums text-ink-3">
                     {readyShort(order.ready_date)}
@@ -480,7 +468,7 @@ function FeedContent() {
                       {formatPrice(order.price, order.is_negotiable)}
                     </span>
                     <span className="text-[10.5px] font-semibold tracking-[0.05em] uppercase text-ink-4">
-                      {vatShort(order.vat_type)}
+                      {vatLabel(order.vat_type)}
                     </span>
                   </span>
                   <span className="w-[124px] flex-none flex justify-end" onClick={e => e.stopPropagation()}>
@@ -531,7 +519,7 @@ function FeedContent() {
               />
               <div className="flex items-center justify-between">
                 <span className="font-mono text-[12px] text-ink-3">
-                  погрузка {readyShort(respondingTo.ready_date)} · {weightDisplay(respondingTo)} кг
+                  погрузка {readyShort(respondingTo.ready_date)} · {weightWithTareDisplay(respondingTo)} кг
                 </span>
                 <span className="font-mono text-[14px] font-medium tabular-nums text-ink">
                   {formatPrice(respondingTo.price, respondingTo.is_negotiable)}

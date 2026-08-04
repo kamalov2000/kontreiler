@@ -13,8 +13,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Order } from '@/types/database'
-import { CONTAINER_TYPES, CONTAINER_TARE_WEIGHT } from '@/lib/cities'
-import { formatOrderNumber } from '@/lib/utils'
+import { CONTAINER_TYPES } from '@/lib/cities'
+import { formatOrderNumber, weightWithTareDisplay } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
@@ -33,13 +33,6 @@ const STATUS_LABEL: Record<StatusTab, string> = {
   active:    'Активные',
   closed:    'Завершённые',
   cancelled: 'Отменённые',
-}
-
-// Вес груза с тарой контейнера, моно-строкой
-function weightDisplay(o: Order): string {
-  if (!o.weight_gross) return '—'
-  const tare = CONTAINER_TARE_WEIGHT[o.container_type] ?? 0
-  return (o.weight_gross + tare).toLocaleString('ru-RU')
 }
 
 function readyShort(d?: string | null): string {
@@ -319,7 +312,7 @@ export default function AuctionsPage() {
                     <ContainerChip label={containerLabel} genset={order.requires_genset} wrap />
                   </span>
                   <span className="w-[80px] flex-none text-right font-mono text-[13px] tabular-nums text-ink-3">
-                    {weightDisplay(order)}
+                    {weightWithTareDisplay(order)}
                   </span>
                   <span className="w-[64px] flex-none text-right font-mono text-[13px] tabular-nums text-ink-3">
                     {readyShort(order.ready_date)}

@@ -324,6 +324,15 @@ function NewOrderForm() {
     }
 
     toast.success(t.order.posted)
+
+    // Уведомляем перевозчиков с совпадающим сохранённым маршрутом — некритично,
+    // ошибку глотаем и не блокируем переход.
+    fetch('/api/orders/route-match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: inserted.id }),
+    }).catch(() => {})
+
     router.push(isAuctionFormat ? '/auctions' : '/dashboard')
   }
 

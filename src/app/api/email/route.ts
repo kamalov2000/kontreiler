@@ -70,11 +70,15 @@ export async function POST(req: Request) {
       if (!UUID_RE.test(orderId) || !UUID_RE.test(carrierId)) return NextResponse.json({ ok: true })
 
       const { data: order } = await supabase
-        .from('orders').select('from_city, to_city, client_id').eq('id', orderId).single()
+        .from('orders').select('from_city, to_city, client_id, format').eq('id', orderId).single()
       // Принимает отклик только владелец заявки
       if (!order || order.client_id !== authUser.id) return NextResponse.json({ ok: true })
 
       const { data: carrierAuth } = await supabase.auth.admin.getUserById(carrierId)
+
+      // Для regular/urgent документы клиенту недоступны, пока перевозчик не внесёт
+      // данные по водителю и ТС (см. lib/driver-gate.ts) — предупреждаем сразу.
+      const docsGated = order.format === 'regular' || order.format === 'urgent'
 
       if (carrierAuth?.user?.email) {
         await sendEmail({
@@ -84,7 +88,8 @@ export async function POST(req: Request) {
             preview: `Клиент выбрал вас перевозчиком по маршруту ${esc(order.from_city)} → ${esc(order.to_city)}`,
             heading: 'Ваш отклик принят',
             bodyHtml: `<p style="margin:0 0 12px;">Клиент принял ваш отклик на заявку <strong style="color:#10201F;">${esc(order.from_city)} → ${esc(order.to_city)}</strong>.</p>
-              <p style="margin:0;">Перейдите к заявке и в чат, чтобы согласовать детали рейса.</p>`,
+              <p style="margin:0;">Перейдите к заявке и в чат, чтобы согласовать детали рейса.</p>
+              ${docsGated ? '<p style="margin:12px 0 0;">Клиент не сможет оформить документы (договор-заявку и транспортную накладную), пока вы не внесёте данные по водителю и транспортному средству.</p>' : ''}`,
             cta: { label: 'Перейти к заявке', url: `${APP_URL}/orders/${orderId}` },
           }),
         })

@@ -28,8 +28,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop, OrderDriverInfo, hasRequiredDriverInfo } from '@/types/database'
-import { formatDateWithTime, formatDateTime, formatPrice, formatOrderNumber, formatPhone, readyDateBadge, toDatetimeLocal } from '@/lib/utils'
-import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT, CONTAINER_UNIT_TARE } from '@/lib/cities'
+import { formatDateWithTime, formatDateTime, formatPrice, formatOrderNumber, formatPhone, readyDateBadge, toDatetimeLocal, vatLabel, containerUnitTare } from '@/lib/utils'
+import { CONTAINER_TYPES, REF_CONTAINER_TYPES } from '@/lib/cities'
 import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -598,9 +598,9 @@ export default function OrderDetailPage() {
   }
 
 
-  function openAcceptModal(carrierId: string) {
+  function openAcceptModal(carrierId: string, defaultPrice?: number) {
     setPendingCarrierId(carrierId)
-    setAgreedPriceInput(order?.price ? String(order.price) : '')
+    setAgreedPriceInput(defaultPrice != null ? String(defaultPrice) : (order?.price ? String(order.price) : ''))
     setAgreedPriceOpen(true)
   }
 
@@ -610,15 +610,28 @@ export default function OrderDetailPage() {
     setAcceptingId(pendingCarrierId)
     const supabase = createClient()
     const agreedPrice = agreedPriceInput ? parseInt(agreedPriceInput) : null
+    // Ручной выбор победителя торгов (auction_auto_winner=false) идёт тем же
+    // флоу, что и принятие обычного отклика — но дополнительно фиксирует
+    // auction_winner_id, как это делает settle_finished_auctions() при автовыборе.
+    const isAuctionFormat = order.format === 'auction' || order.format === 'reduction'
     const { error } = await supabase
       .from('orders')
-      .update({ accepted_carrier_id: pendingCarrierId, status: 'matched', agreed_price: agreedPrice })
+      .update({
+        accepted_carrier_id: pendingCarrierId,
+        status: 'matched',
+        agreed_price: agreedPrice,
+        ...(isAuctionFormat ? { auction_winner_id: pendingCarrierId } : {}),
+      })
       .eq('id', order.id)
 
     if (error) { toast.error('Ошибка при выборе перевозчика'); setAcceptingId(null); return }
 
     toast.success('Перевозчик выбран! Перейдите в чат для согласования деталей.')
-    setOrder(prev => prev ? { ...prev, accepted_carrier_id: pendingCarrierId, status: 'matched', agreed_price: agreedPrice } : prev)
+    setOrder(prev => prev ? {
+      ...prev,
+      accepted_carrier_id: pendingCarrierId, status: 'matched', agreed_price: agreedPrice,
+      ...(isAuctionFormat ? { auction_winner_id: pendingCarrierId } : {}),
+    } : prev)
     setAcceptingId(null)
     setPendingCarrierId(null)
 
@@ -738,16 +751,19 @@ export default function OrderDetailPage() {
   const canRevert = isOwner && !!PREV_STATUS[order.status]
   const canReopen = isOwner && (order.status === 'closed' || order.status === 'cancelled' || order.status === 'expired')
   const canCancel = isOwner && ['active', 'matched', 'in_transit'].includes(order.status)
+  // Торги/редукцион с выключенным auction_auto_winner: settle_finished_auctions()
+  // просто закрывает заявку статусом «closed», не выбирая победителя — клиент
+  // должен выбрать его вручную из списка ставок (иначе заявка зависает без выхода).
+  const auctionAwaitingWinner = isOwner
+    && (order.format === 'reduction' || order.format === 'auction')
+    && order.status === 'closed'
+    && !order.accepted_carrier_id
   // Задача 8: правки разрешены до «Доставлено» включительно (active/matched/in_transit),
   // после доставки/закрытия/отмены — запрещены
   const canEdit   = isOwner && ['active', 'matched', 'in_transit'].includes(order.status)
   const today     = new Date().toISOString().split('T')[0]
 
-  const vatLabel = order.vat_type === 'vat20' ? 'с НДС 22%'
-    : order.vat_type === 'vat15' ? 'с НДС 15%'
-    : order.vat_type === 'vat5'  ? 'с НДС 5%'
-    : order.vat_type === 'vat0'  ? 'НДС 0%'
-    : 'Без НДС'
+  const vatLabelText = vatLabel(order.vat_type)
 
   return (
     <AppLayout>
@@ -951,7 +967,7 @@ export default function OrderDetailPage() {
               <div>
                 <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Ставка</div>
                 <div className="font-mono text-xl font-medium tabular-nums text-ink">{formatPrice(order.price, order.is_negotiable)}</div>
-                <div className="text-[11px] font-medium text-ink-4 mt-0.5">{vatLabel}</div>
+                <div className="text-[11px] font-medium text-ink-4 mt-0.5">{vatLabelText}</div>
               </div>
             )}
             {/* Плановая дата погрузки/выгрузки */}
@@ -973,14 +989,14 @@ export default function OrderDetailPage() {
                 <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5 flex items-center gap-1"><Weight size={12} /> Вес</div>
                 {order.container_type === '20DC2' ? (
                   <div className="space-y-0.5 text-[13px] text-ink-2">
-                    {order.weight_gross && <div>Конт. 1 с тарой: <strong className="font-mono tabular-nums text-ink">{(order.weight_gross + (CONTAINER_UNIT_TARE['20DC2'] ?? 2200)).toLocaleString('ru-RU')} кг</strong></div>}
+                    {order.weight_gross && <div>Конт. 1 с тарой: <strong className="font-mono tabular-nums text-ink">{(order.weight_gross + containerUnitTare(order)).toLocaleString('ru-RU')} кг</strong></div>}
                     {order.weight_net   && <div>Конт. 1 нетто: <strong className="font-mono tabular-nums text-ink">{order.weight_net.toLocaleString('ru-RU')} кг</strong></div>}
-                    {order.weight_gross_2 && <div className="mt-1">Конт. 2 с тарой: <strong className="font-mono tabular-nums text-ink">{(order.weight_gross_2 + (CONTAINER_UNIT_TARE['20DC2'] ?? 2200)).toLocaleString('ru-RU')} кг</strong></div>}
+                    {order.weight_gross_2 && <div className="mt-1">Конт. 2 с тарой: <strong className="font-mono tabular-nums text-ink">{(order.weight_gross_2 + containerUnitTare(order)).toLocaleString('ru-RU')} кг</strong></div>}
                     {order.weight_net_2   && <div>Конт. 2 нетто: <strong className="font-mono tabular-nums text-ink">{order.weight_net_2.toLocaleString('ru-RU')} кг</strong></div>}
                   </div>
                 ) : (
                   <div className="space-y-0.5 text-[13px] text-ink-2">
-                    {order.weight_gross && <div>С контейнером: <strong className="font-mono tabular-nums text-ink">{(order.weight_gross + (CONTAINER_TARE_WEIGHT[order.container_type] ?? 0)).toLocaleString('ru-RU')} кг</strong></div>}
+                    {order.weight_gross && <div>С контейнером: <strong className="font-mono tabular-nums text-ink">{(order.weight_gross + containerUnitTare(order)).toLocaleString('ru-RU')} кг</strong></div>}
                     {order.weight_net   && <div>Нетто: <strong className="font-mono tabular-nums text-ink">{order.weight_net.toLocaleString('ru-RU')} кг</strong></div>}
                   </div>
                 )}
@@ -1073,6 +1089,13 @@ export default function OrderDetailPage() {
                 </div>
               )}
 
+              {/* Торги завершены без автовыбора — клиент выбирает победителя вручную */}
+              {auctionAwaitingWinner && (
+                <p className="mt-3 text-[13px] text-warning">
+                  Торги завершены. Выберите победителя из списка ставок ниже — иначе заявка так и останется закрытой.
+                </p>
+              )}
+
               {/* История ставок */}
               {bids.length > 0 && (
                 <div className="mt-3 space-y-1.5 max-h-40 overflow-y-auto">
@@ -1082,7 +1105,18 @@ export default function OrderDetailPage() {
                         {b.carrier?.name || 'Перевозчик'}
                         <VerifiedBadge verified={b.carrier?.is_verified} iconOnly />
                       </span>
-                      <span className="font-mono tabular-nums text-accent">{b.amount.toLocaleString('ru-RU')} ₽</span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-mono tabular-nums text-accent">{b.amount.toLocaleString('ru-RU')} ₽</span>
+                        {auctionAwaitingWinner && (
+                          <Button
+                            size="sm"
+                            loading={acceptingId === b.carrier_id}
+                            onClick={() => openAcceptModal(b.carrier_id, b.amount)}
+                          >
+                            Выбрать победителем
+                          </Button>
+                        )}
+                      </span>
                     </div>
                   ))}
                 </div>

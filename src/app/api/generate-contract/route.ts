@@ -6,6 +6,7 @@ import React from 'react'
 import { ContractDocument, ContractData, PartyData } from '@/lib/contract-pdf'
 import { CONTAINER_TYPES } from '@/lib/cities'
 import { isDocGenerationBlocked, DRIVER_GATE_MESSAGE } from '@/lib/driver-gate'
+import { vatDocLabel } from '@/lib/utils'
 
 // react-pdf требует Node-рантайм (не Edge). maxDuration — чтобы холодный старт
 // с рендером PDF и загрузкой шрифта не упирался в дефолтный лимит функции.
@@ -28,14 +29,6 @@ function formatLoadingDateTime(date: string, time: string | null): string {
   const d = new Date(`${date.slice(0, 10)}T00:00:00`)
   const dateStr = d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
   return time ? `${dateStr}, ${time}` : dateStr
-}
-
-function vatLabel(vat: string | null): string {
-  if (vat === 'vat20') return 'НДС 22%'
-  if (vat === 'vat0')  return 'НДС 0%'
-  if (vat === 'vat5')  return 'НДС 5%'
-  if (vat === 'vat15') return 'НДС 15%'
-  return 'Без НДС'
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -160,7 +153,7 @@ export async function GET(req: Request) {
     requiresGenset: !!order.requires_genset,
     readyDate: formatLoadingDateTime(order.ready_date, order.ready_time ?? null),
     price: order.price,
-    vatLabel: vatLabel(order.vat_type),
+    vatLabel: vatDocLabel(order.vat_type),
     agreedPrice: order.agreed_price,
     downtimeRate: order.downtime_rate ?? null,
     client: toParty(clientUser),

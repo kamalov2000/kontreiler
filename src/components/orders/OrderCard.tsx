@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { AlertCircle, MessageSquare, TrendingDown, TrendingUp, Truck, PauseCircle, Satellite, MapPin, Timer } from 'lucide-react'
 import { Order, OrderStop } from '@/types/database'
-import { formatDateWithTime, formatPrice, formatOrderNumber, readyDateBadge } from '@/lib/utils'
-import { CONTAINER_TYPES, CONTAINER_TARE_WEIGHT, CONTAINER_UNIT_TARE } from '@/lib/cities'
+import { formatDateWithTime, formatPrice, formatOrderNumber, readyDateBadge, vatLabel, containerUnitTare } from '@/lib/utils'
+import { CONTAINER_TYPES } from '@/lib/cities'
 import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
 import { cn } from '@/lib/utils'
 import { RouteInline } from '@/components/ui/RouteInline'
@@ -57,14 +57,6 @@ function ExpiryCountdown({ expiresAt }: { expiresAt: string }) {
       <Timer size={13} className="shrink-0" /> Истекает через {label}
     </span>
   )
-}
-
-function vatInlineLabel(vatType: string): string {
-  if (vatType === 'vat20') return 'с НДС 22%'
-  if (vatType === 'vat15') return 'с НДС 15%'
-  if (vatType === 'vat5')  return 'с НДС 5%'
-  if (vatType === 'vat0')  return 'НДС 0%'
-  return 'Без НДС'
 }
 
 export function OrderCard({ order, showResponses, actions, extra, bidData, stops, hasStops }: OrderCardProps) {
@@ -174,7 +166,7 @@ export function OrderCard({ order, showResponses, actions, extra, bidData, stops
         ) : (
           <span className="flex flex-col px-2.5 py-1 rounded-field bg-accent-soft text-accent">
             <span className="font-mono text-sm font-medium tabular-nums">{formatPrice(order.price, order.is_negotiable)}</span>
-            <span className="text-[11px] text-accent/70 font-normal">{vatInlineLabel(order.vat_type)}</span>
+            <span className="text-[11px] text-accent/70 font-normal">{vatLabel(order.vat_type)}</span>
           </span>
         )}
         {/* Плановая дата погрузки/выгрузки с отсчётом дней */}
@@ -230,18 +222,18 @@ export function OrderCard({ order, showResponses, actions, extra, bidData, stops
           {order.container_type === '20DC2' ? (
             <>
               {order.weight_gross && (
-                <span>Конт. 1 с тарой: <strong className="font-mono tabular-nums text-ink-2">{(order.weight_gross + (CONTAINER_UNIT_TARE['20DC2'] ?? 2200)).toLocaleString('ru-RU')} кг</strong>
+                <span>Конт. 1 с тарой: <strong className="font-mono tabular-nums text-ink-2">{(order.weight_gross + containerUnitTare(order)).toLocaleString('ru-RU')} кг</strong>
                   {order.weight_net && <> · нетто: <strong className="font-mono tabular-nums text-ink-2">{order.weight_net.toLocaleString('ru-RU')} кг</strong></>}</span>
               )}
               {order.weight_gross_2 && (
-                <span>Конт. 2 с тарой: <strong className="font-mono tabular-nums text-ink-2">{(order.weight_gross_2 + (CONTAINER_UNIT_TARE['20DC2'] ?? 2200)).toLocaleString('ru-RU')} кг</strong>
+                <span>Конт. 2 с тарой: <strong className="font-mono tabular-nums text-ink-2">{(order.weight_gross_2 + containerUnitTare(order)).toLocaleString('ru-RU')} кг</strong>
                   {order.weight_net_2 && <> · нетто: <strong className="font-mono tabular-nums text-ink-2">{order.weight_net_2.toLocaleString('ru-RU')} кг</strong></>}</span>
               )}
             </>
           ) : (
             <div className="flex gap-3">
               {order.weight_gross && (
-                <span>Вес груза с контейнером: <strong className="font-mono tabular-nums text-ink-2">{(order.weight_gross + (order.weight_tare ?? CONTAINER_TARE_WEIGHT[order.container_type] ?? 0)).toLocaleString('ru-RU')} кг</strong></span>
+                <span>Вес груза с контейнером: <strong className="font-mono tabular-nums text-ink-2">{(order.weight_gross + containerUnitTare(order)).toLocaleString('ru-RU')} кг</strong></span>
               )}
               {order.weight_net && (
                 <span>Нетто: <strong className="font-mono tabular-nums text-ink-2">{order.weight_net.toLocaleString('ru-RU')} кг</strong></span>

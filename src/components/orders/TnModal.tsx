@@ -7,8 +7,8 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
-import { formatDateTime } from '@/lib/utils'
-import { Order, OrderStop, OrderDriverInfo, OrderTnVersion, User, VatType } from '@/types/database'
+import { formatDateTime, vatPercent, vatDocLabel } from '@/lib/utils'
+import { Order, OrderStop, OrderDriverInfo, OrderTnVersion, User } from '@/types/database'
 
 interface Props {
   open: boolean
@@ -20,20 +20,6 @@ interface Props {
   currentUserId: string
   /** Вызывается после сохранения ТН в документы — чтобы родитель обновил список файлов. */
   onSaved?: () => void
-}
-
-/** Ставка НДС в процентах. `vat20` = 22% — ключ enum легаси, ставка актуальная (как в договоре и торгах). */
-const VAT_PERCENT: Record<VatType, number | null> = {
-  none: null, // без НДС
-  vat0: 0,
-  vat5: 5,
-  vat15: 15,
-  vat20: 22,
-}
-
-function vatLabel(vat: VatType): string {
-  const p = VAT_PERCENT[vat]
-  return p === null ? 'Без НДС' : `НДС ${p}%`
 }
 
 function fmtDate(iso: string | null): string {
@@ -283,13 +269,13 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo, curr
   }, [open, order, route, carrier, driverInfo, pickupAddress, unloadAddress, pickupDatetime, orderNumber, massLine, prefill, loadVersions])
 
   // Стоимость с НДС и сумма налога считаются из «без НДС» и ставки заявки.
-  const vatPercent = VAT_PERCENT[order.vat_type] ?? 0
+  const vatPercentValue = vatPercent(order.vat_type) ?? 0
   const { vatAmount, costWithVat } = useMemo(() => {
     const base = parseMoney(costNoVat)
     if (!base) return { vatAmount: '', costWithVat: '' }
-    const tax = base * (vatPercent / 100)
+    const tax = base * (vatPercentValue / 100)
     return { vatAmount: money(tax), costWithVat: money(base + tax) }
-  }, [costNoVat, vatPercent])
+  }, [costNoVat, vatPercentValue])
 
   // В режиме копии редактируются только номер контейнера и дата.
   const locked = copyMode
@@ -406,7 +392,7 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo, curr
           mass_at_unloading: massAtLoading,
 
           cost_no_vat: costNoVat ? money(parseMoney(costNoVat)) : '',
-          vat_rate: vatLabel(order.vat_type),
+          vat_rate: vatDocLabel(order.vat_type),
           vat_amount: vatAmount,
           cost_with_vat: costWithVat,
           cost_calc_order: costCalcOrder,
@@ -852,7 +838,7 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo, curr
               disabled={locked}
               className="font-mono tabular-nums"
             />
-            <Input label="Налоговая ставка" value={vatLabel(order.vat_type)} disabled />
+            <Input label="Налоговая ставка" value={vatDocLabel(order.vat_type)} disabled />
             <Input label="Сумма налога, ₽" value={vatAmount} disabled className="font-mono tabular-nums" />
             <Input label="С налогом, ₽" value={costWithVat} disabled className="font-mono tabular-nums" />
           </div>

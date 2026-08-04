@@ -14,6 +14,7 @@ import {
   Star,
   Trophy,
   IdCard,
+  MapPin,
   type LucideIcon,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -36,9 +37,11 @@ const TYPE_META: Record<string, { label: string; icon: LucideIcon; tone: NotifTo
   order_cancelled:    { label: 'Заявка отменена',         icon: Ban,           tone: 'danger'  },
   order_changed:      { label: 'Заявка изменена клиентом', icon: Pencil,       tone: 'warning' },
   driver_info_changed:{ label: 'Данные по водителю',        icon: IdCard,       tone: 'warning' },
+  driver_info_reminder:{ label: 'Напомнить: данные водителя', icon: IdCard,     tone: 'warning' },
   review_request:     { label: 'Оставьте отзыв',          icon: Star,          tone: 'warning' },
   auction_won:        { label: 'Вы победили в торгах',     icon: Trophy,        tone: 'success' },
   auction_ended:      { label: 'Торги завершены',         icon: Bell,          tone: 'neutral' },
+  route_match:        { label: 'Новая заявка по маршруту', icon: MapPin,        tone: 'accent'  },
 }
 
 const FALLBACK_META = { label: 'Уведомление', icon: Bell, tone: 'neutral' as NotifTone }

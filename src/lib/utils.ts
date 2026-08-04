@@ -1,8 +1,64 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { CONTAINER_TARE_WEIGHT, CONTAINER_UNIT_TARE } from './cities'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+// Ставка НДС в процентах по типу заявки. `vat20` — легаси-ключ enum, фактическая
+// ставка 22% (как в договоре, ТН и торгах) — единый источник правды для всех мест,
+// где раньше эта карта была продублирована по отдельности.
+const VAT_PERCENT: Record<string, number | null> = {
+  none: null,
+  vat0: 0,
+  vat5: 5,
+  vat15: 15,
+  vat20: 22,
+}
+
+export function vatPercent(vatType: string | null | undefined): number | null {
+  return VAT_PERCENT[vatType ?? 'none'] ?? null
+}
+
+// Метка НДС для UI-чипов и карточек: "с НДС 22%" / "НДС 0%" / "Без НДС"
+export function vatLabel(vatType: string | null | undefined): string {
+  const p = vatPercent(vatType)
+  if (p === null) return 'Без НДС'
+  return p === 0 ? 'НДС 0%' : `с НДС ${p}%`
+}
+
+// Метка НДС для печатных документов (договор-заявка, ТН): "НДС 22%" / "Без НДС" —
+// без предлога, отдельная фраза от UI-чипов, поэтому не объединена с vatLabel.
+export function vatDocLabel(vatType: string | null | undefined): string {
+  const p = vatPercent(vatType)
+  return p === null ? 'Без НДС' : `НДС ${p}%`
+}
+
+// Тара контейнера для расчёта веса брутто: индивидуальная (order.weight_tare),
+// иначе справочная по типу. Для 20DC2 — тара ОДНОЙ единицы пары, а не суммарная
+// величина CONTAINER_TARE_WEIGHT['20DC2'].
+export function containerUnitTare(order: { container_type: string; weight_tare?: number | null }): number {
+  if (order.weight_tare) return order.weight_tare
+  if (order.container_type === '20DC2') return CONTAINER_UNIT_TARE['20DC2'] ?? 2200
+  return CONTAINER_TARE_WEIGHT[order.container_type] ?? 0
+}
+
+// Итоговый вес брутто с тарой контейнера, одной строкой — для списков (лента,
+// торги). Для 20DC2 суммирует оба контейнера пары, если задан второй вес.
+export function weightWithTareDisplay(order: {
+  container_type: string
+  weight_tare?: number | null
+  weight_gross?: number | null
+  weight_gross_2?: number | null
+}): string {
+  if (!order.weight_gross) return '—'
+  const tare = containerUnitTare(order)
+  let total = order.weight_gross + tare
+  if (order.container_type === '20DC2' && order.weight_gross_2) {
+    total += order.weight_gross_2 + tare
+  }
+  return total.toLocaleString('ru-RU')
 }
 
 export function formatDate(date: string) {
