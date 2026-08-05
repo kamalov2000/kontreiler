@@ -73,6 +73,9 @@ export interface Order {
   auction_step: number | null
   auction_auto_winner: boolean
   auction_auto_extend: boolean
+  // Сколько раз торг без ставок уже продлевался. Потолок — 3, дальше торг
+  // закрывается как несостоявшийся (см. settle_finished_auctions)
+  auction_extend_count: number
   arrival_time: string | null
   from_city: string
   via_city: string | null
