@@ -1,14 +1,16 @@
 -- ════════════════════════════════════════════════════════════════════════
 -- ОЧИСТКА ТЕСТОВЫХ ДАННЫХ — НЕ ПРИМЕНЕНО, dry-run
 --
--- Периметр: пользователи с почтой @test.ru и @kontreil-demo.ru (сид-демо)
--- и все их данные. 20 аккаунтов.
+-- Периметр: 22 аккаунта —
+--   • @test.ru               (9)  — сид первой волны
+--   • @kontreil-demo.ru      (11) — сид-демо
+--   • kontreil.testclient@gmail.com, kontreil.testcarrier@gmail.com (2) —
+--     ручные тест-аккаунты; под шаблон почты не подходят, поэтому заданы
+--     списком явно.
 --
--- НЕ входят в периметр (это отдельное решение, см. отчёт):
---   kontreil.testclient@gmail.com, kontreil.testcarrier@gmail.com —
---   ручные тест-аккаунты, но по почте под шаблон не подходят. На них висит
---   28 просроченных заявок; именно их заявки собирают те 7 откликов от
---   тестовых перевозчиков, которые этот скрипт удалит.
+-- ОСТАЮТСЯ (реальные пользователи, скрипт их не трогает):
+--   kamalov.alb2000@yandex.ru, vstk@mail.ru, cheklazercool@yandex.ru,
+--   prudnikov.vyacheslav@gmail.com, vprudnikovp@yandex.ru
 --
 -- Скрипт завершается ROLLBACK. Чтобы применить по-настоящему — заменить
 -- последнюю строку на COMMIT. До этого его можно гонять сколько угодно:
@@ -22,7 +24,9 @@ BEGIN;
 
 CREATE TEMP TABLE tu    ON COMMIT DROP AS
   SELECT id FROM auth.users
-   WHERE email LIKE '%@test.ru' OR email LIKE '%@kontreil-demo.ru';
+   WHERE email LIKE '%@test.ru'
+      OR email LIKE '%@kontreil-demo.ru'
+      OR email IN ('kontreil.testclient@gmail.com', 'kontreil.testcarrier@gmail.com');
 
 CREATE TEMP TABLE tord  ON COMMIT DROP AS
   SELECT id FROM orders WHERE client_id IN (SELECT id FROM tu);

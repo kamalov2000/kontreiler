@@ -5,8 +5,17 @@
 # Из SQL это сделать нельзя: Supabase блокирует прямой DELETE из
 # storage.objects (триггер storage.protect_delete). Только Storage API.
 #
-# Пути зафиксированы на момент 2026-08-05 — перед запуском перепроверь их
-# запросом из отчёта, вдруг за это время добавились новые.
+# Пути зафиксированы на момент 2026-08-05 (периметр из 22 аккаунтов; добавление
+# двух gmail-аккаунтов новых файлов не принесло). Перед запуском перепроверь
+# запросом ниже, вдруг за это время добавились новые:
+#
+#   WITH tu AS (SELECT id FROM auth.users WHERE email LIKE '%@test.ru'
+#                 OR email LIKE '%@kontreil-demo.ru'
+#                 OR email IN ('kontreil.testclient@gmail.com','kontreil.testcarrier@gmail.com')),
+#        tord AS (SELECT id FROM orders WHERE client_id IN (SELECT id FROM tu))
+#   SELECT bucket_id, name FROM storage.objects
+#    WHERE (bucket_id='order-docs'    AND split_part(name,'/',1) IN (SELECT id::text FROM tord))
+#       OR (bucket_id='company-logos' AND split_part(name,'/',1) IN (SELECT id::text FROM tu));
 #
 # По умолчанию НИЧЕГО НЕ УДАЛЯЕТ: печатает, что будет удалено.
 # Запуск с реальным удалением:  APPLY=1 ./CLEANUP_TEST_STORAGE.sh
