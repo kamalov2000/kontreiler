@@ -23,8 +23,9 @@ interface Props {
  * (разделы 6, 7, 8, 10, 12).
  *
  * ФИО, госномер тягача и телефон водителя обязательны: пока их нет, клиент не
- * может скачать документы по заявке. Внесение не принудительное — перевозчик
- * закрывает модалку и возвращается к ней кнопкой на странице заявки.
+ * может скачать документы по заявке. Внесение не принудительное — «Заполнить
+ * позже» просто закрывает окно, ничего не записывая: при следующем заходе на
+ * заявку оно откроется снова (см. автоподсказку в src/app/orders/[id]/page.tsx).
  */
 export function DriverInfoModal({ open, onClose, orderId, initial, onSaved }: Props) {
   const [driverName, setDriverName] = useState('')
@@ -156,7 +157,7 @@ export function DriverInfoModal({ open, onClose, orderId, initial, onSaved }: Pr
           Сохранить
         </Button>
         <Button variant="secondary" onClick={onClose} disabled={saving}>
-          Позже
+          Заполнить позже
         </Button>
       </div>
     </Modal>

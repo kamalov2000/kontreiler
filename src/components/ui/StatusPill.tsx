@@ -1,16 +1,18 @@
 import { cn } from '@/lib/utils'
+import { ORDER_STATUS_LABEL as L } from '@/lib/order-status'
 
 type Tone = { label: string; pill: string; dot: string }
 
-// Статусы заявки — мягкий фон + ведущая точка (Морской фрахт)
+// Статусы заявки — мягкий фон + ведущая точка (Морской фрахт).
+// Подписи берём из общей карты, чтобы выгрузки и пилюли не разъезжались.
 const ORDER_TONE: Record<string, Tone> = {
-  active:     { label: 'Новая',      pill: 'bg-accent-soft text-accent',      dot: 'bg-accent' },
-  matched:    { label: 'Назначена',  pill: 'bg-surface-sunken text-ink-2',    dot: 'bg-ink-3' },
-  in_transit: { label: 'В пути',     pill: 'bg-warning-soft text-warning',    dot: 'bg-warning' },
-  delivered:  { label: 'Доставлено', pill: 'bg-success-soft text-success',    dot: 'bg-success' },
-  expired:    { label: 'Просрочена', pill: 'bg-danger-soft text-danger',      dot: 'bg-danger' },
-  cancelled:  { label: 'Отменена',   pill: 'bg-danger-soft text-danger',      dot: 'bg-danger' },
-  closed:     { label: 'Закрыта',    pill: 'bg-surface-sunken text-ink-3',    dot: 'bg-ink-4' },
+  active:     { label: L.active,     pill: 'bg-accent-soft text-accent',      dot: 'bg-accent' },
+  matched:    { label: L.matched,    pill: 'bg-surface-sunken text-ink-2',    dot: 'bg-ink-3' },
+  in_transit: { label: L.in_transit, pill: 'bg-warning-soft text-warning',    dot: 'bg-warning' },
+  delivered:  { label: L.delivered,  pill: 'bg-success-soft text-success',    dot: 'bg-success' },
+  expired:    { label: L.expired,    pill: 'bg-danger-soft text-danger',      dot: 'bg-danger' },
+  cancelled:  { label: L.cancelled,  pill: 'bg-danger-soft text-danger',      dot: 'bg-danger' },
+  closed:     { label: L.closed,     pill: 'bg-surface-sunken text-ink-3',    dot: 'bg-ink-4' },
 }
 
 // Статусы рейса (машины)

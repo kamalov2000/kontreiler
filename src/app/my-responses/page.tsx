@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { AppLayout } from '@/components/layout/AppLayout'
+import { RegistryExportButton } from '@/components/orders/RegistryExportButton'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Response } from '@/types/database'
@@ -117,11 +118,14 @@ export default function MyResponsesPage() {
 
   return (
     <AppLayout>
-      <div className="flex items-baseline gap-3 mb-5 flex-wrap">
-        <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">Мои отклики</h1>
-        {!loading && (
-          <span className="font-mono text-[13px] tabular-nums text-ink-3">{filtered.length} откликов</span>
-        )}
+      <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">Мои отклики</h1>
+          {!loading && (
+            <span className="font-mono text-[13px] tabular-nums text-ink-3">{filtered.length} откликов</span>
+          )}
+        </div>
+        {user && <RegistryExportButton role="carrier" userId={user.id} />}
       </div>
 
       {/* Поиск и фильтр */}

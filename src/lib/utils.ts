@@ -35,6 +35,20 @@ export function vatDocLabel(vatType: string | null | undefined): string {
   return p === null ? 'Без НДС' : `НДС ${p}%`
 }
 
+// Сумма клиента с НДС. База — согласованная с перевозчиком цена; пока её нет
+// (заявка ещё не закрыта сделкой), берём ставку из заявки — как в ТН. "Без НДС"
+// и "НДС 0%" дают ту же сумму, что и база. null — если суммы нет вовсе.
+export function priceWithVat(order: {
+  agreed_price?: number | null
+  price?: number | null
+  vat_type?: string | null
+}): number | null {
+  const base = order.agreed_price ?? order.price
+  if (!base) return null
+  const percent = vatPercent(order.vat_type) ?? 0
+  return Math.round(base * (1 + percent / 100) * 100) / 100
+}
+
 // Тара контейнера для расчёта веса брутто: индивидуальная (order.weight_tare),
 // иначе справочная по типу. Для 20DC2 — тара ОДНОЙ единицы пары, а не суммарная
 // величина CONTAINER_TARE_WEIGHT['20DC2'].

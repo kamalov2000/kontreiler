@@ -168,8 +168,9 @@ export default function OrderDetailPage() {
   const [contractFieldsOpen, setContractFieldsOpen] = useState(false)
   // Сигнал обновления списка документов (растёт при сохранении ТН в документы)
   const [docsRefresh, setDocsRefresh] = useState(0)
-  // Автоподсказку водителю показываем один раз за визит, иначе она будет
-  // всплывать после каждого «Позже».
+  // Автоподсказку водителю показываем один раз за визит: иначе она всплывала бы
+  // сразу после «Заполнить позже». Флаг живёт в ref, а не в БД, — поэтому на
+  // следующем заходе на страницу окно откроется снова (так и задумано).
   const driverPromptShown = useRef(false)
 
   const isOwner = user?.id === order?.client_id

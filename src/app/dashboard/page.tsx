@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Plus, Search, X, Filter, Download, Upload } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderImportModal } from '@/components/orders/OrderImportModal'
+import { RegistryExportButton } from '@/components/orders/RegistryExportButton'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { RouteInline } from '@/components/ui/RouteInline'
@@ -16,6 +17,7 @@ import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, ContainerType } from '@/types/database'
 import { formatOrderNumber, formatPrice } from '@/lib/utils'
+import { effectiveOrderStatus } from '@/lib/order-status'
 import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
 import { CONTAINER_TYPES } from '@/lib/cities'
 import { toast } from 'sonner'
@@ -219,17 +221,10 @@ export default function DashboardPage() {
     return () => clearInterval(timer)
   }, [])
 
-  // Вычисляем эффективный статус: учитываем expires_at и ready_date
+  // Эффективный статус (с учётом expires_at и ready_date) — общая функция,
+  // ею же считает статус реестр перевозок.
   function getEffStatus(o: Order): string {
-    if (o.status !== 'active') return o.status
-    if (o.expires_at && new Date(o.expires_at).getTime() <= now) return 'expired'
-    // Если дата погрузки/выгрузки прошла — тоже считаем просроченной
-    if (o.ready_date) {
-      const endOfReadyDay = new Date(o.ready_date)
-      endOfReadyDay.setDate(endOfReadyDay.getDate() + 1)
-      if (endOfReadyDay.getTime() <= now) return 'expired'
-    }
-    return 'active'
+    return effectiveOrderStatus(o, now)
   }
 
   // Фильтрация по вкладкам
@@ -293,7 +288,7 @@ export default function DashboardPage() {
     const ws = utils.json_to_sheet(rows)
     const wb = utils.book_new()
     utils.book_append_sheet(wb, ws, 'Заявки')
-    writeFile(wb, `zaявки_${new Date().toISOString().slice(0, 10)}.xlsx`)
+    writeFile(wb, `zayavki_${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
   return (
@@ -307,6 +302,7 @@ export default function DashboardPage() {
               Excel
             </Button>
           )}
+          {user && <RegistryExportButton role="client" userId={user.id} />}
           <Button variant="secondary" size="md" onClick={() => setImportOpen(true)}>
             <Upload size={15} className="mr-1" />
             Импорт
