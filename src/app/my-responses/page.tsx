@@ -53,14 +53,33 @@ export default function MyResponsesPage() {
 
     async function fetch() {
       const supabase = createClient()
-      const { data } = await supabase
-        .from('responses')
-        .select('*, order:orders(*, client:users!client_id(*))')
-        .eq('carrier_id', user!.id)
-        .order('created_at', { ascending: false })
+      const [{ data }, { data: assigned }] = await Promise.all([
+        supabase
+          .from('responses')
+          .select('*, order:orders(*, client:users!client_id(*))')
+          .eq('carrier_id', user!.id)
+          .order('created_at', { ascending: false }),
+        // Заявки, где перевозчик назначен без отклика: победа в торгах и заявка,
+        // созданная клиентом по результатам торгов. Без этого рейс не виден
+        // перевозчику нигде, кроме уведомления.
+        supabase
+          .from('orders')
+          .select('*, client:users!client_id(*)')
+          .eq('accepted_carrier_id', user!.id)
+          .order('created_at', { ascending: false }),
+      ])
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setResponses((data || []) as any[])
+      const rows = (data || []) as any[]
+      const withResponse = new Set(rows.map(r => r.order_id))
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const extra = ((assigned || []) as any[])
+        .filter(o => !withResponse.has(o.id))
+        .map(o => ({ id: `assigned-${o.id}`, order_id: o.id, carrier_id: user!.id, message: null, created_at: o.matched_at || o.created_at, order: o }))
+
+      setResponses([...rows, ...extra].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      ) as Response[])
       setLoading(false)
     }
 
@@ -125,7 +144,7 @@ export default function MyResponsesPage() {
             <span className="font-mono text-[13px] tabular-nums text-ink-3">{filtered.length} откликов</span>
           )}
         </div>
-        {user && <RegistryExportButton role="carrier" userId={user.id} />}
+        {user && <RegistryExportButton role="carrier" user={user} />}
       </div>
 
       {/* Поиск и фильтр */}

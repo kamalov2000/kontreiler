@@ -302,7 +302,7 @@ export default function DashboardPage() {
               Excel
             </Button>
           )}
-          {user && <RegistryExportButton role="client" userId={user.id} />}
+          {user && <RegistryExportButton role="client" user={user} />}
           <Button variant="secondary" size="md" onClick={() => setImportOpen(true)}>
             <Upload size={15} className="mr-1" />
             Импорт

@@ -117,6 +117,9 @@ export interface Order {
   driver_info_reminder_last_sent_at: string | null
   hide_phone: boolean
   agreed_price: number | null
+  // Торги, по результатам которых создана эта заявка (заявка — regular, торги
+  // остаются в /auctions как история)
+  source_auction_id: string | null
   order_number: string | null
   status: OrderStatus
   created_at: string

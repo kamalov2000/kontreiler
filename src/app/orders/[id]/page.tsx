@@ -147,6 +147,8 @@ export default function OrderDetailPage() {
   const [bidAmount, setBidAmount] = useState('')
   const [bidLoading, setBidLoading] = useState(false)
   const [stops, setStops] = useState<OrderStop[]>([])
+  // id заявки, созданной по результатам этих торгов (если уже создана)
+  const [convertedOrderId, setConvertedOrderId] = useState<string | null>(null)
   const [downloadingContract, setDownloadingContract] = useState(false)
 
   // Edit modal — stops
@@ -218,6 +220,16 @@ export default function OrderDetailPage() {
           .eq('order_id', id)
           .order('created_at', { ascending: false })
         setBids((bidsData || []) as (Bid & { carrier?: { name: string | null; is_verified?: boolean } })[])
+
+        // Заявка, уже созданная по результатам этих торгов, — чтобы не плодить
+        // дубли рейса вторым нажатием кнопки.
+        const { data: converted } = await supabase
+          .from('orders')
+          .select('id')
+          .eq('source_auction_id', id)
+          .limit(1)
+          .maybeSingle()
+        setConvertedOrderId(converted?.id ?? null)
       }
 
       const { data: responsesData } = await supabase
@@ -595,7 +607,9 @@ export default function OrderDetailPage() {
   function duplicateOrder() {
     if (!order) return
     setMenuOpen(false)
-    router.push(`/orders/new?duplicate=${order.id}`)
+    // Торги создаются на своей странице — форма заявки их формат больше не знает
+    const isTorg = order.format === 'reduction' || order.format === 'auction'
+    router.push(`${isTorg ? '/auctions/new' : '/orders/new'}?duplicate=${order.id}`)
   }
 
 
@@ -759,6 +773,11 @@ export default function OrderDetailPage() {
     && (order.format === 'reduction' || order.format === 'auction')
     && order.status === 'closed'
     && !order.accepted_carrier_id
+  // Победитель уже определён (авто- или ручным выбором) — торги можно перенести
+  // в обычную заявку. Оба пути ставят accepted_carrier_id и agreed_price.
+  const torgConvertible = isOwner
+    && (order.format === 'reduction' || order.format === 'auction')
+    && !!order.accepted_carrier_id
   // Задача 8: правки разрешены до «Доставлено» включительно (active/matched/in_transit),
   // после доставки/закрытия/отмены — запрещены
   const canEdit   = isOwner && ['active', 'matched', 'in_transit'].includes(order.status)
@@ -1095,6 +1114,32 @@ export default function OrderDetailPage() {
                 <p className="mt-3 text-[13px] text-warning">
                   Торги завершены. Выберите победителя из списка ставок ниже — иначе заявка так и останется закрытой.
                 </p>
+              )}
+
+              {/* Победитель определён — переносим рейс в обычную заявку, иначе он
+                  не попадёт ни в документооборот, ни в реестр перевозок. */}
+              {torgConvertible && (
+                <div className="mt-3 pt-3 border-t border-hairline">
+                  {convertedOrderId ? (
+                    <Link
+                      href={`/orders/${convertedOrderId}`}
+                      className="inline-flex items-center gap-1.5 text-[13px] font-medium text-accent hover:text-accent-hover transition-colors"
+                    >
+                      <FileText size={14} />
+                      Заявка по результатам этих торгов уже создана — открыть
+                    </Link>
+                  ) : (
+                    <>
+                      <Link href={`/orders/new?fromAuction=${order.id}`}>
+                        <Button size="sm">Создать заявку по результатам торгов</Button>
+                      </Link>
+                      <p className="mt-2 text-[13px] text-ink-3">
+                        Победитель станет принятым перевозчиком, ставка — ценой заявки.
+                        Торги останутся здесь как история.
+                      </p>
+                    </>
+                  )}
+                </div>
               )}
 
               {/* История ставок */}

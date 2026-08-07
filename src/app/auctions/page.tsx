@@ -17,6 +17,7 @@ import { CONTAINER_TYPES } from '@/lib/cities'
 import { formatOrderNumber, weightWithTareDisplay } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { Plus } from 'lucide-react'
 import Link from 'next/link'
 
 type BidRow = {
@@ -205,15 +206,26 @@ export default function AuctionsPage() {
 
   return (
     <AppLayout>
-      <div className="flex items-baseline gap-3 mb-4 flex-wrap">
-        <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">{t.auctions.title}</h1>
-        {statusTab === 'active' && (
-          <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold tracking-[0.06em] uppercase text-success">
-            <span className="w-1.5 h-1.5 rounded-full bg-success" />Live
-          </span>
-        )}
-        {!loading && (
-          <span className="font-mono text-[13px] tabular-nums text-ink-3">{orders.length}</span>
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">{t.auctions.title}</h1>
+          {statusTab === 'active' && (
+            <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold tracking-[0.06em] uppercase text-success">
+              <span className="w-1.5 h-1.5 rounded-full bg-success" />Live
+            </span>
+          )}
+          {!loading && (
+            <span className="font-mono text-[13px] tabular-nums text-ink-3">{orders.length}</span>
+          )}
+        </div>
+        {/* Торги создаёт заказчик — в форме заявки этого переключателя больше нет */}
+        {user?.role === 'client' && (
+          <Link href={`/auctions/new?type=${formatTab}`}>
+            <Button size="md">
+              <Plus size={16} className="mr-1" />
+              Создать торги
+            </Button>
+          </Link>
         )}
       </div>
 

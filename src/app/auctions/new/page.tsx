@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderForm } from '@/components/orders/OrderForm'
 
-export default function NewOrderPage() {
+export default function NewAuctionPage() {
   return (
     <Suspense fallback={
       <AppLayout>
@@ -11,7 +11,7 @@ export default function NewOrderPage() {
         </div>
       </AppLayout>
     }>
-      <OrderForm mode="order" />
+      <OrderForm mode="torg" />
     </Suspense>
   )
 }
