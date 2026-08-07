@@ -132,12 +132,15 @@ const PLATE_LOOKALIKES: Record<string, string> = {
   M: 'М', O: 'О', P: 'Р', T: 'Т', X: 'Х', Y: 'У',
 }
 
+// Латинские двойники → кириллица. Та же беда и в номерах заявок: «КТ», «А», «Р»
+// набранные с латинской раскладки выглядят правильно, но не находятся поиском.
+export function toCyrillicLookalikes(raw: string): string {
+  return raw.replace(/[ABCEHKMOPTXY]/g, ch => PLATE_LOOKALIKES[ch])
+}
+
 export function normalizePlate(raw: string | null | undefined): string {
   if (!raw) return ''
-  return raw
-    .trim()
-    .toUpperCase()
-    .replace(/[ABCEHKMOPTXY]/g, ch => PLATE_LOOKALIKES[ch])
+  return toCyrillicLookalikes(raw.trim().toUpperCase())
 }
 
 // Форматирует телефон для отображения: +7 XXX XXX-XX-XX

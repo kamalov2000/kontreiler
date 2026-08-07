@@ -5,7 +5,7 @@
 // Состав и порядок колонок согласованы с бухгалтерией, менять только целиком.
 
 import { Order, OrderDriverInfo } from '@/types/database'
-import { formatOrderNumber, priceWithVat } from './utils'
+import { formatOrderNumber, priceWithVat, toCyrillicLookalikes } from './utils'
 import { effectiveOrderStatus, orderStatusLabel } from './order-status'
 
 // В реестр идут только обычные и срочные заявки: торги — это способ найти
@@ -70,14 +70,16 @@ function ruDate(ymd: string): string {
 export function parseOrderNumbers(raw: string): string[] {
   return raw
     .split(/[,;\s]+/)
-    .map(s => s.trim().replace(/^[#№]/, '').toUpperCase())
+    // Префиксы номеров кириллические (КТ, А, Р), а на латинской раскладке
+    // выходят визуально те же символы — приводим, иначе фильтр молча пуст.
+    .map(s => toCyrillicLookalikes(s.trim().replace(/^[#№]/, '').toUpperCase()))
     .filter(Boolean)
 }
 
 export function matchesOrderNumbers(order: RegistryOrder, needles: string[]): boolean {
   if (needles.length === 0) return true
-  const full = (order.order_number || '').toUpperCase()
-  const short = formatOrderNumber(order.order_number).toUpperCase()
+  const full = toCyrillicLookalikes((order.order_number || '').toUpperCase())
+  const short = toCyrillicLookalikes(formatOrderNumber(order.order_number).toUpperCase())
   return needles.some(n => {
     if (/^\d+$/.test(n)) {
       const padded = n.padStart(5, '0')
