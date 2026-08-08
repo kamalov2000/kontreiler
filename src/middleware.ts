@@ -71,30 +71,35 @@ export async function middleware(request: NextRequest) {
 
   const role = profile?.role
 
-  // Маршруты доступны обоим ролям
+  // Маршруты доступны обоим ролям.
+  // `new` из «деталей» исключаем явно: без этого /orders/new и /trucks/new
+  // подходили под шаблон идентификатора, пропускались здесь и до проверки
+  // ролей не доходили — страницы создания были открыты обеим ролям.
   const isChatRoute = /^\/orders\/[^/]+\/chat/.test(pathname)
     || /^\/trucks\/[^/]+\/chat/.test(pathname)
   const isTrackingRoute = /^\/orders\/[^/]+\/tracking/.test(pathname)
-  const isTruckDetail   = /^\/trucks\/[^/]+$/.test(pathname)
-  const isOrderDetail   = /^\/orders\/[^/]+$/.test(pathname)   // детали заявки
+  const isTruckDetail   = /^\/trucks\/(?!new$)[^/]+$/.test(pathname)
+  const isOrderDetail   = /^\/orders\/(?!new$)[^/]+$/.test(pathname)   // детали заявки
 
   if (
     pathname === '/stats' ||
     pathname === '/profile' ||
     pathname === '/counterparties' ||
-    pathname.startsWith('/auctions') ||
+    pathname === '/auctions' ||   // доска торгов — обоим, но не /auctions/new
     isChatRoute || isTrackingRoute || isTruckDetail || isOrderDetail
   ) {
     return supabaseResponse
   }
 
-  // Маршруты только для клиентов
-  // /orders/new и /dashboard и /trucks (список) — только клиент
-  const clientRoutes = ['/dashboard', '/orders/new', '/trucks']
+  // Маршруты только для клиентов: свои заявки, создание заявки и торгов,
+  // просмотр доски свободных машин. '/trucks' сверяем точным равенством —
+  // иначе под него попадает /trucks/new, который как раз перевозчицкий.
+  const clientRoutes = ['/dashboard', '/orders/new', '/auctions/new']
   const isClientRoute = clientRoutes.some(r => pathname.startsWith(r))
+    || pathname === '/trucks'
 
-  // Маршруты только для перевозчиков
-  const carrierRoutes = ['/feed', '/my-responses', '/my-trucks']
+  // Маршруты только для перевозчиков (включая публикацию своей машины)
+  const carrierRoutes = ['/feed', '/my-responses', '/my-trucks', '/trucks/new']
   const isCarrierRoute = carrierRoutes.some(r => pathname.startsWith(r))
 
   if (isClientRoute && role !== 'client') {
