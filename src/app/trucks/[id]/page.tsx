@@ -11,6 +11,7 @@ import { StatusPill } from '@/components/ui/StatusPill'
 import { ContainerChip } from '@/components/ui/ContainerChip'
 import { ContainerMark } from '@/components/ui/ContainerMark'
 import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
+import { CarrierTermsSummary } from '@/components/carrier/CarrierTermsSummary'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { Truck, TruckResponse } from '@/types/database'
@@ -159,7 +160,7 @@ export default function TruckDetailPage() {
           href={isOwnTruck ? '/my-trucks' : '/trucks'}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-3 hover:text-ink transition-colors ease-terminal mb-5"
         >
-          <ArrowLeft size={16} /> {isOwnTruck ? 'Мои машины' : 'Найти машину'}
+          <ArrowLeft size={16} /> {isOwnTruck ? 'Мой транспорт' : 'Найти машину'}
         </Link>
 
         {/* Карточка машины */}
@@ -270,6 +271,7 @@ export default function TruckDetailPage() {
                 <MapPin size={12} className="shrink-0" /> {carrier.city}
               </div>
             )}
+            <CarrierTermsSummary carrier={carrier} className="mt-3" />
             <div className="mt-4">
               <RevealPhone kind="truck" id={truck.id} targetUserId={carrier.id} />
             </div>

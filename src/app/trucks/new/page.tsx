@@ -109,7 +109,7 @@ function NewTruckForm() {
     <AppLayout>
       <div className="max-w-lg">
         <Link href="/my-trucks" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-3 hover:text-ink transition-colors mb-6">
-          <ArrowLeft size={16} /> Мои машины
+          <ArrowLeft size={16} /> Мой транспорт
         </Link>
 
         <div className="flex items-center justify-between mb-1 gap-3">

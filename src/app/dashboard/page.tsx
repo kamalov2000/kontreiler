@@ -7,6 +7,7 @@ import { Plus, Search, X, Filter, Download, Upload } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderImportModal } from '@/components/orders/OrderImportModal'
 import { RegistryExportButton } from '@/components/orders/RegistryExportButton'
+import { PromoCallout } from '@/components/ui/PromoCallout'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { RouteInline } from '@/components/ui/RouteInline'
@@ -268,6 +269,10 @@ export default function DashboardPage() {
 
   const hasAllFilters = !!(allFilterStatus || allFilterContainer || allFilterFrom || allFilterTo || allFilterDate)
 
+  // Заявок нет вообще (а не «нет по текущему фильтру») — показываем крупный
+  // призыв вместо списка, вкладок и статистики из нулей.
+  const hasNoOrders = !loading && orders.length === 0
+
   async function exportToExcel() {
     const { utils, writeFile } = await import('xlsx')
     const rows = filtered.map(o => ({
@@ -316,6 +321,23 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Главное действие клиента. Пока заявок нет вообще — занимает основную
+          часть экрана вместо пустой таблицы и статистики из нулей. */}
+      {!loading && (
+        <PromoCallout
+          variant={hasNoOrders ? 'hero' : 'compact'}
+          title="Разместить заявку на перевозку"
+          description={hasNoOrders
+            ? 'Опишите маршрут, контейнер и дату — перевозчики увидят заявку в ленте и откликнутся. Это займёт пару минут.'
+            : 'Пара минут — и заявка в ленте перевозчиков'}
+          href="/orders/new"
+          cta={hasNoOrders ? 'Разместить заявку' : 'Разместить'}
+          className={hasNoOrders ? 'mb-5' : 'mb-5'}
+        />
+      )}
+
+      {hasNoOrders ? null : (
+      <>
       {/* Статистика */}
       <div className="grid grid-cols-2 sm:grid-cols-4 border border-hairline rounded-card bg-surface overflow-hidden mb-5">
         {[
@@ -557,6 +579,9 @@ export default function DashboardPage() {
             })}
           </div>
         </div>
+      )}
+
+      </>
       )}
 
       {user && (

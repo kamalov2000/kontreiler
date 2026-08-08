@@ -193,7 +193,7 @@ export default function MyTrucksPage() {
   return (
     <AppLayout>
       <div className="flex items-center justify-between mb-5 gap-2 flex-wrap">
-        <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">Мои машины</h1>
+        <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">Мой транспорт</h1>
         <Link href="/trucks/new">
           <Button size="md">
             <Plus size={16} className="mr-1" />

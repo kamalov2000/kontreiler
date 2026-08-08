@@ -15,6 +15,7 @@ import { TrackingDrawer } from '@/components/orders/TrackingDrawer'
 import { DriverInfoModal } from '@/components/orders/DriverInfoModal'
 import { ContractFieldsModal } from '@/components/orders/ContractFieldsModal'
 import { TnModal } from '@/components/orders/TnModal'
+import { CarrierTermsSummary } from '@/components/carrier/CarrierTermsSummary'
 import { RevealPhone } from '@/components/ui/RevealPhone'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -1514,6 +1515,7 @@ export default function OrderDetailPage() {
                       {r.message && (
                         <p className="mt-2 text-sm text-ink-2 bg-surface-sunken rounded-field p-2.5">{r.message}</p>
                       )}
+                      <CarrierTermsSummary carrier={r.carrier} className="mt-2" />
                       <div className="mt-3 flex items-center gap-2 flex-wrap">
                         {isOwner && <RevealPhone kind="order" id={order.id} targetUserId={r.carrier_id} />}
                         <Link

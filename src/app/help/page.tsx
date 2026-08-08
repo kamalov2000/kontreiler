@@ -5,9 +5,13 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { useUser } from '@/hooks/useUser'
 import {
   UserCircle, PackagePlus, Search, MessageSquare, FileText,
-  ShieldCheck, Bell, Gavel, Truck, HelpCircle, ChevronDown,
+  ShieldCheck, Bell, Gavel, Truck, HelpCircle, ChevronDown, Mail,
   type LucideIcon,
 } from 'lucide-react'
+
+// Читаем на уровне модуля: NEXT_PUBLIC_* подставляется на сборке, обращение
+// к process.env по вычисляемому ключу Next не заменит.
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || ''
 
 type Section = {
   id: string
@@ -75,7 +79,7 @@ const SECTIONS: Section[] = [
         <UL items={[
           <><B>Откликнуться</B> — отправляет отклик с комментарием; клиент получит уведомление.</>,
           <><B>«Мои отклики»</B> — все ваши отклики с поиском и фильтрацией по статусу.</>,
-          <><B>«Мои машины»</B> — разместите свободную машину, чтобы клиенты находили вас сами.</>,
+          <><B>«Мой транспорт»</B> — разместите свободную машину, чтобы клиенты находили вас сами.</>,
         ]} />
       </div>
     ),
@@ -183,9 +187,30 @@ export default function HelpPage() {
             <Accordion key={s.id} section={s} defaultOpen={i === 0} />
           ))}
         </div>
-        <p className="mt-6 text-[13px] text-ink-4">
-          Остались вопросы? Напишите в поддержку — мы поможем разобраться.
-        </p>
+        {/* Контакт поддержки. Адрес берём из NEXT_PUBLIC_SUPPORT_EMAIL —
+            если переменная не задана, блока нет вовсе, чтобы не отправлять
+            людей писать в никуда. */}
+        {SUPPORT_EMAIL ? (
+          <div className="mt-6 rounded-card border border-hairline bg-surface p-5">
+            <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">
+              Поддержка
+            </div>
+            <p className="text-[15px] text-ink-2">
+              Остались вопросы? Напишите нам — поможем разобраться.
+            </p>
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="mt-3 inline-flex items-center gap-2 min-h-[36px] px-3.5 rounded-card border border-hairline bg-surface text-ink-2 text-sm font-medium hover:border-border-strong transition-colors ease-terminal"
+            >
+              <Mail size={15} strokeWidth={1.5} />
+              {SUPPORT_EMAIL}
+            </a>
+          </div>
+        ) : (
+          <p className="mt-6 text-[13px] text-ink-4">
+            Остались вопросы? Напишите в поддержку — мы поможем разобраться.
+          </p>
+        )}
       </div>
     </AppLayout>
   )

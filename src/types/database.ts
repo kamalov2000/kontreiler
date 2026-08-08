@@ -20,6 +20,25 @@ export interface User {
   license_number: string | null
   onboarding_completed: boolean
   logo_url: string | null
+  // Условия работы перевозчика — публичная сводка для клиента (карточка отклика,
+  // страница машины). Все поля необязательные, у клиента всегда пустые.
+  terms_container_types: ContainerType[] | null
+  terms_overweight_fee: number | null
+  terms_min_rate: number | null
+  terms_cargo_excluded: string | null
+  terms_comment: string | null
+}
+
+// Заполнено ли у перевозчика хоть одно условие работы — иначе блок не показываем
+export function hasCarrierTerms(u: Partial<User> | null | undefined): boolean {
+  if (!u) return false
+  return !!(
+    (u.terms_container_types && u.terms_container_types.length > 0) ||
+    u.terms_overweight_fee != null ||
+    u.terms_min_rate != null ||
+    u.terms_cargo_excluded?.trim() ||
+    u.terms_comment?.trim()
+  )
 }
 
 // Чувствительные реквизиты компании — приватная таблица user_private,

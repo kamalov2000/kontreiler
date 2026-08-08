@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
+import { PromoCallout } from '@/components/ui/PromoCallout'
 import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { Select } from '@/components/ui/Select'
@@ -86,6 +87,8 @@ function FeedContent() {
   const [numberSearch, setNumberSearch] = useState('')
   const [clientRatings, setClientRatings] = useState<Record<string, { avg: number; count: number }>>({})
 
+  // null — ещё не считали; 0 — активных машин нет
+  const [activeTrucks, setActiveTrucks] = useState<number | null>(null)
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([])
   const [showRoutes, setShowRoutes] = useState(false)
 
@@ -204,6 +207,14 @@ function FeedContent() {
         .then(({ data }) => {
           if (data) setMyClientCounterparties(new Set(data.map((d: { owner_id: string }) => d.owner_id)))
         })
+      // Есть ли у перевозчика свободная машина в выдаче. Нет — предлагаем
+      // разместить: клиенты ищут машины сами, это второй канал заказов.
+      supabase
+        .from('trucks')
+        .select('id', { count: 'exact', head: true })
+        .eq('carrier_id', user.id)
+        .eq('status', 'active')
+        .then(({ count }) => setActiveTrucks(count ?? 0))
     }
   }, [fetchOrders, fetchMyResponses, fetchSavedRoutes, user])
 
@@ -321,6 +332,18 @@ function FeedContent() {
           </button>
         </div>
       </div>
+
+      {/* У перевозчика нет ни одной свободной машины в выдаче — предлагаем
+          разместить. Ленту при этом не прячем: заявки ему нужны в любом случае. */}
+      {activeTrucks === 0 && (
+        <PromoCallout
+          title="Разместить свободную машину"
+          description="Клиенты найдут вас сами — это займёт пару минут"
+          href="/trucks/new"
+          cta="Разместить"
+          className="mb-4"
+        />
+      )}
 
       {/* Quick search by order number */}
       <div className="relative mb-3">

@@ -10,7 +10,7 @@ import { CompanyAvatar } from '@/components/ui/CompanyAvatar'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { createClient } from '@/lib/supabase/client'
-import { SavedRoute, Review, CompanyMember } from '@/types/database'
+import { SavedRoute, Review, CompanyMember, ContainerType } from '@/types/database'
 import { toast } from 'sonner'
 import { normalizePhone, formatDateTime } from '@/lib/utils'
 import {
@@ -50,6 +50,13 @@ export default function ProfilePage() {
   const [defaultObligations, setDefaultObligations] = useState('')
   const [hidePhone, setHidePhone] = useState(false)
 
+  // Условия работы перевозчика — публичная сводка для клиента
+  const [termsContainers, setTermsContainers] = useState<ContainerType[]>([])
+  const [termsOverweightFee, setTermsOverweightFee] = useState('')
+  const [termsMinRate, setTermsMinRate] = useState('')
+  const [termsCargoExcluded, setTermsCargoExcluded] = useState('')
+  const [termsComment, setTermsComment] = useState('')
+
   const [saving, setSaving] = useState(false)
   const [resending, setResending] = useState(false)
   const [lookingUp, setLookingUp] = useState(false)
@@ -87,6 +94,11 @@ export default function ProfilePage() {
       setInn(user.inn || '')
       setLicenseNumber(user.license_number || '')
       setLogoUrl(user.logo_url || null)
+      setTermsContainers(user.terms_container_types ?? [])
+      setTermsOverweightFee(user.terms_overweight_fee != null ? String(user.terms_overweight_fee) : '')
+      setTermsMinRate(user.terms_min_rate != null ? String(user.terms_min_rate) : '')
+      setTermsCargoExcluded(user.terms_cargo_excluded || '')
+      setTermsComment(user.terms_comment || '')
     }
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
@@ -196,6 +208,13 @@ export default function ProfilePage() {
       update.company_name = companyName.trim() || null
       update.inn = inn.trim() || null
       update.license_number = licenseNumber.trim() || null
+      // Условия работы — все поля необязательные, пустое пишем как NULL,
+      // чтобы клиенту не показывались нули и пустые строки.
+      update.terms_container_types = termsContainers.length > 0 ? termsContainers : null
+      update.terms_overweight_fee = termsOverweightFee.trim() ? parseInt(termsOverweightFee) : null
+      update.terms_min_rate = termsMinRate.trim() ? parseInt(termsMinRate) : null
+      update.terms_cargo_excluded = termsCargoExcluded.trim() || null
+      update.terms_comment = termsComment.trim() || null
     } else {
       update.company_name = companyName.trim()
       update.inn = inn.trim()
@@ -545,6 +564,106 @@ export default function ProfilePage() {
                 )}
               </div>
             </div>
+
+            {/* Условия работы — видит клиент в карточке отклика и на странице
+                машины. Всё необязательно: незаполненное просто не показывается. */}
+            {user?.role === 'carrier' && (
+              <div className="border-t border-hairline pt-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[11.5px] text-ink-3 font-semibold uppercase tracking-[0.06em]">
+                    Условия работы
+                  </span>
+                  <span className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-accent bg-accent-soft px-1.5 py-0.5 rounded-field">
+                    видит клиент
+                  </span>
+                </div>
+                <p className="text-[13px] text-ink-3 mb-3">
+                  Короткая сводка, чтобы клиент сразу понимал, подходите ли вы под его заявку.
+                  Все поля необязательные.
+                </p>
+
+                <div className="space-y-3">
+                  <div>
+                    <span className="block text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-2">
+                      Какие контейнеры возите
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {CONTAINER_TYPES.map(c => {
+                        const active = termsContainers.includes(c.value as ContainerType)
+                        return (
+                          <label
+                            key={c.value}
+                            className={`px-2.5 py-1.5 rounded-field border font-mono text-[11.5px] font-medium uppercase cursor-pointer transition-colors ease-terminal ${
+                              active
+                                ? 'border-accent bg-accent-soft text-accent'
+                                : 'border-hairline bg-surface-sunken text-ink-2 hover:border-border-strong'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={active}
+                              onChange={() => setTermsContainers(prev =>
+                                prev.includes(c.value as ContainerType)
+                                  ? prev.filter(v => v !== c.value)
+                                  : [...prev, c.value as ContainerType]
+                              )}
+                              className="sr-only"
+                            />
+                            {c.label}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <Input
+                      id="terms_min_rate"
+                      type="number"
+                      label="Минимальная ставка за рейс, ₽"
+                      value={termsMinRate}
+                      onChange={e => setTermsMinRate(e.target.value)}
+                      placeholder="например: 25000"
+                      min="0"
+                      className="font-mono tabular-nums"
+                    />
+                    <Input
+                      id="terms_overweight_fee"
+                      type="number"
+                      label="Доплата за перевес, ₽/тонна"
+                      value={termsOverweightFee}
+                      onChange={e => setTermsOverweightFee(e.target.value)}
+                      placeholder="например: 1500"
+                      min="0"
+                      className="font-mono tabular-nums"
+                    />
+                  </div>
+
+                  <Input
+                    id="terms_cargo_excluded"
+                    label="Какие грузы не берёте"
+                    value={termsCargoExcluded}
+                    onChange={e => setTermsCargoExcluded(e.target.value)}
+                    placeholder="опасные грузы, скоропорт"
+                  />
+
+                  <div>
+                    <label className="block text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5" htmlFor="terms_comment">
+                      Комментарий
+                    </label>
+                    <textarea
+                      id="terms_comment"
+                      value={termsComment}
+                      onChange={e => setTermsComment(e.target.value)}
+                      placeholder="Работаем по ЦФО, выезд в день заявки"
+                      rows={2}
+                      maxLength={200}
+                      className="w-full px-3 py-2.5 rounded-field border border-hairline bg-surface text-sm text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Расширенные реквизиты (для договора) */}
             <div className="border-t border-hairline pt-3">
