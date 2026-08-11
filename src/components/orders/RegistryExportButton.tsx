@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronDown, FileSpreadsheet } from 'lucide-react'
+import { ChevronDown, CircleAlert, FileSpreadsheet } from 'lucide-react'
 import { toast } from 'sonner'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
@@ -13,6 +13,7 @@ import {
   parseOrderNumbers,
   partyName,
   RegistryOrder,
+  RegistryParty,
   REGISTRY_FORMATS,
 } from '@/lib/registry'
 import { cn } from '@/lib/utils'
@@ -67,7 +68,7 @@ export function RegistryExportButton({ role, user }: Props) {
     const supabase = createClient()
     const query = supabase
       .from('orders')
-      .select('*, driver:order_driver_info(*), carrier:users!accepted_carrier_id(name, company_name, inn), client:users!client_id(name, company_name, inn)')
+      .select('*, driver:order_driver_info(*), extras:order_extra_services(*), carrier:users!accepted_carrier_id(name, company_name, inn), client:users!client_id(name, company_name, inn)')
       .in('format', REGISTRY_FORMATS as unknown as string[])
       .gte('ready_date', range.from)
       .lte('ready_date', range.to)
@@ -113,6 +114,14 @@ export function RegistryExportButton({ role, user }: Props) {
     return matchesOrderNumbers(o, needles)
   }), [orders, role, selectedClients, needles])
 
+  // Реквизиты второй стороны попадают в шапку и в блок подписей, только когда
+  // реестр собран под одного контрагента: документ, адресованный сразу
+  // нескольким, подписывать некому.
+  const counterpartyIds = useMemo(() => new Set(
+    filtered.map(o => (role === 'carrier' ? o.client_id : o.accepted_carrier_id)).filter(Boolean)
+  ), [filtered, role])
+  const isSummary = counterpartyIds.size !== 1
+
   function toggleClient(id: string) {
     setSelectedClients(prev => {
       const all = clientOptions.map(c => c.id)
@@ -147,19 +156,37 @@ export function RegistryExportButton({ role, user }: Props) {
 
     setBuilding(true)
     try {
-      // Реквизиты сторон в шапке. Получатель появляется, только когда реестр
-      // собран под одного клиента — иначе документ адресовать некому.
-      const own = { label: role === 'carrier' ? 'Перевозчик' : 'Заказчик', name: partyName(user) || user.name || '—', inn: user.inn }
-      const parties = [own]
-      if (role === 'carrier') {
-        const clientIds = new Set(filtered.map(o => o.client_id))
-        if (clientIds.size === 1) {
-          const only = filtered[0]
-          parties.push({ label: 'Заказчик', name: partyName(only.client) || '—', inn: only.client?.inn ?? null })
-        }
+      // Реквизиты сторон в шапке и в блоке подписей. Получатель появляется,
+      // только когда реестр собран под одного клиента — иначе документ
+      // адресовать некому, и вторая колонка подписей остаётся бланком.
+      const parties: RegistryParty[] = [
+        { role, name: partyName(user) || user.name || '—', inn: user.inn },
+      ]
+      if (!isSummary) {
+        const only = filtered[0]
+        const p = role === 'carrier' ? only.client : only.carrier
+        parties.push({
+          role: role === 'carrier' ? 'client' : 'carrier',
+          name: partyName(p) || '—',
+          inn: p?.inn ?? null,
+        })
       }
 
-      await downloadRegistry(filtered, { from: range.from, to: range.to, parties })
+      // Сквозной номер реестра. Выдаётся один раз на выгрузку и сразу
+      // фиксируется в журнале — поэтому берём его только когда файл точно
+      // собирается, уже после всех проверок. Не выдался — выгружаем без номера:
+      // документ нужнее, чем нумерация.
+      const supabase = createClient()
+      const { data: number, error: numberError } = await supabase
+        .rpc('next_registry_number', { p_from: range.from, p_to: range.to })
+      if (numberError) toast.warning('Реестр без номера: не удалось обратиться к журналу выгрузок')
+
+      await downloadRegistry(filtered, {
+        from: range.from,
+        to: range.to,
+        number: typeof number === 'number' ? number : null,
+        parties,
+      })
       toast.success(`Реестр выгружен: ${filtered.length} строк`)
       setOpen(false)
     } catch {
@@ -261,9 +288,23 @@ export function RegistryExportButton({ role, user }: Props) {
                   })}
                 </div>
               )}
-              <p className="text-xs text-ink-4">
-                Реестр под одного клиента подставит его реквизиты в шапку файла.
-              </p>
+              {fetching || filtered.length === 0 ? (
+                <p className="text-xs text-ink-4">
+                  Реестр под одного клиента подставит его реквизиты в шапку и в блок подписей.
+                </p>
+              ) : isSummary ? (
+                <p className="flex items-start gap-1.5 text-xs text-amber-700">
+                  <CircleAlert size={13} className="mt-px shrink-0" />
+                  <span>
+                    В выборке несколько клиентов — реквизиты заказчика не подставятся ни в шапку,
+                    ни в подписи. Получится сводный реестр для себя, а не документ на отправку.
+                  </span>
+                </p>
+              ) : (
+                <p className="text-xs text-ink-4">
+                  Реквизиты клиента подставятся в шапку и в блок подписей.
+                </p>
+              )}
             </div>
 
             <div className="mt-4 flex flex-col gap-1.5">

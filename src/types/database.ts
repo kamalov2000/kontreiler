@@ -4,6 +4,9 @@ export type TruckContainerType = ContainerType | 'any'
 export type VatType = 'none' | 'vat5' | 'vat15' | 'vat20' | 'vat0'
 export type OrderFormat = 'regular' | 'urgent' | 'reduction' | 'auction'
 export type OrderStatus = 'active' | 'matched' | 'in_transit' | 'delivered' | 'closed' | 'cancelled' | 'expired'
+// Метод расчёта ставки в калькуляторе формы заявки. null у заявки = калькулятор
+// не применялся, цена введена руками до его появления.
+export type RateMethod = 'composite_round' | 'composite_oneway' | 'mkad' | 'market'
 
 export interface User {
   id: string
@@ -114,6 +117,17 @@ export interface Order {
   weight_net_2: number | null
   weight_tare: number | null
   downtime_rate: number | null
+  // Сохранённый расчёт ставки: из чего сложилась цена в калькуляторе. У метода
+  // market заполнен только rate_method — цену ввели руками. Разворачивается в
+  // колонки реестра перевозок.
+  rate_method: RateMethod | null
+  rate_delivery_cost: number | null
+  rate_distance_km: number | null
+  rate_per_km: number | null
+  rate_overload_per_ton: number | null
+  rate_overload_tons: number | null
+  rate_extra_point_cost: number | null
+  rate_extra_points_count: number | null
   ready_time: string | null
   was_expired: boolean
   vat_type: VatType
@@ -207,6 +221,43 @@ export interface OrderDriverInfo {
   trailer_plate: string | null
   created_at: string
   updated_at: string
+}
+
+// Допуслуги по рейсу: простой и перегруз. Вносят обе стороны вручную после
+// рейса — суммы согласовываются, из трекинга не считаются.
+export interface OrderExtraServices {
+  order_id: string
+  downtime_rate: number | null
+  downtime_hours: number | null
+  overweight_rate: number | null
+  overweight_tons: number | null
+  // Клиент согласился с заявленными часами простоя. Снимается автоматически
+  // (триггером в БД) при любой правке часов или ставки — согласие относилось к
+  // прежним цифрам. Неподтверждённый простой в реестр идёт, но с пометкой.
+  downtime_confirmed: boolean
+  downtime_confirmed_at: string | null
+  updated_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+// Выгруженный реестр: журнал ради сквозного номера в шапке документа.
+// Нумерация — по выгружающему, у каждой компании своя последовательность.
+export interface RegistryExport {
+  id: string
+  carrier_id: string
+  number: number
+  period_from: string
+  period_to: string
+  created_at: string
+}
+
+// Ставка простоя: согласованная в допуслугах, иначе заявленная в заявке.
+export function effectiveDowntimeRate(
+  extras: Pick<OrderExtraServices, 'downtime_rate'> | null | undefined,
+  order: { downtime_rate?: number | null } | null | undefined,
+): number | null {
+  return extras?.downtime_rate ?? order?.downtime_rate ?? null
 }
 
 // Заполнены ли обязательные данные водителя — от этого зависит доступ клиента

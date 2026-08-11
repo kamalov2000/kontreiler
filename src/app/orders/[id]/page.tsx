@@ -16,6 +16,7 @@ import { DriverInfoModal } from '@/components/orders/DriverInfoModal'
 import { ContractFieldsModal } from '@/components/orders/ContractFieldsModal'
 import { TnModal } from '@/components/orders/TnModal'
 import { CarrierTermsSummary } from '@/components/carrier/CarrierTermsSummary'
+import { ExtraServicesBlock } from '@/components/orders/ExtraServicesBlock'
 import { RevealPhone } from '@/components/ui/RevealPhone'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -28,7 +29,7 @@ import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop, OrderDriverInfo, hasRequiredDriverInfo } from '@/types/database'
+import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop, OrderDriverInfo, OrderExtraServices, hasRequiredDriverInfo } from '@/types/database'
 import { formatDateWithTime, formatDateTime, formatPrice, formatOrderNumber, formatPhone, readyDateBadge, toDatetimeLocal, vatLabel, containerUnitTare } from '@/lib/utils'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES } from '@/lib/cities'
 import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
@@ -165,6 +166,8 @@ export default function OrderDetailPage() {
 
   // Транспортная накладная: данные водителя/ТС + модалки
   const [driverInfo, setDriverInfo] = useState<OrderDriverInfo | null>(null)
+  // Простой и перегруз — вносятся после рейса обеими сторонами
+  const [extras, setExtras] = useState<OrderExtraServices | null>(null)
   const [driverModalOpen, setDriverModalOpen] = useState(false)
   const [tnOpen, setTnOpen] = useState(false)
   // Дозаполнение полей документа перед скачиванием договора-заявки
@@ -213,6 +216,14 @@ export default function OrderDetailPage() {
         .eq('order_id', id)
         .maybeSingle()
       setDriverInfo((driverData as OrderDriverInfo | null) ?? null)
+
+      // Простой и перегруз — тоже только участникам сделки
+      const { data: extrasData } = await supabase
+        .from('order_extra_services')
+        .select('*')
+        .eq('order_id', id)
+        .maybeSingle()
+      setExtras((extrasData as OrderExtraServices | null) ?? null)
 
       if (orderData.format === 'reduction' || orderData.format === 'auction') {
         const { data: bidsData } = await supabase
@@ -1276,6 +1287,17 @@ export default function OrderDetailPage() {
               </p>
             )}
           </div>
+        )}
+
+        {/* Простой и перегруз — обеим сторонам сделки после завершения рейса */}
+        {(isOwner || user?.id === order.accepted_carrier_id)
+          && ['delivered', 'closed'].includes(order.status) && (
+          <ExtraServicesBlock
+            order={order}
+            extras={extras}
+            viewerRole={isOwner ? 'client' : 'carrier'}
+            onSaved={setExtras}
+          />
         )}
 
         {/* Назначенный водитель — виден обеим сторонам. Паспортные данные тут

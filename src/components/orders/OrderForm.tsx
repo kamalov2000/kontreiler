@@ -13,10 +13,34 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { RouteInline } from '@/components/ui/RouteInline'
 import { ContainerMark } from '@/components/ui/ContainerMark'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT } from '@/lib/cities'
-import { ContainerType, VatType, OrderFormat, Order, OrderStop } from '@/types/database'
+import { ContainerType, VatType, OrderFormat, Order, OrderStop, RateMethod } from '@/types/database'
 import { formatOrderNumber, normalizePhone, toDatetimeLocal } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Calculator, Plus, Trash2, X } from 'lucide-react'
+
+// Сохранённый расчёт ставки — ровно те колонки orders, что пишет калькулятор.
+type RateBreakdown = Pick<Order,
+  | 'rate_method' | 'rate_delivery_cost' | 'rate_distance_km' | 'rate_per_km'
+  | 'rate_overload_per_ton' | 'rate_overload_tons'
+  | 'rate_extra_point_cost' | 'rate_extra_points_count'>
+
+// Разбивки нет: у рыночного метода её не бывает, у остальных — цену ввели руками.
+const EMPTY_BREAKDOWN: Omit<RateBreakdown, 'rate_method'> = {
+  rate_delivery_cost: null,
+  rate_distance_km: null,
+  rate_per_km: null,
+  rate_overload_per_ton: null,
+  rate_overload_tons: null,
+  rate_extra_point_cost: null,
+  rate_extra_points_count: null,
+}
+
+const RATE_METHODS: { value: RateMethod; label: string }[] = [
+  { value: 'composite_round',  label: 'Составная (туда-обратно)' },
+  { value: 'composite_oneway', label: 'Составная (в один конец)' },
+  { value: 'mkad',             label: 'МКАДный' },
+  { value: 'market',           label: 'Рыночная' },
+]
 
 // Overline-метка секции формы (морской фрахт)
 const overline = 'block text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3'
@@ -91,15 +115,21 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
 
   // Калькулятор ставки
   const [calcOpen, setCalcOpen] = useState(false)
-  const [calcMethod, setCalcMethod] = useState<1 | 2 | 3 | 4>(1)
+  const [calcMethod, setCalcMethod] = useState<RateMethod>('composite_round')
   const [calcSubmission, setCalcSubmission] = useState('')
   const [calcKm, setCalcKm] = useState('')
   const [calcRateKm, setCalcRateKm] = useState('')
   const [calcUseOverload, setCalcUseOverload] = useState(false)
-  const [calcOverload, setCalcOverload] = useState('')
+  const [calcOverloadPerTon, setCalcOverloadPerTon] = useState('')
+  const [calcOverloadTons, setCalcOverloadTons] = useState('')
   const [calcUseExtraStop, setCalcUseExtraStop] = useState(false)
-  const [calcExtraStop, setCalcExtraStop] = useState('')
+  const [calcExtraPointCost, setCalcExtraPointCost] = useState('')
+  const [calcExtraPointsCount, setCalcExtraPointsCount] = useState('1')
   const [calcMarket, setCalcMarket] = useState('')
+  // Применённый расчёт — уходит в заявку вместе с ценой и разворачивается в
+  // колонки реестра. Ручная правка цены его сбрасывает: разбивка, не сходящаяся
+  // с итогом, хуже отсутствующей.
+  const [rateBreakdown, setRateBreakdown] = useState<RateBreakdown | null>(null)
 
   // Format (replaces is_urgent checkbox)
   const [format, setFormat] = useState<OrderFormat>(
@@ -225,6 +255,31 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
       } else {
         setPrice(o.price != null ? String(o.price) : '')
         setIsNegotiable(!!o.is_negotiable)
+        // Расчёт переносим вместе с ценой: маршрут и метод у дубля те же.
+        // Из торгов — нет: там цену определил рынок, а не калькулятор.
+        if (o.rate_method) {
+          setRateBreakdown({
+            rate_method: o.rate_method,
+            rate_delivery_cost: o.rate_delivery_cost,
+            rate_distance_km: o.rate_distance_km,
+            rate_per_km: o.rate_per_km,
+            rate_overload_per_ton: o.rate_overload_per_ton,
+            rate_overload_tons: o.rate_overload_tons,
+            rate_extra_point_cost: o.rate_extra_point_cost,
+            rate_extra_points_count: o.rate_extra_points_count,
+          })
+          setCalcMethod(o.rate_method)
+          setCalcSubmission(o.rate_delivery_cost != null ? String(o.rate_delivery_cost) : '')
+          setCalcKm(o.rate_distance_km != null ? String(o.rate_distance_km) : '')
+          setCalcRateKm(o.rate_per_km != null ? String(o.rate_per_km) : '')
+          setCalcUseOverload(o.rate_overload_per_ton != null)
+          setCalcOverloadPerTon(o.rate_overload_per_ton != null ? String(o.rate_overload_per_ton) : '')
+          setCalcOverloadTons(o.rate_overload_tons != null ? String(o.rate_overload_tons) : '')
+          setCalcUseExtraStop(o.rate_extra_point_cost != null)
+          setCalcExtraPointCost(o.rate_extra_point_cost != null ? String(o.rate_extra_point_cost) : '')
+          setCalcExtraPointsCount(o.rate_extra_points_count != null ? String(o.rate_extra_points_count) : '1')
+          if (o.rate_method === 'market' && o.price != null) setCalcMarket(String(o.price))
+        }
       }
       setVatType(o.vat_type ?? 'none')
       setDowntimeRate(o.downtime_rate != null ? String(o.downtime_rate) : '')
@@ -325,6 +380,10 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
       weight_net_2:   is20DC2 && weightNet2   ? parseInt(weightNet2)   : null,
       weight_tare: !is20DC2 && weightTare ? parseInt(weightTare) : null,
       downtime_rate: downtimeRate ? parseInt(downtimeRate) : null,
+      // Расчёт ставки — только у форматов с ценой: у торгов её определит рынок.
+      ...(isAuctionFormat || isNegotiable || !rateBreakdown
+        ? { rate_method: null, ...EMPTY_BREAKDOWN }
+        : rateBreakdown),
       tracking_enabled: trackingEnabled,
       counterparties_only: counterpartiesOnly,
       requires_genset: requiresGenset,
@@ -875,7 +934,7 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
                       checked={isNegotiable}
                       onChange={e => {
                         setIsNegotiable(e.target.checked)
-                        if (e.target.checked) setPrice('')
+                        if (e.target.checked) { setPrice(''); setRateBreakdown(null) }
                         setErrors(p => ({ ...p, price: '' }))
                       }}
                       className="w-4 h-4 rounded border-hairline accent-accent"
@@ -884,16 +943,29 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
                   </label>
                 </div>
                 {!isNegotiable && (
-                  <Input
-                    id="price"
-                    type="number"
-                    placeholder={t.order.rateInRubles}
-                    value={price}
-                    onChange={e => { setPrice(e.target.value); setErrors(p => ({ ...p, price: '' })) }}
-                    min="0"
-                    error={errors.price}
-                    className="font-mono tabular-nums"
-                  />
+                  <>
+                    <Input
+                      id="price"
+                      type="number"
+                      placeholder={t.order.rateInRubles}
+                      value={price}
+                      onChange={e => {
+                        setPrice(e.target.value)
+                        // Цену поправили руками — расчёт к ней уже не относится
+                        setRateBreakdown(null)
+                        setErrors(p => ({ ...p, price: '' }))
+                      }}
+                      min="0"
+                      error={errors.price}
+                      className="font-mono tabular-nums"
+                    />
+                    {rateBreakdown && (
+                      <p className="mt-1.5 text-xs text-ink-4">
+                        Расчёт сохранится вместе с заявкой:{' '}
+                        {RATE_METHODS.find(m => m.value === rateBreakdown.rate_method)?.label.toLowerCase()}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -1062,17 +1134,35 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
         const sub = parseInt(calcSubmission) || 0
         const km  = parseFloat(calcKm) || 0
         const rateKm = parseFloat(calcRateKm) || 0
-        const overload  = calcUseOverload  ? (parseInt(calcOverload)  || 0) : 0
-        const extraStop = calcUseExtraStop ? (parseInt(calcExtraStop) || 0) : 0
+        const overloadPerTon = calcUseOverload ? (parseInt(calcOverloadPerTon) || 0) : 0
+        const overloadTons   = calcUseOverload ? (parseFloat(calcOverloadTons) || 0) : 0
+        const pointCost   = calcUseExtraStop ? (parseInt(calcExtraPointCost) || 0) : 0
+        const pointsCount = calcUseExtraStop ? (parseInt(calcExtraPointsCount) || 0) : 0
+        const overload  = overloadPerTon * overloadTons
+        const extraStop = pointCost * pointsCount
 
-        let total = 0
-        if (calcMethod === 1) total = sub + km * rateKm * 2 + overload + extraStop
-        if (calcMethod === 2) total = sub + km * rateKm     + overload + extraStop
-        if (calcMethod === 3) total = sub + km * rateKm     + overload + extraStop
-        if (calcMethod === 4) total = parseInt(calcMarket) || 0
+        // Плечо: туда-обратно считается в оба конца, остальные — в один.
+        const legs = calcMethod === 'composite_round' ? 2 : 1
+        const total = calcMethod === 'market'
+          ? (parseInt(calcMarket) || 0)
+          : Math.round(sub + km * rateKm * legs + overload + extraStop)
 
-        const methodLabels = ['', 'Составная (туда-обратно)', 'Составная (в один конец)', 'МКАДный', 'Рыночная']
-        const kmLabel = calcMethod === 3 ? 'Км от МКАД' : 'Расстояние (км)'
+        const kmLabel = calcMethod === 'mkad' ? 'Км от МКАД' : 'Расстояние (км)'
+
+        // Что уйдёт в заявку при «Применить». У рыночного метода разбивки нет —
+        // и в БД её запрещает CHECK (orders_rate_market_empty).
+        const breakdown: RateBreakdown = calcMethod === 'market'
+          ? { rate_method: 'market', ...EMPTY_BREAKDOWN }
+          : {
+              rate_method: calcMethod,
+              rate_delivery_cost: sub || null,
+              rate_distance_km: km || null,
+              rate_per_km: rateKm || null,
+              rate_overload_per_ton: calcUseOverload ? overloadPerTon || null : null,
+              rate_overload_tons:    calcUseOverload ? overloadTons   || null : null,
+              rate_extra_point_cost:   calcUseExtraStop ? pointCost   || null : null,
+              rate_extra_points_count: calcUseExtraStop ? pointsCount || null : null,
+            }
 
         return (
           <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-4">
@@ -1090,39 +1180,54 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
                 <div>
                   <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-2">Метод расчёта</div>
                   <div className="grid grid-cols-2 gap-2">
-                    {([1, 2, 3, 4] as const).map(m => (
-                      <label key={m} className={`flex items-center gap-2 px-3 py-2 rounded-field border cursor-pointer text-sm transition-colors ease-terminal ${calcMethod === m ? 'border-accent bg-accent-soft text-accent font-medium' : 'border-hairline text-ink-2 hover:border-border-strong'}`}>
-                        <input type="radio" name="calcMethod" checked={calcMethod === m} onChange={() => setCalcMethod(m)} className="sr-only" />
-                        {methodLabels[m]}
+                    {RATE_METHODS.map(m => (
+                      <label key={m.value} className={`flex items-center gap-2 px-3 py-2 rounded-field border cursor-pointer text-sm transition-colors ease-terminal ${calcMethod === m.value ? 'border-accent bg-accent-soft text-accent font-medium' : 'border-hairline text-ink-2 hover:border-border-strong'}`}>
+                        <input type="radio" name="calcMethod" checked={calcMethod === m.value} onChange={() => setCalcMethod(m.value)} className="sr-only" />
+                        {m.label}
                       </label>
                     ))}
                   </div>
                 </div>
 
-                {calcMethod !== 4 ? (
+                {calcMethod !== 'market' ? (
                   <>
                     <Input label="Подача (₽)" type="number" value={calcSubmission} onChange={e => setCalcSubmission(e.target.value)} placeholder="0" min="0" className="font-mono tabular-nums" />
                     <div className="grid grid-cols-2 gap-3">
                       <Input label={kmLabel} type="number" value={calcKm} onChange={e => setCalcKm(e.target.value)} placeholder="0" min="0" className="font-mono tabular-nums" />
                       <Input label="Ставка за км (₽/км)" type="number" value={calcRateKm} onChange={e => setCalcRateKm(e.target.value)} placeholder="0" min="0" className="font-mono tabular-nums" />
                     </div>
-                    {calcMethod === 1 && (
+                    {calcMethod === 'composite_round' && (
                       <p className="text-xs text-ink-4">Км × ставку × 2 (туда и обратно)</p>
                     )}
-                    <label className="flex items-center gap-2 cursor-pointer text-sm text-ink-2">
-                      <input type="checkbox" checked={calcUseOverload} onChange={e => setCalcUseOverload(e.target.checked)} className="w-4 h-4 rounded border-hairline accent-accent" />
-                      Перегруз
+
+                    {/* Перегруз и доп. точки — ставка × количество: в реестре они
+                        разворачиваются обратно в два числа, поэтому одной суммой
+                        их брать нельзя. */}
+                    <div>
+                      <label className="flex items-center gap-2 cursor-pointer text-sm text-ink-2">
+                        <input type="checkbox" checked={calcUseOverload} onChange={e => setCalcUseOverload(e.target.checked)} className="w-4 h-4 rounded border-hairline accent-accent" />
+                        Перегруз
+                      </label>
                       {calcUseOverload && (
-                        <Input label="" type="number" value={calcOverload} onChange={e => setCalcOverload(e.target.value)} placeholder="₽" min="0" className="font-mono tabular-nums" />
+                        <div className="grid grid-cols-2 gap-3 mt-2">
+                          <Input label="₽ за тонну" type="number" value={calcOverloadPerTon} onChange={e => setCalcOverloadPerTon(e.target.value)} placeholder="0" min="0" className="font-mono tabular-nums" />
+                          <Input label="Сверхнормативных тонн" type="number" value={calcOverloadTons} onChange={e => setCalcOverloadTons(e.target.value)} placeholder="0" min="0" step="0.1" className="font-mono tabular-nums" />
+                        </div>
                       )}
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-sm text-ink-2">
-                      <input type="checkbox" checked={calcUseExtraStop} onChange={e => setCalcUseExtraStop(e.target.checked)} className="w-4 h-4 rounded border-hairline accent-accent" />
-                      Доп. точка
+                    </div>
+
+                    <div>
+                      <label className="flex items-center gap-2 cursor-pointer text-sm text-ink-2">
+                        <input type="checkbox" checked={calcUseExtraStop} onChange={e => setCalcUseExtraStop(e.target.checked)} className="w-4 h-4 rounded border-hairline accent-accent" />
+                        Доп. точки
+                      </label>
                       {calcUseExtraStop && (
-                        <Input label="" type="number" value={calcExtraStop} onChange={e => setCalcExtraStop(e.target.value)} placeholder="₽" min="0" className="font-mono tabular-nums" />
+                        <div className="grid grid-cols-2 gap-3 mt-2">
+                          <Input label="₽ за точку" type="number" value={calcExtraPointCost} onChange={e => setCalcExtraPointCost(e.target.value)} placeholder="0" min="0" className="font-mono tabular-nums" />
+                          <Input label="Количество точек" type="number" value={calcExtraPointsCount} onChange={e => setCalcExtraPointsCount(e.target.value)} placeholder="0" min="0" step="1" className="font-mono tabular-nums" />
+                        </div>
                       )}
-                    </label>
+                    </div>
                   </>
                 ) : (
                   <Input label="Рыночная ставка (₽)" type="number" value={calcMarket} onChange={e => setCalcMarket(e.target.value)} placeholder="0" min="0" className="font-mono tabular-nums" />
@@ -1138,7 +1243,14 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
               </div>
               <div className="flex gap-3 p-5 border-t border-hairline">
                 <Button
-                  onClick={() => { if (total > 0) { setPrice(String(total)); setIsNegotiable(false); setCalcOpen(false) } }}
+                  onClick={() => {
+                    if (total <= 0) return
+                    setPrice(String(total))
+                    setIsNegotiable(false)
+                    setRateBreakdown(breakdown)
+                    setErrors(p => ({ ...p, price: '' }))
+                    setCalcOpen(false)
+                  }}
                   disabled={total <= 0}
                   className="flex-1"
                 >
