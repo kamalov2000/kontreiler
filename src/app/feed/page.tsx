@@ -457,9 +457,11 @@ function FeedContent() {
                     {isCounterpartyOrder && <span title="Ваш контрагент" className="text-accent">★</span>}
                     {order.order_number ? formatOrderNumber(order.order_number) : '—'}
                   </span>
-                  <span className="flex-1 min-w-[160px] overflow-hidden flex items-center gap-2">
+                  <span className="flex-1 min-w-[160px] overflow-hidden flex items-center gap-1.5">
+                    {/* basis auto, а не flex-1: у маршрута приоритет на место в своей
+                        же колонке — ужимается сначала бейдж клиента (shrink-[3]) */}
                     <RouteInline
-                      className="flex-1 min-w-0"
+                      className="flex-[1_1_auto] min-w-0"
                       from={order.from_city}
                       to={order.to_city}
                       via={order.via_city}
@@ -467,9 +469,11 @@ function FeedContent() {
                     />
                     {stopOrders.has(order.id) && <span title="Есть доп. точки" className="text-ink-4 text-xs flex-none">＋точки</span>}
                     {order.client && (
-                      <span className="text-xs text-ink-3 whitespace-nowrap inline-flex items-center gap-1.5 max-w-[168px]">
+                      <span className="text-xs text-ink-3 whitespace-nowrap inline-flex items-center gap-1.5 max-w-[168px] min-w-0 shrink-[20]">
                         <CompanyAvatar src={order.client.logo_url} size={22} />
-                        {order.client.name && <span className="truncate">{order.client.name}{order.client.city ? ` · ${order.client.city}` : ''}</span>}
+                        {/* город клиента — только в тултипе: в строке он дублирует
+                            маршрут и всё равно обрезался до «· Сан…» */}
+                        {order.client.name && <span className="truncate" title={`${order.client.name}${order.client.city ? ` · ${order.client.city}` : ''}`}>{order.client.name}</span>}
                         <VerifiedBadge verified={order.client.is_verified} iconOnly />
                       </span>
                     )}
@@ -477,7 +481,7 @@ function FeedContent() {
                       <span className="font-mono text-[12px] text-ink-3 flex-none whitespace-nowrap">★ {clientRating.avg.toFixed(1)}</span>
                     )}
                   </span>
-                  <span className="w-[140px] flex-none">
+                  <span className="w-[116px] flex-none">
                     <ContainerChip label={containerLabel} genset={order.requires_genset} wrap />
                   </span>
                   <span className="w-[84px] flex-none text-right font-mono text-[13px] tabular-nums text-ink-3">
