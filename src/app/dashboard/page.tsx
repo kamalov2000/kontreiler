@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Plus, Search, X, Filter, Download, Upload } from 'lucide-react'
+import { Plus, Search, X, Filter, Download, Upload, Layers, ChevronDown, ChevronRight } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderImportModal } from '@/components/orders/OrderImportModal'
 import { RegistryExportButton } from '@/components/orders/RegistryExportButton'
@@ -17,7 +17,8 @@ import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, ContainerType } from '@/types/database'
-import { formatOrderNumber, formatPrice } from '@/lib/utils'
+import { Input } from '@/components/ui/Input'
+import { formatOrderNumber, formatPrice, toDatetimeLocal } from '@/lib/utils'
 import { effectiveOrderStatus } from '@/lib/order-status'
 import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
 import { CONTAINER_TYPES } from '@/lib/cities'
@@ -25,6 +26,17 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 type Tab = 'active' | 'closed' | 'cancelled' | 'expired' | 'all'
+
+// «1 рейс / 2 рейса / 5 рейсов» — счётчик рейсов в строке пакета.
+function tripWord(n: number): string {
+  const mod100 = n % 100
+  if (mod100 >= 11 && mod100 <= 14) return 'рейсов'
+  const mod10 = n % 10
+  if (mod10 === 1) return 'рейс'
+  if (mod10 >= 2 && mod10 <= 4) return 'рейса'
+  return 'рейсов'
+}
+
 
 // Слова-префиксы которые пользователь может набирать перед номером
 const SEARCH_PREFIX_WORDS = ['заявка', 'заявку', 'заявки', 'заявке', 'заявкой', 'ордер', 'order']
@@ -95,6 +107,14 @@ export default function DashboardPage() {
   const [search, setSearch] = useState('')
   const [stopOrders, setStopOrders] = useState<Set<string>>(new Set())
   const [importOpen, setImportOpen] = useState(false)
+
+  // Пакеты рейсов: в списке они одна строка с разворачиванием. Действия — над
+  // всем пакетом сразу, поштучно клиент возится на страницах рейсов.
+  const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set())
+  const [batchBusy, setBatchBusy] = useState<string | null>(null)
+  // Пакет, которому продлеваем срок, и новая дата окончания
+  const [extendBatchId, setExtendBatchId] = useState<string | null>(null)
+  const [extendUntil, setExtendUntil] = useState('')
 
   // Фильтры вкладки "Все заявки"
   const [allFilterStatus, setAllFilterStatus] = useState('')
@@ -216,6 +236,47 @@ export default function DashboardPage() {
     setArchivingId(null)
   }
 
+  function toggleBatch(batchId: string) {
+    setExpandedBatches(prev => {
+      const next = new Set(prev)
+      if (next.has(batchId)) next.delete(batchId)
+      else next.add(batchId)
+      return next
+    })
+  }
+
+  // Отменить все нераспределённые рейсы пакета. Уже принятые (matched и
+  // дальше) не трогаем: там своя сделка и свой порядок отмены.
+  async function cancelBatch(batchId: string, ids: string[]) {
+    if (ids.length === 0) return
+    setBatchBusy(batchId)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: 'cancelled' })
+      .in('id', ids)
+    setBatchBusy(null)
+    if (error) { toast.error('Не удалось отменить рейсы'); return }
+    toast.success(`Отменено рейсов: ${ids.length}`)
+    fetchOrders()
+  }
+
+  // Продлить срок действия всем нераспределённым рейсам пакета одной датой.
+  async function extendBatch(batchId: string, ids: string[]) {
+    if (ids.length === 0 || !extendUntil) return
+    setBatchBusy(batchId)
+    const supabase = createClient()
+    const { error } = await supabase
+      .from('orders')
+      .update({ expires_at: new Date(extendUntil).toISOString() })
+      .in('id', ids)
+    setBatchBusy(null)
+    setExtendBatchId(null)
+    if (error) { toast.error('Не удалось продлить срок'); return }
+    toast.success(`Срок продлён по ${ids.length} рейсам`)
+    fetchOrders()
+  }
+
   const [now, setNow] = useState(Date.now())
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 10000)
@@ -294,6 +355,226 @@ export default function DashboardPage() {
     const wb = utils.book_new()
     utils.book_append_sheet(wb, ws, 'Заявки')
     writeFile(wb, `zayavki_${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
+
+
+  // Заявки одного пакета — одна строка с разворачиванием. Пакет встаёт на
+  // место своего первого рейса, порядок остальных строк не меняется.
+  type DashRow =
+    | { kind: 'order'; key: string; order: Order }
+    | { kind: 'batch'; key: string; batchId: string; orders: Order[] }
+
+  const dashRows: DashRow[] = []
+  const batchRowIndex = new Map<string, number>()
+  for (const o of filtered) {
+    if (!o.batch_id) {
+      dashRows.push({ kind: 'order', key: o.id, order: o })
+      continue
+    }
+    const at = batchRowIndex.get(o.batch_id)
+    if (at == null) {
+      batchRowIndex.set(o.batch_id, dashRows.length)
+      dashRows.push({ kind: 'batch', key: o.batch_id, batchId: o.batch_id, orders: [o] })
+    } else {
+      const r = dashRows[at]
+      if (r.kind === 'batch') r.orders.push(o)
+    }
+  }
+  // Пакет, от которого в текущей вкладке остался один рейс, показываем обычной
+  // строкой: сворачивать нечего.
+  const displayRows: DashRow[] = dashRows.map(r =>
+    r.kind === 'batch' && r.orders.length === 1
+      ? { kind: 'order', key: r.orders[0].id, order: r.orders[0] }
+      : r
+  )
+
+  // Строка обычной заявки. Вынесена в функцию: список рисует и одиночные
+  // заявки, и рейсы внутри развёрнутого пакета.
+  function renderOrderRow(order: Order) {
+    const unread = unreadMap[order.id] || 0
+    const effStatus = getEffStatus(order)
+    const isExpired = effStatus === 'expired'
+    const respCount = order.response_count || 0
+    const isActive = effStatus === 'active'
+    const trackingLabel = order.tracking_enabled && order.tracking_status
+      ? (() => {
+          const idx = getTrackingStepIndex(order.tracking_status!)
+          const step = TRACKING_STEPS[idx]
+          return step ? `${step.shortLabel} · ${idx + 1}/7` : null
+        })()
+      : null
+
+    return (
+      <div
+        key={order.id}
+        onClick={() => router.push(`/orders/${order.id}`)}
+        className="flex items-center gap-3.5 min-h-[56px] py-2 px-5 border-b border-hairline last:border-0 bg-surface cursor-pointer transition-colors ease-terminal hover:bg-accent-soft hover:shadow-row-active"
+      >
+        <span className="w-[84px] flex-none font-mono text-[13px] text-ink-3 flex items-center gap-1">
+          {stopOrders.has(order.id) && <span title="Есть доп. точки" className="text-ink-4">＋</span>}
+          {order.order_number ? formatOrderNumber(order.order_number) : '—'}
+        </span>
+        <span className="flex-1 min-w-0">
+          <RouteInline from={order.from_city} to={order.to_city} via={order.via_city} className="flex-1" />
+        </span>
+        <StatusPill status={effStatus} className="flex-none" />
+        <span className="w-[190px] flex-none text-right">
+          {isActive && respCount > 0 ? (
+            <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-accent text-white whitespace-nowrap">
+              {respCount} {t.dashboard.responses.toLowerCase()}
+            </span>
+          ) : trackingLabel ? (
+            <span className="font-mono text-[11px] px-2 py-0.5 rounded-field border border-hairline bg-surface-sunken text-ink-2 whitespace-nowrap">
+              трекинг: {trackingLabel}
+            </span>
+          ) : isExpired && order.ready_date ? (
+            <span className="font-mono text-[12px] text-ink-3 whitespace-nowrap">
+              погрузка была {new Date(order.ready_date).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}
+            </span>
+          ) : null}
+        </span>
+        <span className="w-[104px] flex-none text-right font-mono text-[15px] font-medium tabular-nums text-ink">
+          {formatPrice(order.price, order.is_negotiable)}
+        </span>
+        <span className="w-[168px] flex-none flex items-center gap-2 justify-end" onClick={e => e.stopPropagation()}>
+          {isExpired ? (
+            <Button variant="secondary" size="sm" loading={archivingId === order.id} onClick={() => archiveOrder(order.id)}>
+              В архив
+            </Button>
+          ) : (
+            <Link href={`/orders/${order.id}`}>
+              <Button size="sm" variant={isActive && respCount > 0 ? 'primary' : 'secondary'}>
+                {isActive && respCount > 0 ? 'Отклики' : 'Открыть'}
+              </Button>
+            </Link>
+          )}
+          {!isExpired && respCount > 0 && (
+            <Link href={`/orders/${order.id}/chat`} className="relative inline-flex" onClick={e => e.stopPropagation()}>
+              <span className="inline-flex items-center min-h-[32px] px-3 rounded-card border border-hairline bg-surface text-ink-2 text-[13px] font-medium hover:border-border-strong transition-colors">
+                {t.dashboard.chat}
+              </span>
+              {unread > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-danger text-white text-[10px] font-bold flex items-center justify-center px-1 leading-none">
+                  {unread}
+                </span>
+              )}
+            </Link>
+          )}
+        </span>
+      </div>
+    )
+  }
+
+  // Строка пакета: маршрут и сводка по статусам, разворачивается в список
+  // рейсов. Действия — над всем пакетом сразу.
+  function renderBatchRow(row: { batchId: string; orders: Order[] }) {
+    const head = row.orders[0]
+    const expanded = expandedBatches.has(row.batchId)
+    // «Нераспределённые» — те, где перевозчик ещё не принят: только их можно
+    // отменить или продлить пачкой.
+    const pending = row.orders.filter(o => getEffStatus(o) === 'active')
+    const pendingIds = pending.map(o => o.id)
+    const responses = pending.reduce((sum, o) => sum + (o.response_count || 0), 0)
+    const busy = batchBusy === row.batchId
+
+    return (
+      <div key={row.batchId} className="border-b border-hairline last:border-0">
+        <div
+          onClick={() => toggleBatch(row.batchId)}
+          className="flex items-center gap-3.5 min-h-[56px] py-2 px-5 bg-surface cursor-pointer transition-colors ease-terminal hover:bg-accent-soft"
+        >
+          <span className="w-[84px] flex-none font-mono text-[13px] text-ink-3 flex items-center gap-1">
+            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <Layers size={13} />
+            <span className="tabular-nums">{row.orders.length}</span>
+          </span>
+          <span className="flex-1 min-w-0">
+            <RouteInline from={head.from_city} to={head.to_city} via={head.via_city} className="flex-1" />
+            {/* Действия над пакетом — второй строкой, а не в колонке кнопок:
+                их две, и в ширину колонки одиночной заявки они не влезают,
+                а ломать сетку списка ради пакета не стоит. */}
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+              <span className="font-mono text-[12px] tabular-nums text-ink-3 whitespace-nowrap">
+                Пакет · {row.orders.length} {tripWord(row.orders.length)}, свободно {pending.length}
+              </span>
+              {pendingIds.length > 0 && (
+                <span className="flex items-center gap-2.5" onClick={e => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExtendBatchId(row.batchId)
+                      setExtendUntil(toDatetimeLocal(head.expires_at))
+                    }}
+                    className="text-[12px] font-medium text-accent hover:text-accent-hover transition-colors whitespace-nowrap"
+                  >
+                    продлить срок
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => cancelBatch(row.batchId, pendingIds)}
+                    className="text-[12px] font-medium text-danger hover:text-danger/80 transition-colors disabled:opacity-50 whitespace-nowrap"
+                  >
+                    отменить нераспределённые
+                  </button>
+                </span>
+              )}
+            </span>
+          </span>
+          <span className="w-[190px] flex-none text-right">
+            {responses > 0 && (
+              <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-accent text-white whitespace-nowrap">
+                {responses} {t.dashboard.responses.toLowerCase()}
+              </span>
+            )}
+          </span>
+          <span className="w-[104px] flex-none text-right font-mono text-[15px] font-medium tabular-nums text-ink">
+            {formatPrice(head.price, head.is_negotiable)}
+          </span>
+          <span className="w-[168px] flex-none flex items-center justify-end">
+            <span className="text-[13px] font-medium text-ink-3">
+              {expanded ? 'Свернуть' : 'Показать рейсы'}
+            </span>
+          </span>
+        </div>
+
+        {expanded && (
+          <div className="bg-surface-sunken border-t border-hairline">
+            {row.orders.map(o => renderOrderRow(o))}
+          </div>
+        )}
+
+        {/* Продление срока: одна дата на все нераспределённые рейсы пакета */}
+        {extendBatchId === row.batchId && (
+          <div className="fixed inset-0 bg-ink/40 z-50 flex items-center justify-center p-4" onClick={() => setExtendBatchId(null)}>
+            <div className="bg-surface rounded-modal shadow-overlay w-full max-w-sm p-5" onClick={e => e.stopPropagation()}>
+              <h2 className="text-lg font-semibold tracking-[-0.01em] text-ink mb-1">Продлить срок пакета</h2>
+              <p className="text-sm text-ink-3 mb-4">
+                Новый срок действия получат {pendingIds.length} {tripWord(pendingIds.length)}, по которым перевозчик ещё не принят.
+              </p>
+              <Input
+                id="extendUntil"
+                type="datetime-local"
+                label="Действует до"
+                value={extendUntil}
+                onChange={e => setExtendUntil(e.target.value)}
+              />
+              <div className="flex gap-3 mt-5">
+                <Button
+                  className="flex-1"
+                  loading={busy}
+                  disabled={!extendUntil}
+                  onClick={() => extendBatch(row.batchId, pendingIds)}
+                >
+                  Продлить
+                </Button>
+                <Button variant="secondary" onClick={() => setExtendBatchId(null)}>Отмена</Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -503,80 +784,7 @@ export default function DashboardPage() {
       ) : (
         <div className="border border-hairline rounded-card bg-surface overflow-x-auto">
           <div className="min-w-[820px]">
-            {filtered.map(order => {
-              const unread = unreadMap[order.id] || 0
-              const effStatus = getEffStatus(order)
-              const isExpired = effStatus === 'expired'
-              const respCount = order.response_count || 0
-              const isActive = effStatus === 'active'
-              const trackingLabel = order.tracking_enabled && order.tracking_status
-                ? (() => {
-                    const idx = getTrackingStepIndex(order.tracking_status!)
-                    const step = TRACKING_STEPS[idx]
-                    return step ? `${step.shortLabel} · ${idx + 1}/7` : null
-                  })()
-                : null
-
-              return (
-                <div
-                  key={order.id}
-                  onClick={() => router.push(`/orders/${order.id}`)}
-                  className="flex items-center gap-3.5 min-h-[56px] py-2 px-5 border-b border-hairline last:border-0 bg-surface cursor-pointer transition-colors ease-terminal hover:bg-accent-soft hover:shadow-row-active"
-                >
-                  <span className="w-[84px] flex-none font-mono text-[13px] text-ink-3 flex items-center gap-1">
-                    {stopOrders.has(order.id) && <span title="Есть доп. точки" className="text-ink-4">＋</span>}
-                    {order.order_number ? formatOrderNumber(order.order_number) : '—'}
-                  </span>
-                  <span className="flex-1 min-w-0">
-                    <RouteInline from={order.from_city} to={order.to_city} via={order.via_city} className="flex-1" />
-                  </span>
-                  <StatusPill status={effStatus} className="flex-none" />
-                  <span className="w-[190px] flex-none text-right">
-                    {isActive && respCount > 0 ? (
-                      <span className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-accent text-white whitespace-nowrap">
-                        {respCount} {t.dashboard.responses.toLowerCase()}
-                      </span>
-                    ) : trackingLabel ? (
-                      <span className="font-mono text-[11px] px-2 py-0.5 rounded-field border border-hairline bg-surface-sunken text-ink-2 whitespace-nowrap">
-                        трекинг: {trackingLabel}
-                      </span>
-                    ) : isExpired && order.ready_date ? (
-                      <span className="font-mono text-[12px] text-ink-3 whitespace-nowrap">
-                        погрузка была {new Date(order.ready_date).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="w-[104px] flex-none text-right font-mono text-[15px] font-medium tabular-nums text-ink">
-                    {formatPrice(order.price, order.is_negotiable)}
-                  </span>
-                  <span className="w-[168px] flex-none flex items-center gap-2 justify-end" onClick={e => e.stopPropagation()}>
-                    {isExpired ? (
-                      <Button variant="secondary" size="sm" loading={archivingId === order.id} onClick={() => archiveOrder(order.id)}>
-                        В архив
-                      </Button>
-                    ) : (
-                      <Link href={`/orders/${order.id}`}>
-                        <Button size="sm" variant={isActive && respCount > 0 ? 'primary' : 'secondary'}>
-                          {isActive && respCount > 0 ? 'Отклики' : 'Открыть'}
-                        </Button>
-                      </Link>
-                    )}
-                    {!isExpired && respCount > 0 && (
-                      <Link href={`/orders/${order.id}/chat`} className="relative inline-flex" onClick={e => e.stopPropagation()}>
-                        <span className="inline-flex items-center min-h-[32px] px-3 rounded-card border border-hairline bg-surface text-ink-2 text-[13px] font-medium hover:border-border-strong transition-colors">
-                          {t.dashboard.chat}
-                        </span>
-                        {unread > 0 && (
-                          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-danger text-white text-[10px] font-bold flex items-center justify-center px-1 leading-none">
-                            {unread}
-                          </span>
-                        )}
-                      </Link>
-                    )}
-                  </span>
-                </div>
-              )
-            })}
+            {displayRows.map(row => row.kind === 'order' ? renderOrderRow(row.order) : renderBatchRow(row))}
           </div>
         </div>
       )}

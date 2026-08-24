@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { CityAutocomplete } from '@/components/ui/CityAutocomplete'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
@@ -13,10 +14,11 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { RouteInline } from '@/components/ui/RouteInline'
 import { ContainerMark } from '@/components/ui/ContainerMark'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT } from '@/lib/cities'
-import { ContainerType, VatType, OrderFormat, Order, OrderStop, RateMethod } from '@/types/database'
+import { ContainerType, VatType, OrderFormat, Order, OrderStop, RateMethod, PointKind, ContainerAction } from '@/types/database'
+import { buildRoutePoints, isRoundTrip, POINT_KIND_OPTIONS, CONTAINER_ACTION_OPTIONS } from '@/lib/route-points'
 import { formatOrderNumber, normalizePhone, toDatetimeLocal } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Calculator, Plus, Trash2, X } from 'lucide-react'
+import { Calculator, Plus, Trash2, X, RefreshCw } from 'lucide-react'
 
 // Сохранённый расчёт ставки — ровно те колонки orders, что пишет калькулятор.
 type RateBreakdown = Pick<Order,
@@ -46,6 +48,51 @@ const RATE_METHODS: { value: RateMethod; label: string }[] = [
 const overline = 'block text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3'
 // Волосяная карточка-секция
 const sectionCard = 'rounded-card border border-hairline bg-surface p-4 space-y-4'
+
+// Потолок пакета: больше полусотни рейсов одной публикацией — это уже импорт
+// реестром, а не форма.
+const MAX_TRIPS = 50
+
+// Черновик дополнительной точки в форме. Пустая строка в kind/action = «не
+// указано»: в БД уедет null.
+type StopDraft = { address: string; comment: string; kind: PointKind | ''; action: ContainerAction | '' }
+const EMPTY_STOP: StopDraft = { address: '', comment: '', kind: '', action: '' }
+
+/**
+ * Два необязательных поля точки маршрута: что за место и что там делают с
+ * контейнером. Без них форма ведёт себя как раньше, поэтому подписаны как
+ * необязательные и стоят под адресом, а не над ним.
+ */
+function PointTypeFields({
+  idPrefix, kind, action, onKind, onAction,
+}: {
+  idPrefix: string
+  kind: PointKind | ''
+  action: ContainerAction | ''
+  onKind: (v: PointKind | '') => void
+  onAction: (v: ContainerAction | '') => void
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      <Select
+        id={`${idPrefix}Kind`}
+        label="Тип места"
+        value={kind}
+        onChange={e => onKind(e.target.value as PointKind | '')}
+        options={POINT_KIND_OPTIONS}
+        placeholder="Не указан"
+      />
+      <Select
+        id={`${idPrefix}Action`}
+        label="Что с контейнером"
+        value={action}
+        onChange={e => onAction(e.target.value as ContainerAction | '')}
+        options={CONTAINER_ACTION_OPTIONS}
+        placeholder="Не указано"
+      />
+    </div>
+  )
+}
 
 // Дефолтный expires_at: 7 дней от сейчас в формате datetime-local
 function defaultExpiresAt(): string {
@@ -77,6 +124,15 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
   const [viaCityAddress, setViaCityAddress] = useState('')
   const [toCity, setToCity] = useState(params.get('to') || '')
   const [toCityAddress, setToCityAddress] = useState('')
+
+  // Типизация точек. Пустая строка = «не указано»: поля необязательные, и
+  // незаполненный маршрут работает ровно как до их появления.
+  const [fromPointKind, setFromPointKind] = useState<PointKind | ''>('')
+  const [fromAction, setFromAction] = useState<ContainerAction | ''>('')
+  const [viaPointKind, setViaPointKind] = useState<PointKind | ''>('')
+  const [viaAction, setViaAction] = useState<ContainerAction | ''>('')
+  const [toPointKind, setToPointKind] = useState<PointKind | ''>('')
+  const [toAction, setToAction] = useState<ContainerAction | ''>('')
 
   // Container & dates
   const [containerType, setContainerType] = useState<ContainerType>(
@@ -111,7 +167,7 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
 
   // Дополнительные точки маршрута
   const [hasExtraStops, setHasExtraStops] = useState(false)
-  const [stops, setStops] = useState<Array<{ address: string; comment: string }>>([{ address: '', comment: '' }])
+  const [stops, setStops] = useState<StopDraft[]>([EMPTY_STOP])
 
   // Калькулятор ставки
   const [calcOpen, setCalcOpen] = useState(false)
@@ -157,6 +213,10 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
   const [containerNumber, setContainerNumber] = useState('')
   const [senderPhone, setSenderPhone] = useState('')
   const [receiverPhone, setReceiverPhone] = useState('')
+
+  // Пакет рейсов: сколько одинаковых заявок опубликовать одной кнопкой.
+  // 1 — обычная одиночная заявка, поведение как раньше.
+  const [tripCount, setTripCount] = useState('1')
 
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -205,10 +265,21 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
       setViaCityAddress(o.via_city_address ?? '')
       setToCity(o.to_city)
       setToCityAddress(o.to_city_address ?? '')
+      setFromPointKind(o.from_point_kind ?? '')
+      setFromAction(o.from_container_action ?? '')
+      setViaPointKind(o.via_point_kind ?? '')
+      setViaAction(o.via_container_action ?? '')
+      setToPointKind(o.to_point_kind ?? '')
+      setToAction(o.to_container_action ?? '')
       const extra = (srcStops ?? []) as OrderStop[]
       if (extra.length > 0) {
         setHasExtraStops(true)
-        setStops(extra.map(s => ({ address: s.address, comment: s.comment ?? '' })))
+        setStops(extra.map(s => ({
+          address: s.address,
+          comment: s.comment ?? '',
+          kind: s.point_kind ?? '',
+          action: s.container_action ?? '',
+        })))
       }
 
       // Груз
@@ -318,9 +389,31 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceId])
 
+  // Кругорейс определяется сам по типам точек — ручного переключателя нет.
+  // Считаем по тому же коду, что и карточка заявки с лентой.
+  const routePoints = buildRoutePoints({
+    from_city: fromCity, from_city_address: fromCityAddress || null,
+    from_point_kind: fromPointKind || null, from_container_action: fromAction || null,
+    via_city: viaCity || null, via_city_address: viaCityAddress || null,
+    via_point_kind: viaPointKind || null, via_container_action: viaAction || null,
+    to_city: toCity, to_city_address: toCityAddress || null,
+    to_point_kind: toPointKind || null, to_container_action: toAction || null,
+  }, hasExtraStops
+    ? stops.filter(s => s.address.trim()).map(s => ({
+        address: s.address.trim(), point_kind: s.kind || null, container_action: s.action || null,
+      }))
+    : [])
+  const roundTrip = isRoundTrip(routePoints)
+
   const isRefContainer = REF_CONTAINER_TYPES.has(containerType)
   const isAuctionFormat = format === 'reduction' || format === 'auction'
   const is20DC2 = containerType === '20DC2'
+
+  // Пакет — только у обычных заявок: у торгов лот один, у заявки из торгов
+  // перевозчик уже назначен.
+  const batchAllowed = !isTorgMode && !isAuctionFormat && !auctionWinner
+  const tripsToCreate = batchAllowed ? (parseInt(tripCount, 10) || 0) : 1
+  const isBatch = tripsToCreate > 1
 
   function handleContainerChange(v: ContainerType) {
     setContainerType(v)
@@ -341,6 +434,9 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
     if (weightGross && weightNet && parseInt(weightNet) > parseInt(weightGross)) {
       e.weightNet = 'Нетто не может превышать брутто'
     }
+    if (batchAllowed && (!Number.isInteger(tripsToCreate) || tripsToCreate < 1 || tripsToCreate > MAX_TRIPS)) {
+      e.tripCount = `От 1 до ${MAX_TRIPS} рейсов`
+    }
     return e
   }
 
@@ -356,15 +452,25 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
     setLoading(true)
 
     const supabase = createClient()
-    const { data: inserted, error } = await supabase.from('orders').insert({
+    // Пакет рейсов: N самостоятельных заявок с общим batch_id. Номер КТ-XXXXX
+    // каждой выдаёт триггер в БД, дальше каждая живёт своей жизнью.
+    const batchId = isBatch ? crypto.randomUUID() : null
+    const payload = {
       client_id: user.id,
       format,
+      batch_id: batchId,
       from_city: fromCity,
       from_city_address: fromCityAddress.trim() || null,
+      from_point_kind: fromPointKind || null,
+      from_container_action: fromAction || null,
       via_city: viaCity,
       via_city_address: viaCityAddress.trim() || null,
+      via_point_kind: viaPointKind || null,
+      via_container_action: viaAction || null,
       to_city: toCity,
       to_city_address: toCityAddress.trim() || null,
+      to_point_kind: toPointKind || null,
+      to_container_action: toAction || null,
       container_type: containerType,
       ready_date: readyDate,
       expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
@@ -389,7 +495,9 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
       requires_genset: requiresGenset,
       notes: notes.trim() || null,
       cargo_name: cargoName.trim() || null,
-      container_number: containerNumber.trim().toUpperCase() || null,
+      // Номер контейнера у каждого рейса свой — в пакете его не размножаем,
+      // клиент проставит номера позже на страницах заявок.
+      container_number: isBatch ? null : (containerNumber.trim().toUpperCase() || null),
       sender_contact_phone: senderPhone.trim() ? normalizePhone(senderPhone.trim()) : null,
       receiver_contact_phone: receiverPhone.trim() ? normalizePhone(receiverPhone.trim()) : null,
       arrival_time: null,
@@ -406,43 +514,60 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
       accepted_carrier_id: auctionWinner?.id ?? null,
       status: auctionWinner ? 'matched' : 'active',
       agreed_price: auctionWinner && price ? parseInt(price) : null,
-    }).select('id').single()
+    }
 
-    if (error || !inserted) {
+    const { data: inserted, error } = await supabase
+      .from('orders')
+      .insert(Array.from({ length: tripsToCreate }, () => payload))
+      .select('id')
+
+    if (error || !inserted || inserted.length === 0) {
       toast.error(t.order.error)
       setLoading(false)
       return
     }
 
-    // Вставить дополнительные точки
+    // Вставить дополнительные точки — свой комплект каждому рейсу пакета
     if (hasExtraStops) {
       const validStops = stops.filter(s => s.address.trim())
       if (validStops.length > 0) {
         await supabase.from('order_stops').insert(
-          validStops.map((s, i) => ({
-            order_id: inserted.id,
+          inserted.flatMap(o => validStops.map((s, i) => ({
+            order_id: o.id,
             address: s.address.trim(),
             comment: s.comment.trim() || null,
+            point_kind: s.kind || null,
+            container_action: s.action || null,
             sort_order: i,
-          }))
+          })))
         )
       }
     }
 
-    toast.success(auctionWinner ? 'Заявка создана, перевозчик назначен' : t.order.posted)
+    toast.success(
+      auctionWinner ? 'Заявка создана, перевозчик назначен'
+        : isBatch ? `Опубликовано рейсов: ${inserted.length}`
+        : t.order.posted
+    )
 
     // Уведомляем перевозчиков с совпадающим сохранённым маршрутом — некритично,
     // ошибку глотаем и не блокируем переход. Для заявки из торгов перевозчик уже
     // назначен: рассылка по маршрутам зазывала бы на занятый рейс.
+    // Для пакета зовём один раз: маршрут у всех рейсов одинаковый, десять
+    // писем об одном и том же перевозчику не нужны.
     if (!auctionWinner) {
       fetch('/api/orders/route-match', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: inserted.id }),
+        body: JSON.stringify({ orderId: inserted[0].id }),
       }).catch(() => {})
     }
 
-    router.push(auctionWinner ? `/orders/${inserted.id}` : isAuctionFormat ? '/auctions' : '/dashboard')
+    router.push(
+      auctionWinner ? `/orders/${inserted[0].id}`
+        : isAuctionFormat ? '/auctions'
+        : '/dashboard'
+    )
   }
 
   const today = new Date().toISOString().split('T')[0]
@@ -509,10 +634,17 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
           <div className={sectionCard}>
             <span className={overline}>Маршрут</span>
 
-            {/* Превью маршрута */}
+            {/* Превью маршрута. Отметка «Кругорейс» появляется сама, когда
+                маршрут начинается и заканчивается терминалом, а между ними есть
+                погрузка или выгрузка — переключателя для неё нет. */}
             {(fromCity || toCity) && (
-              <div className="rounded-field border border-hairline bg-surface-sunken px-3 py-2.5">
-                <RouteInline from={fromCity || '—'} to={toCity || '—'} via={viaCity} />
+              <div className="rounded-field border border-hairline bg-surface-sunken px-3 py-2.5 flex items-center gap-2.5">
+                <RouteInline className="min-w-0 flex-1" from={fromCity || '—'} to={toCity || '—'} via={viaCity} />
+                {roundTrip && (
+                  <span className="inline-flex flex-none items-center gap-1 px-2 py-0.5 rounded-field bg-accent-soft text-accent text-[11px] font-semibold tracking-[0.05em] uppercase">
+                    <RefreshCw size={11} /> Кругорейс
+                  </span>
+                )}
               </div>
             )}
 
@@ -533,6 +665,11 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
                 onChange={e => setFromCityAddress(e.target.value)}
                 placeholder={t.order.addressPlaceholder}
               />
+              <PointTypeFields
+                idPrefix="fromPoint"
+                kind={fromPointKind} action={fromAction}
+                onKind={setFromPointKind} onAction={setFromAction}
+              />
             </div>
 
             {/* Точка 2: Промежуточная */}
@@ -552,6 +689,11 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
                 onChange={e => setViaCityAddress(e.target.value)}
                 placeholder={t.order.addressPlaceholder}
               />
+              <PointTypeFields
+                idPrefix="viaPoint"
+                kind={viaPointKind} action={viaAction}
+                onKind={setViaPointKind} onAction={setViaAction}
+              />
             </div>
 
             {/* Точка 3: Куда */}
@@ -570,6 +712,11 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
                 value={toCityAddress}
                 onChange={e => setToCityAddress(e.target.value)}
                 placeholder={t.order.addressPlaceholder}
+              />
+              <PointTypeFields
+                idPrefix="toPoint"
+                kind={toPointKind} action={toAction}
+                onKind={setToPointKind} onAction={setToAction}
               />
             </div>
 
@@ -615,11 +762,17 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
                         onChange={e => setStops(prev => prev.map((s, idx) => idx === i ? { ...s, comment: e.target.value } : s))}
                         placeholder="Погрузка, выгрузка, таможня..."
                       />
+                      <PointTypeFields
+                        idPrefix={`stop${i}`}
+                        kind={stop.kind} action={stop.action}
+                        onKind={v => setStops(prev => prev.map((s, idx) => idx === i ? { ...s, kind: v } : s))}
+                        onAction={v => setStops(prev => prev.map((s, idx) => idx === i ? { ...s, action: v } : s))}
+                      />
                     </div>
                   ))}
                   <button
                     type="button"
-                    onClick={() => setStops(prev => [...prev, { address: '', comment: '' }])}
+                    onClick={() => setStops(prev => [...prev, EMPTY_STOP])}
                     className="flex items-center gap-2 text-sm font-medium text-accent hover:text-accent-hover transition-colors"
                   >
                     <Plus size={16} /> Добавить точку
@@ -740,6 +893,32 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
                 </div>
               )}
             </div>
+
+            {/* Пакет рейсов: одна публикация — несколько контейнеров по одному
+                маршруту. Раньше клиент делал это копированием заявки, и лента
+                забивалась дублями. */}
+            {batchAllowed && (
+              <div>
+                <div className="sm:max-w-[220px]">
+                  <Input
+                    id="tripCount"
+                    type="number"
+                    label="Количество рейсов"
+                    value={tripCount}
+                    onChange={e => { setTripCount(e.target.value); setErrors(p => ({ ...p, tripCount: '' })) }}
+                    min="1"
+                    max={String(MAX_TRIPS)}
+                    error={errors.tripCount}
+                    className="font-mono tabular-nums"
+                  />
+                </div>
+                <p className="text-xs text-ink-4 mt-1.5">
+                  {isBatch
+                    ? `Будет создано ${tripsToCreate} отдельных заявок со своими номерами — в ленте они схлопнутся в одну карточку. Номера контейнеров и ЗПУ проставите позже, на страницах рейсов.`
+                    : 'Несколько контейнеров по одному маршруту — укажите их число, и заявки создадутся пакетом.'}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Сроки */}
@@ -1025,14 +1204,18 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
                 onChange={e => setCargoName(e.target.value)}
                 placeholder={t.order.cargoNamePlaceholder}
               />
-              <Input
-                id="containerNumber"
-                label={t.order.containerNumber}
-                value={containerNumber}
-                onChange={e => setContainerNumber(e.target.value)}
-                placeholder="MSKU1234567"
-                className="font-mono"
-              />
+              {/* В пакете номер у каждого рейса свой — общего поля быть не
+                  может, номера проставляются позже на страницах заявок. */}
+              {!isBatch && (
+                <Input
+                  id="containerNumber"
+                  label={t.order.containerNumber}
+                  value={containerNumber}
+                  onChange={e => setContainerNumber(e.target.value)}
+                  placeholder="MSKU1234567"
+                  className="font-mono"
+                />
+              )}
               <Input
                 id="senderPhone"
                 type="tel"

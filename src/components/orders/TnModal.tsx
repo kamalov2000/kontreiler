@@ -9,6 +9,9 @@ import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { formatDateTime, vatPercent, vatDocLabel } from '@/lib/utils'
 import { Order, OrderStop, OrderDriverInfo, OrderTnVersion, User } from '@/types/database'
+import {
+  buildRoutePoints, hasContainerActions, loadPoint, unloadPoint, routeDescription,
+} from '@/lib/route-points'
 
 interface Props {
   open: boolean
@@ -82,16 +85,29 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo, curr
 
   const isRef = order.container_type.includes('REF')
 
-  // Маршрут: погрузка → промежуточные точки (order_stops) → выгрузка.
-  const route = useMemo(() => {
-    const parts = [order.from_city, order.via_city, ...stops.map(s => s.address), order.to_city]
-    return parts.filter(Boolean).join(' — ')
-  }, [order.from_city, order.via_city, order.to_city, stops])
+  // Маршрут одним списком: откуда → промежуточная → доп. точки → куда.
+  const points = useMemo(() => buildRoutePoints(order, stops), [order, stops])
+
+  // Строка маршрута для раздела 5. У типизированных точек — с пояснением, что
+  // там происходит: так терминалы, которым не место в разделах 8 и 10, всё
+  // равно попадают в документ.
+  const route = useMemo(() => routeDescription(points), [points])
 
   const orderNumber = order.order_number ?? `КТ-${order.id.slice(0, 6).toUpperCase()}`
 
-  const pickupAddress = [order.from_city, order.from_city_address].filter(Boolean).join(', ')
-  const unloadAddress = [order.to_city, order.to_city_address].filter(Boolean).join(', ')
+  // Разделы 8 «Приём груза» и 10 «Выдача груза». Если действия с контейнером
+  // проставлены — берём адреса точек погрузки и выгрузки: в кругорейсе первая
+  // и последняя точки это терминалы порожняка, груз там не принимают и не
+  // выдают. Не проставлены — прежнее поведение, первая и последняя точки.
+  const typedRoute = useMemo(() => hasContainerActions(points), [points])
+  const pickupAddress = useMemo(
+    () => typedRoute ? (loadPoint(points)?.address ?? '') : points[0].address,
+    [typedRoute, points],
+  )
+  const unloadAddress = useMemo(
+    () => typedRoute ? (unloadPoint(points)?.address ?? '') : points[points.length - 1].address,
+    [typedRoute, points],
+  )
   const pickupDatetime = [fmtDate(order.ready_date), order.ready_time].filter(Boolean).join(' ')
 
   // Масса одной строкой — как в бланке: «брутто 25 727,5 кг, нетто 24 000 кг».
@@ -231,7 +247,9 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo, curr
     setForwardingContact('')
     setSpecialRequirements('')
     setTemperature('')
-    setSeal('')
+    // ЗПУ теперь хранится в заявке (у каждого рейса пакета своя пломба) —
+    // подставляем как заготовку, как и номер контейнера.
+    setSeal(order.seal_number ?? '')
 
     // Реквизиты перевозчика: показываем то, что доступно из карточки, а сервер
     // в префилле дополнит юридическим адресом.

@@ -7,7 +7,7 @@ import {
   ArrowLeft, User, CheckCircle,
   MoreVertical, X, Edit2, Copy, RotateCcw, Ban, Star, Banknote,
   MapPin, Timer, Weight, TrendingDown, TrendingUp, FileText, Navigation,
-  ClipboardList, IdCard, Phone, AlertTriangle,
+  ClipboardList, IdCard, Phone, AlertTriangle, RefreshCw, Layers,
 } from 'lucide-react'
 import { AppLayout } from '@/components/layout/AppLayout'
 import { OrderDocuments } from '@/components/orders/OrderDocuments'
@@ -29,12 +29,57 @@ import { VerifiedBadge } from '@/components/ui/VerifiedBadge'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
-import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop, OrderDriverInfo, OrderExtraServices, hasRequiredDriverInfo } from '@/types/database'
+import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop, OrderDriverInfo, OrderExtraServices, PointKind, ContainerAction, hasRequiredDriverInfo } from '@/types/database'
+import {
+  buildRoutePoints, isRoundTrip, pointTypeLabel,
+  POINT_KIND_OPTIONS, CONTAINER_ACTION_OPTIONS,
+} from '@/lib/route-points'
 import { formatDateWithTime, formatDateTime, formatPrice, formatOrderNumber, formatPhone, readyDateBadge, toDatetimeLocal, vatLabel, containerUnitTare } from '@/lib/utils'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES } from '@/lib/cities'
 import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+
+// Дополнительная точка в редакторе заявки. Пустая строка в kind/action = «не
+// указано»: типизация точек необязательна.
+type EditStop = {
+  id?: string
+  address: string
+  comment: string
+  kind: PointKind | ''
+  action: ContainerAction | ''
+}
+
+const EMPTY_EDIT_STOP: EditStop = { address: '', comment: '', kind: '', action: '' }
+
+/** Два необязательных поля точки маршрута: тип места и действие с контейнером. */
+function PointTypeFields({
+  kind, action, onKind, onAction,
+}: {
+  kind: PointKind | ''
+  action: ContainerAction | ''
+  onKind: (v: PointKind | '') => void
+  onAction: (v: ContainerAction | '') => void
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <Select
+        label="Тип места"
+        value={kind}
+        onChange={e => onKind(e.target.value as PointKind | '')}
+        options={POINT_KIND_OPTIONS}
+        placeholder="Не указан"
+      />
+      <Select
+        label="Что с контейнером"
+        value={action}
+        onChange={e => onAction(e.target.value as ContainerAction | '')}
+        options={CONTAINER_ACTION_OPTIONS}
+        placeholder="Не указано"
+      />
+    </div>
+  )
+}
 
 // Задача 8: после статуса "Доставлено" любые изменения запрещены —
 // поэтому откат из delivered недоступен.
@@ -116,6 +161,13 @@ export default function OrderDetailPage() {
   const [editFrom, setEditFrom] = useState('')
   const [editVia, setEditVia] = useState('')
   const [editTo, setEditTo] = useState('')
+  // Типы точек маршрута. Пустая строка = «не указано».
+  const [editFromKind, setEditFromKind] = useState<PointKind | ''>('')
+  const [editFromAction, setEditFromAction] = useState<ContainerAction | ''>('')
+  const [editViaKind, setEditViaKind] = useState<PointKind | ''>('')
+  const [editViaAction, setEditViaAction] = useState<ContainerAction | ''>('')
+  const [editToKind, setEditToKind] = useState<PointKind | ''>('')
+  const [editToAction, setEditToAction] = useState<ContainerAction | ''>('')
   const [editContainer, setEditContainer] = useState<ContainerType>('20ft')
   const [editDate, setEditDate] = useState('')
   const [editReadyTime, setEditReadyTime] = useState('')
@@ -149,12 +201,20 @@ export default function OrderDetailPage() {
   const [bidAmount, setBidAmount] = useState('')
   const [bidLoading, setBidLoading] = useState(false)
   const [stops, setStops] = useState<OrderStop[]>([])
+  // Соседние рейсы того же пакета — чтобы показать «рейс N из M» и дать
+  // перейти к остальным. Пусто у одиночной заявки.
+  const [batchSiblings, setBatchSiblings] = useState<Pick<Order, 'id' | 'order_number' | 'status' | 'container_number' | 'created_at'>[]>([])
+  // Номер контейнера и ЗПУ клиент часто узнаёт уже после публикации —
+  // особенно в пакете, где у каждого рейса свои. Правятся прямо на странице.
+  const [editContainerNumber, setEditContainerNumber] = useState('')
+  const [editSealNumber, setEditSealNumber] = useState('')
+  const [savingContainer, setSavingContainer] = useState(false)
   // id заявки, созданной по результатам этих торгов (если уже создана)
   const [convertedOrderId, setConvertedOrderId] = useState<string | null>(null)
   const [downloadingContract, setDownloadingContract] = useState(false)
 
   // Edit modal — stops
-  const [editStops, setEditStops] = useState<{id?: string; address: string; comment: string}[]>([])
+  const [editStops, setEditStops] = useState<EditStop[]>([])
 
   // Carrier respond
   const [respondOpen, setRespondOpen] = useState(false)
@@ -207,6 +267,20 @@ export default function OrderDetailPage() {
         .eq('order_id', id)
         .order('sort_order', { ascending: true })
       setStops((stopsData || []) as OrderStop[])
+
+      setEditContainerNumber(orderData.container_number ?? '')
+      setEditSealNumber(orderData.seal_number ?? '')
+
+      if (orderData.batch_id) {
+        const { data: siblings } = await supabase
+          .from('orders')
+          .select('id, order_number, status, container_number, created_at')
+          .eq('batch_id', orderData.batch_id)
+          .order('created_at', { ascending: true })
+        setBatchSiblings((siblings || []) as Pick<Order, 'id' | 'order_number' | 'status' | 'container_number' | 'created_at'>[])
+      } else {
+        setBatchSiblings([])
+      }
 
       // Данные водителя/ТС для накладной. RLS отдаёт строку только участникам
       // сделки — у остальных здесь просто ничего не вернётся.
@@ -310,11 +384,34 @@ export default function OrderDetailPage() {
     return () => document.removeEventListener('mousedown', handler)
   }, [menuOpen])
 
+  // Номер контейнера и ЗПУ — отдельно от общего редактора: их дозаполняют
+  // после публикации, когда сама заявка уже принята и правке не подлежит.
+  async function saveContainerFields() {
+    if (!order) return
+    const updates = {
+      container_number: editContainerNumber.trim().toUpperCase() || null,
+      seal_number: editSealNumber.trim().toUpperCase() || null,
+    }
+    setSavingContainer(true)
+    const supabase = createClient()
+    const { error } = await supabase.from('orders').update(updates).eq('id', order.id)
+    setSavingContainer(false)
+    if (error) { toast.error('Не удалось сохранить'); return }
+    setOrder(prev => prev ? { ...prev, ...updates } : prev)
+    toast.success('Сохранено')
+  }
+
   function openEdit() {
     if (!order) return
     setEditFrom(order.from_city)
     setEditVia(order.via_city || '')
     setEditTo(order.to_city)
+    setEditFromKind(order.from_point_kind ?? '')
+    setEditFromAction(order.from_container_action ?? '')
+    setEditViaKind(order.via_point_kind ?? '')
+    setEditViaAction(order.via_container_action ?? '')
+    setEditToKind(order.to_point_kind ?? '')
+    setEditToAction(order.to_container_action ?? '')
     setEditContainer(order.container_type)
     setEditDate(order.ready_date)
     setEditReadyTime(order.ready_time || '')
@@ -329,7 +426,13 @@ export default function OrderDetailPage() {
     const localExpires = toDatetimeLocal(order.expires_at)
     setEditExpiresAt(localExpires)
     setEditExpiresInitial(localExpires)
-    setEditStops(stops.map(s => ({ id: s.id, address: s.address, comment: s.comment || '' })))
+    setEditStops(stops.map(s => ({
+      id: s.id,
+      address: s.address,
+      comment: s.comment || '',
+      kind: s.point_kind ?? '',
+      action: s.container_action ?? '',
+    })))
     setEditOpen(true)
     setMenuOpen(false)
   }
@@ -365,9 +468,14 @@ export default function OrderDetailPage() {
     if (editExpiresAt !== editExpiresInitial) changes.push('Изменён срок действия заявки')
     if ((editNotes.trim() || null) !== (order.notes || null)) changes.push('Изменены особые условия')
 
-    const oldStops = stops.map(s => `${s.address}|${s.comment || ''}`).join('§')
-    const newStops = editStops.filter(s => s.address.trim()).map(s => `${s.address.trim()}|${s.comment.trim()}`).join('§')
+    const oldStops = stops.map(s => `${s.address}|${s.comment || ''}|${s.point_kind || ''}|${s.container_action || ''}`).join('§')
+    const newStops = editStops.filter(s => s.address.trim()).map(s => `${s.address.trim()}|${s.comment.trim()}|${s.kind}|${s.action}`).join('§')
     if (oldStops !== newStops) changes.push('Изменены дополнительные точки маршрута')
+
+    const oldTypes = [order.from_point_kind, order.from_container_action, order.via_point_kind,
+      order.via_container_action, order.to_point_kind, order.to_container_action].map(v => v || '').join('|')
+    const newTypes = [editFromKind, editFromAction, editViaKind, editViaAction, editToKind, editToAction].join('|')
+    if (oldTypes !== newTypes) changes.push('Изменены типы точек маршрута')
 
     return changes
   }
@@ -392,6 +500,12 @@ export default function OrderDetailPage() {
         from_city: editFrom,
         via_city: editVia || null,
         to_city: editTo,
+        from_point_kind: editFromKind || null,
+        from_container_action: editFromAction || null,
+        via_point_kind: editViaKind || null,
+        via_container_action: editViaAction || null,
+        to_point_kind: editToKind || null,
+        to_container_action: editToAction || null,
         container_type: editContainer,
         ready_date: editDate,
         ready_time: editReadyTime || null,
@@ -426,6 +540,8 @@ export default function OrderDetailPage() {
             order_id: order.id,
             address: s.address.trim(),
             comment: s.comment.trim() || null,
+            point_kind: s.kind || null,
+            container_action: s.action || null,
             sort_order: i,
           }))
         )
@@ -435,6 +551,8 @@ export default function OrderDetailPage() {
         order_id: order.id,
         address: s.address.trim(),
         comment: s.comment.trim() || null,
+        point_kind: s.kind || null,
+        container_action: s.action || null,
         sort_order: i,
         created_at: new Date().toISOString(),
       })))
@@ -443,6 +561,9 @@ export default function OrderDetailPage() {
       setOrder(prev => prev ? {
         ...prev,
         from_city: editFrom, via_city: editVia || null, to_city: editTo,
+        from_point_kind: editFromKind || null, from_container_action: editFromAction || null,
+        via_point_kind: editViaKind || null, via_container_action: editViaAction || null,
+        to_point_kind: editToKind || null, to_container_action: editToAction || null,
         container_type: editContainer, ready_date: editDate, ready_time: editReadyTime || null,
         price: editNegotiable ? null : (parseInt(editPrice) || null),
         is_negotiable: editNegotiable, is_urgent: editUrgent,
@@ -771,6 +892,13 @@ export default function OrderDetailPage() {
   if (!order) return null
 
   const containerLabel = CONTAINER_TYPES.find(c => c.value === order.container_type)?.label
+  // Маршрут одним списком + признак кругорейса: считаются из типов точек тем же
+  // кодом, что и в ленте с формой.
+  const routePoints = buildRoutePoints(order, stops)
+  const roundTrip = isRoundTrip(routePoints)
+  const fromPointType = pointTypeLabel({ kind: order.from_point_kind, action: order.from_container_action })
+  const viaPointType = pointTypeLabel({ kind: order.via_point_kind, action: order.via_container_action })
+  const toPointType = pointTypeLabel({ kind: order.to_point_kind, action: order.to_container_action })
   const isMatched = order.status === 'matched'
   const acceptedResponse = responses.find(r => r.carrier_id === order.accepted_carrier_id)
   const statusLabel = t.status[order.status as keyof typeof t.status] ?? order.status
@@ -840,6 +968,15 @@ export default function OrderDetailPage() {
                   </span>
                 )}
                 <StatusPill status={order.status} kind="order" label={statusLabel} />
+                {/* Кругорейс определяется по типам точек, вручную не ставится */}
+                {roundTrip && (
+                  <span
+                    title="Маршрут начинается и заканчивается терминалом"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-field bg-accent-soft text-accent text-[11.5px] font-semibold tracking-[0.06em] uppercase"
+                  >
+                    <RefreshCw size={12} /> Кругорейс
+                  </span>
+                )}
                 {order.requires_genset && (
                   <ContainerChip label="Genset" genset />
                 )}
@@ -915,6 +1052,9 @@ export default function OrderDetailPage() {
                   <div>
                     <span className="font-medium text-ink">{s.address}</span>
                     {s.comment && <span className="text-ink-3"> — {s.comment}</span>}
+                    {pointTypeLabel({ kind: s.point_kind, action: s.container_action }) && (
+                      <span className="text-ink-3"> · {pointTypeLabel({ kind: s.point_kind, action: s.container_action })}</span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -934,6 +1074,9 @@ export default function OrderDetailPage() {
                       <MapPin size={12} className="shrink-0" />
                       {order.from_city_address}
                     </div>
+                  )}
+                  {fromPointType && (
+                    <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mt-1">{fromPointType}</div>
                   )}
                 </div>
               </div>
@@ -956,6 +1099,9 @@ export default function OrderDetailPage() {
                           {order.via_city_address}
                         </div>
                       )}
+                      {viaPointType && (
+                        <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mt-1">{viaPointType}</div>
+                      )}
                     </div>
                   </div>
                   <div className="hidden sm:flex items-center flex-none px-1 self-start mt-4 min-w-[36px]">
@@ -974,6 +1120,9 @@ export default function OrderDetailPage() {
                       <MapPin size={12} className="shrink-0" />
                       {order.to_city_address}
                     </div>
+                  )}
+                  {toPointType && (
+                    <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mt-1">{toPointType}</div>
                   )}
                 </div>
               </div>
@@ -1044,6 +1193,83 @@ export default function OrderDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Пакет рейсов: этот рейс — один из нескольких, опубликованных
+              одной пачкой. Дальше каждый идёт своим путём, пакет — только
+              способ показа. */}
+          {batchSiblings.length > 1 && (
+            <div className="p-3 rounded-field border border-hairline bg-surface-sunken mb-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Layers size={14} className="text-ink-3 shrink-0" />
+                <span className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">
+                  Пакет рейсов · {batchSiblings.findIndex(o => o.id === order.id) + 1} из {batchSiblings.length}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {batchSiblings.map(sib => (
+                  sib.id === order.id ? (
+                    <span key={sib.id} className="px-2 py-1 rounded-field bg-accent text-white font-mono text-[12px] tabular-nums">
+                      {formatOrderNumber(sib.order_number || '')}
+                    </span>
+                  ) : (
+                    <Link
+                      key={sib.id}
+                      href={`/orders/${sib.id}`}
+                      className="px-2 py-1 rounded-field border border-hairline bg-surface font-mono text-[12px] tabular-nums text-ink-2 hover:border-border-strong transition-colors"
+                      title={sib.container_number || undefined}
+                    >
+                      {formatOrderNumber(sib.order_number || '')}
+                    </Link>
+                  )
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Номер контейнера и ЗПУ. Клиент часто узнаёт их уже после
+              публикации — особенно в пакете, где у каждого рейса свои. */}
+          {isOwner && (
+            <div className="p-3 rounded-field border border-hairline bg-surface-sunken mb-3">
+              <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-2">
+                Контейнер и пломба
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="w-[190px]">
+                  <Input
+                    id="orderContainerNumber"
+                    label="Номер контейнера"
+                    value={editContainerNumber}
+                    onChange={e => setEditContainerNumber(e.target.value)}
+                    placeholder="MSKU1234567"
+                    className="font-mono"
+                  />
+                </div>
+                <div className="w-[150px]">
+                  <Input
+                    id="orderSealNumber"
+                    label="ЗПУ"
+                    value={editSealNumber}
+                    onChange={e => setEditSealNumber(e.target.value)}
+                    placeholder="0123456"
+                    className="font-mono"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  loading={savingContainer}
+                  onClick={saveContainerFields}
+                  disabled={
+                    (editContainerNumber.trim().toUpperCase() || null) === (order.container_number || null) &&
+                    (editSealNumber.trim().toUpperCase() || null) === (order.seal_number || null)
+                  }
+                >
+                  Сохранить
+                </Button>
+              </div>
+              <p className="text-xs text-ink-4 mt-1.5">Подставятся в транспортную накладную и договор-заявку.</p>
+            </div>
+          )}
 
           {/* Договорная цена */}
           {order.agreed_price && (
@@ -1578,9 +1804,18 @@ export default function OrderDetailPage() {
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <CityAutocomplete label="Откуда" value={editFrom} onChange={setEditFrom} placeholder="Город отправления" />
-              <CityAutocomplete label="Промежуточная точка" value={editVia} onChange={setEditVia} placeholder="Город (необязательно)" />
-              <CityAutocomplete label="Куда" value={editTo} onChange={setEditTo} placeholder="Город назначения" />
+              <div className="space-y-2">
+                <CityAutocomplete label="Откуда" value={editFrom} onChange={setEditFrom} placeholder="Город отправления" />
+                <PointTypeFields kind={editFromKind} action={editFromAction} onKind={setEditFromKind} onAction={setEditFromAction} />
+              </div>
+              <div className="space-y-2">
+                <CityAutocomplete label="Промежуточная точка" value={editVia} onChange={setEditVia} placeholder="Город (необязательно)" />
+                <PointTypeFields kind={editViaKind} action={editViaAction} onKind={setEditViaKind} onAction={setEditViaAction} />
+              </div>
+              <div className="space-y-2">
+                <CityAutocomplete label="Куда" value={editTo} onChange={setEditTo} placeholder="Город назначения" />
+                <PointTypeFields kind={editToKind} action={editToAction} onKind={setEditToKind} onAction={setEditToAction} />
+              </div>
               <Select
                 label="Тип контейнера"
                 value={editContainer}
@@ -1668,7 +1903,7 @@ export default function OrderDetailPage() {
                   <label className="text-sm font-medium text-ink-2">Доп. точки маршрута</label>
                   <button
                     type="button"
-                    onClick={() => setEditStops(prev => [...prev, { address: '', comment: '' }])}
+                    onClick={() => setEditStops(prev => [...prev, EMPTY_EDIT_STOP])}
                     className="text-xs text-accent hover:text-accent-hover font-medium"
                   >
                     + Добавить точку
@@ -1703,6 +1938,11 @@ export default function OrderDetailPage() {
                         value={s.comment}
                         onChange={e => setEditStops(prev => prev.map((x, j) => j === i ? { ...x, comment: e.target.value } : x))}
                         className="w-full px-3 py-2 rounded-field border border-hairline bg-surface text-sm text-ink-2 placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent"
+                      />
+                      <PointTypeFields
+                        kind={s.kind} action={s.action}
+                        onKind={v => setEditStops(prev => prev.map((x, j) => j === i ? { ...x, kind: v } : x))}
+                        onAction={v => setEditStops(prev => prev.map((x, j) => j === i ? { ...x, action: v } : x))}
                       />
                     </div>
                   ))}

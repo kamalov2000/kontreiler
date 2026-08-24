@@ -8,6 +8,12 @@ export type OrderStatus = 'active' | 'matched' | 'in_transit' | 'delivered' | 'c
 // не применялся, цена введена руками до его появления.
 export type RateMethod = 'composite_round' | 'composite_oneway' | 'mkad' | 'market'
 
+// Типизация точки маршрута. Оба поля необязательные: пустые = система про точку
+// ничего не знает и ведёт себя как раньше (см. src/lib/route-points.ts).
+// point_kind — что за место, container_action — что там делают с контейнером.
+export type PointKind = 'terminal' | 'warehouse'
+export type ContainerAction = 'pickup_empty' | 'load' | 'unload' | 'dropoff_empty' | 'dropoff_loaded'
+
 export interface User {
   id: string
   role: UserRole
@@ -105,6 +111,16 @@ export interface Order {
   from_city_address: string | null
   via_city_address: string | null
   to_city_address: string | null
+  // Типы точек маршрута — необязательные, влияют на разделы 8/10/5 накладной
+  from_point_kind: PointKind | null
+  from_container_action: ContainerAction | null
+  via_point_kind: PointKind | null
+  via_container_action: ContainerAction | null
+  to_point_kind: PointKind | null
+  to_container_action: ContainerAction | null
+  // Пакет рейсов: общий id у заявок, опубликованных одной пачкой. null =
+  // одиночная заявка. Лента и дашборд схлопывают пакет в одну карточку.
+  batch_id: string | null
   container_type: ContainerType
   ready_date: string
   expires_at: string | null
@@ -139,6 +155,7 @@ export interface Order {
   // ТН по Приложению № 4 отдельной строки под телефон нет.
   cargo_name: string | null
   container_number: string | null
+  seal_number: string | null
   sender_contact_phone: string | null
   receiver_contact_phone: string | null
   // false = перевозчик заменил данные водителя, клиент ещё не закрыл баннер
@@ -284,6 +301,8 @@ export interface OrderStop {
   order_id: string
   address: string
   comment: string | null
+  point_kind: PointKind | null
+  container_action: ContainerAction | null
   sort_order: number
   created_at: string
 }
