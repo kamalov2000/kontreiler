@@ -16,6 +16,7 @@ import { ContainerMark } from '@/components/ui/ContainerMark'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT } from '@/lib/cities'
 import { ContainerType, VatType, OrderFormat, Order, OrderStop, RateMethod, PointKind, ContainerAction } from '@/types/database'
 import { buildRoutePoints, isRoundTrip, POINT_KIND_OPTIONS, CONTAINER_ACTION_OPTIONS } from '@/lib/route-points'
+import { PAYMENT_TERMS_PRESETS } from '@/lib/payment-terms'
 import { formatOrderNumber, normalizePhone, toDatetimeLocal } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Calculator, Plus, Trash2, X, RefreshCw } from 'lucide-react'
@@ -146,6 +147,9 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
   const [price, setPrice] = useState(params.get('price') || '')
   const [isNegotiable, setIsNegotiable] = useState(params.get('negotiable') === '1')
   const [vatType, setVatType] = useState<VatType>('none')
+  // Условия оплаты — часть предложения: по ним перевозчик решает не меньше,
+  // чем по ставке. Свободный текст, кнопки ниже — заготовки на частые случаи.
+  const [paymentTerms, setPaymentTerms] = useState('')
 
   // Weight (container 1)
   const [weightGross, setWeightGross] = useState('')
@@ -353,6 +357,7 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
         }
       }
       setVatType(o.vat_type ?? 'none')
+      setPaymentTerms(o.payment_terms ?? '')
       setDowntimeRate(o.downtime_rate != null ? String(o.downtime_rate) : '')
       if (isTorgMode && (o.format === 'reduction' || o.format === 'auction')) {
         setAuctionStartPrice(o.auction_start_price != null ? String(o.auction_start_price) : '')
@@ -479,6 +484,8 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
       is_negotiable: isAuctionFormat ? false : isNegotiable,
       is_urgent: format === 'urgent',
       vat_type: vatType,
+      payment_terms: paymentTerms.trim() || null,
+      agreed_payment_terms: null,
       hide_phone: hidePhone,
       weight_gross: weightGross ? parseInt(weightGross) : null,
       weight_net:   weightNet   ? parseInt(weightNet)   : null,
@@ -1171,6 +1178,38 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
                   </label>
                 ))}
               </div>
+            </div>
+
+            {/* Условия оплаты. Дима просил не захламлять первичную заявку —
+                поэтому одно поле под ставкой, а не блок из галочек. */}
+            <div>
+              <Input
+                id="paymentTerms"
+                label={`Условия оплаты (${t.common.optional})`}
+                value={paymentTerms}
+                onChange={e => setPaymentTerms(e.target.value)}
+                placeholder="например: 7 банковских дней по оригиналам"
+                maxLength={200}
+              />
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {PAYMENT_TERMS_PRESETS.map(preset => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setPaymentTerms(preset)}
+                    className={`px-2.5 py-1 rounded-field border text-[12.5px] transition-colors ease-terminal ${
+                      paymentTerms === preset
+                        ? 'border-accent bg-accent-soft text-accent font-medium'
+                        : 'border-hairline text-ink-2 hover:border-border-strong'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-ink-4 mt-1.5">
+                Видно перевозчику в заявке. В договор-заявку уйдёт то, о чём договоритесь.
+              </p>
             </div>
 
             {/* Простой транспорта */}

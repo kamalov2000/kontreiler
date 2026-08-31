@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { normalizePhone } from '@/lib/utils'
 import { Order } from '@/types/database'
+import { PAYMENT_TERMS_PRESETS, effectivePaymentTerms } from '@/lib/payment-terms'
 
 interface Props {
   open: boolean
@@ -41,6 +42,9 @@ export function ContractFieldsModal({
   const [containerNumber, setContainerNumber] = useState('')
   const [senderPhone, setSenderPhone] = useState('')
   const [receiverPhone, setReceiverPhone] = useState('')
+  // Условия оплаты, о которых договорились. По заявке было 10 дней, сторговались
+  // на 5 — в документ идёт согласованное, а оффер в заявке остаётся историей.
+  const [paymentTerms, setPaymentTerms] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -51,6 +55,7 @@ export function ContractFieldsModal({
     // можно заменить: отгрузкой часто занимается другой сотрудник.
     setSenderPhone(order.sender_contact_phone ?? ownPhone ?? '')
     setReceiverPhone(order.receiver_contact_phone ?? '')
+    setPaymentTerms(effectivePaymentTerms(order) ?? '')
   }, [open, order, ownPhone])
 
   async function handleSubmit() {
@@ -60,6 +65,9 @@ export function ContractFieldsModal({
       container_number: containerNumber.trim().toUpperCase() || null,
       sender_contact_phone: senderPhone.trim() ? normalizePhone(senderPhone.trim()) : null,
       receiver_contact_phone: receiverPhone.trim() ? normalizePhone(receiverPhone.trim()) : null,
+      // Пишем в agreed_*, а не поверх payment_terms: опубликованное в заявке
+      // условие — оффер, его правка задним числом меняла бы историю сделки.
+      agreed_payment_terms: paymentTerms.trim() || null,
     }
     const supabase = createClient()
     const { error } = await supabase.from('orders').update(updates).eq('id', order.id)
@@ -103,6 +111,34 @@ export function ContractFieldsModal({
           value={receiverPhone}
           onChange={e => setReceiverPhone(e.target.value)}
         />
+        <div>
+          <Input
+            label="Условия оплаты"
+            placeholder="например: 7 банковских дней по оригиналам"
+            value={paymentTerms}
+            onChange={e => setPaymentTerms(e.target.value)}
+            maxLength={200}
+          />
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {PAYMENT_TERMS_PRESETS.map(preset => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setPaymentTerms(preset)}
+                className={`px-2.5 py-1 rounded-field border text-[12.5px] transition-colors ease-terminal ${
+                  paymentTerms === preset
+                    ? 'border-accent bg-accent-soft text-accent font-medium'
+                    : 'border-hairline text-ink-2 hover:border-border-strong'
+                }`}
+              >
+                {preset}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-ink-4 mt-1.5">
+            Подставлено из заявки. Договорились иначе — исправьте: в договор уйдёт это.
+          </p>
+        </div>
       </div>
 
       <div className="mt-5 flex gap-2">

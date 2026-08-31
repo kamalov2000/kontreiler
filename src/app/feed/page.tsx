@@ -18,6 +18,7 @@ import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, OrderStop, SavedRoute } from '@/types/database'
 import { buildRoutePoints, isRoundTrip } from '@/lib/route-points'
+import { effectivePaymentTerms } from '@/lib/payment-terms'
 import { CONTAINER_TYPES } from '@/lib/cities'
 import { toast } from 'sonner'
 import { Filter, X, Bookmark, Search, ChevronDown, ChevronRight, Layers, RefreshCw } from 'lucide-react'
@@ -827,6 +828,13 @@ function FeedContent() {
                   {formatPrice(head.price, head.is_negotiable)}
                 </span>
               </div>
+              {/* Условия оплаты — здесь, а не колонкой в ленте: решение брать
+                  рейс принимается в этом окне, а таблица и так плотная. */}
+              {effectivePaymentTerms(head) && (
+                <div className="text-[12px] text-ink-2">
+                  Оплата: {effectivePaymentTerms(head)}
+                </div>
+              )}
               {respondTargets.length > 1 && (
                 <div className="flex flex-wrap gap-1 pt-1 border-t border-hairline">
                   {respondTargets.map(o => (

@@ -136,6 +136,8 @@ export interface ContractData {
   vatLabel: string
   agreedPrice: number | null
   downtimeRate: number | null
+  /** Согласованные условия оплаты; если стороны их не меняли — из заявки. */
+  paymentTerms: string | null
   // Клиент
   client: PartyData
   // Перевозчик
@@ -280,6 +282,7 @@ export function ContractDocument({ data }: { data: ContractData }) {
             ? { k: 'Согласованная ставка', v: `${data.agreedPrice.toLocaleString('ru-RU')} ₽` }
             : { k: 'Ставка', v: data.price ? `${data.price.toLocaleString('ru-RU')} ₽` : 'Договорная' },
           { k: 'НДС', v: data.vatLabel },
+          { k: 'Условия оплаты', v: data.paymentTerms },
           { k: 'Простой транспорта', v: data.downtimeRate ? `${data.downtimeRate.toLocaleString('ru-RU')} ₽/час` : null },
         ]} />
 

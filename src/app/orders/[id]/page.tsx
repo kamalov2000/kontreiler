@@ -34,6 +34,7 @@ import {
   buildRoutePoints, isRoundTrip, pointTypeLabel,
   POINT_KIND_OPTIONS, CONTAINER_ACTION_OPTIONS,
 } from '@/lib/route-points'
+import { PAYMENT_TERMS_PRESETS, effectivePaymentTerms } from '@/lib/payment-terms'
 import { formatDateWithTime, formatDateTime, formatPrice, formatOrderNumber, formatPhone, readyDateBadge, toDatetimeLocal, vatLabel, containerUnitTare } from '@/lib/utils'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES } from '@/lib/cities'
 import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
@@ -176,6 +177,7 @@ export default function OrderDetailPage() {
   const [editUrgent, setEditUrgent] = useState(false)
   const [editNotes, setEditNotes] = useState('')
   const [editGenset, setEditGenset] = useState(false)
+  const [editPaymentTerms, setEditPaymentTerms] = useState('')
   const [editVatType, setEditVatType] = useState<VatType>('none')
   const [editWeightGross, setEditWeightGross] = useState('')
   const [editWeightNet, setEditWeightNet] = useState('')
@@ -421,6 +423,7 @@ export default function OrderDetailPage() {
     setEditNotes(order.notes || '')
     setEditGenset(order.requires_genset)
     setEditVatType(order.vat_type || 'none')
+    setEditPaymentTerms(order.payment_terms || '')
     setEditWeightGross(order.weight_gross ? String(order.weight_gross) : '')
     setEditWeightNet(order.weight_net ? String(order.weight_net) : '')
     const localExpires = toDatetimeLocal(order.expires_at)
@@ -457,6 +460,9 @@ export default function OrderDetailPage() {
       changes.push(`Ставка: ${priceLabel(order.price, order.is_negotiable)} → ${priceLabel(newPrice, editNegotiable)}`)
     }
     if (editVatType !== (order.vat_type || 'none')) changes.push(`НДС: ${order.vat_type || 'none'} → ${editVatType}`)
+    if ((editPaymentTerms.trim() || null) !== (order.payment_terms || null)) {
+      changes.push(`Условия оплаты: «${order.payment_terms || '—'}» → «${editPaymentTerms.trim() || '—'}»`)
+    }
     if (editUrgent !== order.is_urgent) changes.push(editUrgent ? 'Отмечена как срочная' : 'Снята отметка «срочная»')
     if (editGenset !== order.requires_genset) changes.push(editGenset ? 'Добавлено требование Genset' : 'Снято требование Genset')
 
@@ -518,6 +524,7 @@ export default function OrderDetailPage() {
         notes: editNotes.trim() || null,
         requires_genset: editGenset,
         vat_type: editVatType,
+        payment_terms: editPaymentTerms.trim() || null,
         weight_gross: editWeightGross ? parseInt(editWeightGross) : null,
         weight_net: editWeightNet ? parseInt(editWeightNet) : null,
         ...(expiresChanged ? { expires_at: newExpiresAt } : {}),
@@ -570,6 +577,7 @@ export default function OrderDetailPage() {
         format: newFormat,
         notes: editNotes.trim() || null,
         requires_genset: editGenset, vat_type: editVatType,
+        payment_terms: editPaymentTerms.trim() || null,
         weight_gross: editWeightGross ? parseInt(editWeightGross) : null,
         weight_net: editWeightNet ? parseInt(editWeightNet) : null,
         ...(expiresChanged ? { expires_at: newExpiresAt } : {}),
@@ -899,6 +907,7 @@ export default function OrderDetailPage() {
   const fromPointType = pointTypeLabel({ kind: order.from_point_kind, action: order.from_container_action })
   const viaPointType = pointTypeLabel({ kind: order.via_point_kind, action: order.via_container_action })
   const toPointType = pointTypeLabel({ kind: order.to_point_kind, action: order.to_container_action })
+  const paymentTermsText = effectivePaymentTerms(order)
   const isMatched = order.status === 'matched'
   const acceptedResponse = responses.find(r => r.carrier_id === order.accepted_carrier_id)
   const statusLabel = t.status[order.status as keyof typeof t.status] ?? order.status
@@ -1149,6 +1158,16 @@ export default function OrderDetailPage() {
                 <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">Ставка</div>
                 <div className="font-mono text-xl font-medium tabular-nums text-ink">{formatPrice(order.price, order.is_negotiable)}</div>
                 <div className="text-[11px] font-medium text-ink-4 mt-0.5">{vatLabelText}</div>
+                {/* Условия оплаты — под ставкой, как информационное условие
+                    предложения: перевозчик решает по ним не меньше, чем по цене */}
+                {paymentTermsText && (
+                  <div className="text-[12px] text-ink-2 mt-1">
+                    {paymentTermsText}
+                    {order.agreed_payment_terms?.trim() && (
+                      <span className="text-ink-4"> · согласовано</span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             {/* Плановая дата погрузки/выгрузки */}
@@ -1859,6 +1878,32 @@ export default function OrderDetailPage() {
                 {!editNegotiable && (
                   <Input type="number" placeholder="Ставка в рублях" value={editPrice} onChange={e => setEditPrice(e.target.value)} min="0" />
                 )}
+              </div>
+              <div>
+                <Input
+                  label="Условия оплаты"
+                  value={editPaymentTerms}
+                  onChange={e => setEditPaymentTerms(e.target.value)}
+                  placeholder="например: 7 банковских дней по оригиналам"
+                  maxLength={200}
+                />
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {PAYMENT_TERMS_PRESETS.map(preset => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setEditPaymentTerms(preset)}
+                      className={cn(
+                        'px-2.5 py-1 rounded-field border text-[12.5px] transition-colors ease-terminal',
+                        editPaymentTerms === preset
+                          ? 'border-accent bg-accent-soft text-accent font-medium'
+                          : 'border-hairline text-ink-2 hover:border-border-strong'
+                      )}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-ink-2 mb-2">{t.order.vatType}</label>

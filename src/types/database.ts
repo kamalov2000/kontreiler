@@ -147,6 +147,11 @@ export interface Order {
   ready_time: string | null
   was_expired: boolean
   vat_type: VatType
+  // Условия оплаты. payment_terms — то, что опубликовано в заявке (оффер),
+  // agreed_payment_terms — то, о чём договорились: уходит в договор-заявку.
+  // Пара как price/agreed_price. Свободный текст: условия у всех разные.
+  payment_terms: string | null
+  agreed_payment_terms: string | null
   requires_genset: boolean
   notes: string | null
   // Поля документов: клиент дозаполняет их один раз при первом скачивании
