@@ -1,5 +1,3 @@
-import { Order } from '@/types/database'
-
 /**
  * Условия оплаты по рейсу — часть коммерческого предложения наравне со ставкой.
  *
@@ -19,12 +17,11 @@ export const PAYMENT_TERMS_PRESETS: string[] = [
   'Предоплата топливом',
 ]
 
-/**
- * Условия, действующие по рейсу: согласованные, если стороны их меняли, иначе
- * заявленные в заявке. Ровно как effectiveDowntimeRate для ставки простоя.
+/*
+ * Согласованных отдельно условий нет намеренно. Заводили пару
+ * payment_terms / agreed_payment_terms по образцу price / agreed_price, но на
+ * практике оплату называет клиент при публикации, и перевозчик от неё пляшет —
+ * торг тут редкость. Поэтому в договор-заявку идёт ровно то, что указано в
+ * заявке. Колонка agreed_payment_terms осталась в БД пустой и не используется:
+ * сносить её с прода ради этого не стоит.
  */
-export function effectivePaymentTerms(
-  order: Pick<Order, 'payment_terms' | 'agreed_payment_terms'> | null | undefined,
-): string | null {
-  return order?.agreed_payment_terms?.trim() || order?.payment_terms?.trim() || null
-}

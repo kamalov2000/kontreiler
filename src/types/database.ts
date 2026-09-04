@@ -12,7 +12,7 @@ export type RateMethod = 'composite_round' | 'composite_oneway' | 'mkad' | 'mark
 // ничего не знает и ведёт себя как раньше (см. src/lib/route-points.ts).
 // point_kind — что за место, container_action — что там делают с контейнером.
 export type PointKind = 'terminal' | 'warehouse'
-export type ContainerAction = 'pickup_empty' | 'load' | 'unload' | 'dropoff_empty' | 'dropoff_loaded'
+export type ContainerAction = 'pickup_empty' | 'pickup_loaded' | 'load' | 'unload' | 'dropoff_empty' | 'dropoff_loaded'
 
 export interface User {
   id: string
@@ -147,11 +147,9 @@ export interface Order {
   ready_time: string | null
   was_expired: boolean
   vat_type: VatType
-  // Условия оплаты. payment_terms — то, что опубликовано в заявке (оффер),
-  // agreed_payment_terms — то, о чём договорились: уходит в договор-заявку.
-  // Пара как price/agreed_price. Свободный текст: условия у всех разные.
+  // Условия оплаты свободным текстом: их называет клиент при публикации, и в
+  // договор-заявку уходит ровно это (см. src/lib/payment-terms.ts).
   payment_terms: string | null
-  agreed_payment_terms: string | null
   requires_genset: boolean
   notes: string | null
   // Поля документов: клиент дозаполняет их один раз при первом скачивании

@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import React from 'react'
 import { ContractDocument, ContractData, PartyData } from '@/lib/contract-pdf'
-import { effectivePaymentTerms } from '@/lib/payment-terms'
 import { CONTAINER_TYPES } from '@/lib/cities'
 import { isDocGenerationBlocked, DRIVER_GATE_MESSAGE } from '@/lib/driver-gate'
 import { vatDocLabel } from '@/lib/utils'
@@ -157,7 +156,7 @@ export async function GET(req: Request) {
     vatLabel: vatDocLabel(order.vat_type),
     agreedPrice: order.agreed_price,
     downtimeRate: order.downtime_rate ?? null,
-    paymentTerms: effectivePaymentTerms(order),
+    paymentTerms: order.payment_terms ?? null,
     client: toParty(clientUser),
     carrier: carrierUser ? toParty(carrierUser) : {
       role: 'carrier',

@@ -18,7 +18,6 @@ import { useUser } from '@/hooks/useUser'
 import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, OrderStop, SavedRoute } from '@/types/database'
 import { buildRoutePoints, isRoundTrip } from '@/lib/route-points'
-import { effectivePaymentTerms } from '@/lib/payment-terms'
 import { CONTAINER_TYPES } from '@/lib/cities'
 import { toast } from 'sonner'
 import { Filter, X, Bookmark, Search, ChevronDown, ChevronRight, Layers, RefreshCw } from 'lucide-react'
@@ -582,41 +581,74 @@ function FeedContent() {
 
         {expanded && (
           <div className="bg-surface-sunken border-t border-hairline">
+            {/* Колонки те же, что у обычной строки: рейсы пакета клиент может
+                править по отдельности, поэтому маршрут, ставка и вес у них
+                расходятся — по одним номерам не выбрать, на что откликаться. */}
             {row.orders.map(o => {
               const responded = myResponses.has(o.id)
+              const label = CONTAINER_TYPES.find(c => c.value === o.container_type)?.label || o.container_type
               return (
                 <div
                   key={o.id}
-                  className="flex items-center gap-3 min-h-[44px] py-1.5 pl-10 pr-5 border-b border-hairline last:border-0"
+                  className="flex items-center gap-3.5 min-h-[48px] py-2 px-5 border-b border-hairline last:border-0"
                 >
-                  <input
-                    type="checkbox"
-                    checked={selected.has(o.id)}
-                    disabled={responded}
-                    onChange={() => toggleTrip(row.batchId, o.id)}
-                    className="w-4 h-4 rounded border-hairline accent-accent disabled:opacity-40"
-                  />
-                  <Link
-                    href={`/orders/${o.id}`}
-                    className="font-mono text-[13px] tabular-nums text-ink-2 hover:text-accent transition-colors"
-                  >
-                    {o.order_number ? formatOrderNumber(o.order_number) : '—'}
-                  </Link>
-                  <span className="font-mono text-[12px] tabular-nums text-ink-4 flex-1 truncate">
-                    {o.container_number || 'номер контейнера не указан'}
-                  </span>
-                  {responded ? (
-                    <span className="px-2 py-0.5 rounded-field bg-success-soft text-success text-[11.5px] font-medium whitespace-nowrap">
-                      {t.feed.alreadyResponded}
-                    </span>
-                  ) : (
-                    <button
-                      onClick={() => handleRespondClick(o)}
-                      className="min-h-[28px] px-2.5 rounded-card border border-hairline bg-surface text-ink-2 text-[12.5px] font-medium hover:border-border-strong transition-colors whitespace-nowrap"
+                  <span className="w-[84px] flex-none flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(o.id)}
+                      disabled={responded}
+                      onChange={() => toggleTrip(row.batchId, o.id)}
+                      className="w-4 h-4 rounded border-hairline accent-accent disabled:opacity-40 flex-none"
+                    />
+                    <Link
+                      href={`/orders/${o.id}`}
+                      className="font-mono text-[13px] tabular-nums text-ink-2 hover:text-accent transition-colors"
                     >
-                      {t.feed.respond}
-                    </button>
-                  )}
+                      {o.order_number ? formatOrderNumber(o.order_number) : '—'}
+                    </Link>
+                  </span>
+                  <span className="flex-1 min-w-[160px] overflow-hidden">
+                    <RouteInline
+                      from={o.from_city}
+                      to={o.to_city}
+                      via={o.via_city}
+                      urgent={o.format === 'urgent'}
+                    />
+                    <span className="block font-mono text-[11.5px] tabular-nums text-ink-4 truncate">
+                      {o.container_number || 'номер контейнера не указан'}
+                    </span>
+                  </span>
+                  <span className="w-[116px] flex-none">
+                    <ContainerChip label={label} genset={o.requires_genset} wrap />
+                  </span>
+                  <span className="w-[84px] flex-none text-right font-mono text-[13px] tabular-nums text-ink-3">
+                    {weightWithTareDisplay(o)}
+                  </span>
+                  <span className="w-[64px] flex-none text-right font-mono text-[13px] tabular-nums text-ink-3">
+                    {readyShort(o.ready_date)}
+                  </span>
+                  <span className="w-[110px] flex-none flex flex-col items-end leading-tight">
+                    <span className="font-mono text-[14px] font-medium tabular-nums text-ink">
+                      {formatPrice(o.price, o.is_negotiable)}
+                    </span>
+                    <span className="text-[10.5px] font-semibold tracking-[0.05em] uppercase text-ink-4">
+                      {vatLabel(o.vat_type)}
+                    </span>
+                  </span>
+                  <span className="w-[124px] flex-none flex justify-end">
+                    {responded ? (
+                      <span className="px-2.5 py-1 rounded-field bg-success-soft text-success text-[12px] font-medium whitespace-nowrap">
+                        {t.feed.alreadyResponded}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleRespondClick(o)}
+                        className="min-h-[30px] px-3 rounded-card border border-hairline bg-surface text-ink-2 text-[12.5px] font-medium hover:border-border-strong transition-colors whitespace-nowrap"
+                      >
+                        {t.feed.respond}
+                      </button>
+                    )}
+                  </span>
                 </div>
               )
             })}
@@ -830,9 +862,9 @@ function FeedContent() {
               </div>
               {/* Условия оплаты — здесь, а не колонкой в ленте: решение брать
                   рейс принимается в этом окне, а таблица и так плотная. */}
-              {effectivePaymentTerms(head) && (
+              {head.payment_terms?.trim() && (
                 <div className="text-[12px] text-ink-2">
-                  Оплата: {effectivePaymentTerms(head)}
+                  Оплата: {head.payment_terms}
                 </div>
               )}
               {respondTargets.length > 1 && (

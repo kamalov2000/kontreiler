@@ -32,9 +32,10 @@ import { useLanguage } from '@/contexts/LanguageContext'
 import { Order, Response, Review, Bid, OrderStatus, ContainerType, VatType, OrderStop, OrderDriverInfo, OrderExtraServices, PointKind, ContainerAction, hasRequiredDriverInfo } from '@/types/database'
 import {
   buildRoutePoints, isRoundTrip, pointTypeLabel,
-  POINT_KIND_OPTIONS, CONTAINER_ACTION_OPTIONS,
+  POINT_KIND_OPTIONS, containerActionOptions, RoutePosition,
 } from '@/lib/route-points'
-import { PAYMENT_TERMS_PRESETS, effectivePaymentTerms } from '@/lib/payment-terms'
+import { PAYMENT_TERMS_PRESETS } from '@/lib/payment-terms'
+import { setPageTitle } from '@/lib/page-titles'
 import { formatDateWithTime, formatDateTime, formatPrice, formatOrderNumber, formatPhone, readyDateBadge, toDatetimeLocal, vatLabel, containerUnitTare } from '@/lib/utils'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES } from '@/lib/cities'
 import { TRACKING_STEPS, getTrackingStepIndex } from '@/lib/tracking'
@@ -55,8 +56,10 @@ const EMPTY_EDIT_STOP: EditStop = { address: '', comment: '', kind: '', action: 
 
 /** Два необязательных поля точки маршрута: тип места и действие с контейнером. */
 function PointTypeFields({
-  kind, action, onKind, onAction,
+  position, kind, action, onKind, onAction,
 }: {
+  /** Место точки в маршруте — от него зависит набор действий. */
+  position: RoutePosition
   kind: PointKind | ''
   action: ContainerAction | ''
   onKind: (v: PointKind | '') => void
@@ -75,7 +78,7 @@ function PointTypeFields({
         label="Что с контейнером"
         value={action}
         onChange={e => onAction(e.target.value as ContainerAction | '')}
-        options={CONTAINER_ACTION_OPTIONS}
+        options={containerActionOptions(position, action)}
         placeholder="Не указано"
       />
     </div>
@@ -162,6 +165,11 @@ export default function OrderDetailPage() {
   const [editFrom, setEditFrom] = useState('')
   const [editVia, setEditVia] = useState('')
   const [editTo, setEditTo] = useState('')
+  // Точные адреса точек. Без них у выложенной заявки нельзя было исправить
+  // «улица, склад» — правился только город.
+  const [editFromAddress, setEditFromAddress] = useState('')
+  const [editViaAddress, setEditViaAddress] = useState('')
+  const [editToAddress, setEditToAddress] = useState('')
   // Типы точек маршрута. Пустая строка = «не указано».
   const [editFromKind, setEditFromKind] = useState<PointKind | ''>('')
   const [editFromAction, setEditFromAction] = useState<ContainerAction | ''>('')
@@ -377,6 +385,13 @@ export default function OrderDetailPage() {
     return () => { supabase.removeChannel(channel) }
   }, [id])
 
+  // Номер заявки во вкладке: логист держит открытыми несколько рейсов сразу,
+  // и «Заявка — Контрейл» на каждой не помогает.
+  useEffect(() => {
+    if (!order) return
+    setPageTitle(`Заявка ${order.order_number ? formatOrderNumber(order.order_number) : ''}`.trim())
+  }, [order])
+
   useEffect(() => {
     if (!menuOpen) return
     function handler(e: MouseEvent) {
@@ -408,6 +423,9 @@ export default function OrderDetailPage() {
     setEditFrom(order.from_city)
     setEditVia(order.via_city || '')
     setEditTo(order.to_city)
+    setEditFromAddress(order.from_city_address ?? '')
+    setEditViaAddress(order.via_city_address ?? '')
+    setEditToAddress(order.to_city_address ?? '')
     setEditFromKind(order.from_point_kind ?? '')
     setEditFromAction(order.from_container_action ?? '')
     setEditViaKind(order.via_point_kind ?? '')
@@ -451,6 +469,12 @@ export default function OrderDetailPage() {
     if (editFrom !== order.from_city) changes.push(`Откуда: «${order.from_city}» → «${editFrom}»`)
     if ((editVia || '') !== (order.via_city || '')) changes.push(`Промежуточная точка: «${order.via_city || '—'}» → «${editVia || '—'}»`)
     if (editTo !== order.to_city) changes.push(`Куда: «${order.to_city}» → «${editTo}»`)
+    const addrChange = (label: string, was: string | null, now: string) => {
+      if ((now.trim() || null) !== (was || null)) changes.push(`${label}: «${was || '—'}» → «${now.trim() || '—'}»`)
+    }
+    addrChange('Адрес отправления', order.from_city_address, editFromAddress)
+    addrChange('Адрес промежуточной точки', order.via_city_address, editViaAddress)
+    addrChange('Адрес назначения', order.to_city_address, editToAddress)
     if (editContainer !== order.container_type) changes.push(`Контейнер: «${containerName(order.container_type)}» → «${containerName(editContainer)}»`)
     if (editDate !== order.ready_date) changes.push(`Плановая дата: ${order.ready_date} → ${editDate}`)
     if ((editReadyTime || '') !== (order.ready_time || '')) changes.push(`Время: «${order.ready_time || '—'}» → «${editReadyTime || '—'}»`)
@@ -506,6 +530,9 @@ export default function OrderDetailPage() {
         from_city: editFrom,
         via_city: editVia || null,
         to_city: editTo,
+        from_city_address: editFromAddress.trim() || null,
+        via_city_address: editViaAddress.trim() || null,
+        to_city_address: editToAddress.trim() || null,
         from_point_kind: editFromKind || null,
         from_container_action: editFromAction || null,
         via_point_kind: editViaKind || null,
@@ -568,6 +595,9 @@ export default function OrderDetailPage() {
       setOrder(prev => prev ? {
         ...prev,
         from_city: editFrom, via_city: editVia || null, to_city: editTo,
+        from_city_address: editFromAddress.trim() || null,
+        via_city_address: editViaAddress.trim() || null,
+        to_city_address: editToAddress.trim() || null,
         from_point_kind: editFromKind || null, from_container_action: editFromAction || null,
         via_point_kind: editViaKind || null, via_container_action: editViaAction || null,
         to_point_kind: editToKind || null, to_container_action: editToAction || null,
@@ -907,7 +937,7 @@ export default function OrderDetailPage() {
   const fromPointType = pointTypeLabel({ kind: order.from_point_kind, action: order.from_container_action })
   const viaPointType = pointTypeLabel({ kind: order.via_point_kind, action: order.via_container_action })
   const toPointType = pointTypeLabel({ kind: order.to_point_kind, action: order.to_container_action })
-  const paymentTermsText = effectivePaymentTerms(order)
+  const paymentTermsText = order.payment_terms?.trim() || null
   const isMatched = order.status === 'matched'
   const acceptedResponse = responses.find(r => r.carrier_id === order.accepted_carrier_id)
   const statusLabel = t.status[order.status as keyof typeof t.status] ?? order.status
@@ -1161,12 +1191,7 @@ export default function OrderDetailPage() {
                 {/* Условия оплаты — под ставкой, как информационное условие
                     предложения: перевозчик решает по ним не меньше, чем по цене */}
                 {paymentTermsText && (
-                  <div className="text-[12px] text-ink-2 mt-1">
-                    {paymentTermsText}
-                    {order.agreed_payment_terms?.trim() && (
-                      <span className="text-ink-4"> · согласовано</span>
-                    )}
-                  </div>
+                  <div className="text-[12px] text-ink-2 mt-1">{paymentTermsText}</div>
                 )}
               </div>
             )}
@@ -1825,15 +1850,33 @@ export default function OrderDetailPage() {
             <div className="p-5 space-y-4">
               <div className="space-y-2">
                 <CityAutocomplete label="Откуда" value={editFrom} onChange={setEditFrom} placeholder="Город отправления" />
-                <PointTypeFields kind={editFromKind} action={editFromAction} onKind={setEditFromKind} onAction={setEditFromAction} />
+                <Input
+                  label="Точный адрес (необязательно)"
+                  value={editFromAddress}
+                  onChange={e => setEditFromAddress(e.target.value)}
+                  placeholder="Улица, номер склада..."
+                />
+                <PointTypeFields position="pickup" kind={editFromKind} action={editFromAction} onKind={setEditFromKind} onAction={setEditFromAction} />
               </div>
               <div className="space-y-2">
                 <CityAutocomplete label="Промежуточная точка" value={editVia} onChange={setEditVia} placeholder="Город (необязательно)" />
-                <PointTypeFields kind={editViaKind} action={editViaAction} onKind={setEditViaKind} onAction={setEditViaAction} />
+                <Input
+                  label="Точный адрес (необязательно)"
+                  value={editViaAddress}
+                  onChange={e => setEditViaAddress(e.target.value)}
+                  placeholder="Улица, номер склада..."
+                />
+                <PointTypeFields position="midpoint" kind={editViaKind} action={editViaAction} onKind={setEditViaKind} onAction={setEditViaAction} />
               </div>
               <div className="space-y-2">
                 <CityAutocomplete label="Куда" value={editTo} onChange={setEditTo} placeholder="Город назначения" />
-                <PointTypeFields kind={editToKind} action={editToAction} onKind={setEditToKind} onAction={setEditToAction} />
+                <Input
+                  label="Точный адрес (необязательно)"
+                  value={editToAddress}
+                  onChange={e => setEditToAddress(e.target.value)}
+                  placeholder="Улица, номер склада..."
+                />
+                <PointTypeFields position="dropoff" kind={editToKind} action={editToAction} onKind={setEditToKind} onAction={setEditToAction} />
               </div>
               <Select
                 label="Тип контейнера"
@@ -1985,6 +2028,7 @@ export default function OrderDetailPage() {
                         className="w-full px-3 py-2 rounded-field border border-hairline bg-surface text-sm text-ink-2 placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent"
                       />
                       <PointTypeFields
+                        position="midpoint"
                         kind={s.kind} action={s.action}
                         onKind={v => setEditStops(prev => prev.map((x, j) => j === i ? { ...x, kind: v } : x))}
                         onAction={v => setEditStops(prev => prev.map((x, j) => j === i ? { ...x, action: v } : x))}

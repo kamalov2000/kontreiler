@@ -1,11 +1,13 @@
 import Link from 'next/link'
 import { Navbar } from './Navbar'
+import { PageTitle } from './PageTitle'
 import { EmailVerifyBanner } from './EmailVerifyBanner'
 import { WelcomeModal } from '@/components/ui/WelcomeModal'
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-paper flex flex-col">
+      <PageTitle />
       <Navbar />
       <EmailVerifyBanner />
       <WelcomeModal />

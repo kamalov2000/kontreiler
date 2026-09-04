@@ -15,7 +15,7 @@ import { RouteInline } from '@/components/ui/RouteInline'
 import { ContainerMark } from '@/components/ui/ContainerMark'
 import { CONTAINER_TYPES, REF_CONTAINER_TYPES, CONTAINER_TARE_WEIGHT } from '@/lib/cities'
 import { ContainerType, VatType, OrderFormat, Order, OrderStop, RateMethod, PointKind, ContainerAction } from '@/types/database'
-import { buildRoutePoints, isRoundTrip, POINT_KIND_OPTIONS, CONTAINER_ACTION_OPTIONS } from '@/lib/route-points'
+import { buildRoutePoints, isRoundTrip, POINT_KIND_OPTIONS, containerActionOptions, RoutePosition } from '@/lib/route-points'
 import { PAYMENT_TERMS_PRESETS } from '@/lib/payment-terms'
 import { formatOrderNumber, normalizePhone, toDatetimeLocal } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -65,9 +65,11 @@ const EMPTY_STOP: StopDraft = { address: '', comment: '', kind: '', action: '' }
  * необязательные и стоят под адресом, а не над ним.
  */
 function PointTypeFields({
-  idPrefix, kind, action, onKind, onAction,
+  idPrefix, position, kind, action, onKind, onAction,
 }: {
   idPrefix: string
+  /** Место точки в маршруте — от него зависит набор действий. */
+  position: RoutePosition
   kind: PointKind | ''
   action: ContainerAction | ''
   onKind: (v: PointKind | '') => void
@@ -88,7 +90,7 @@ function PointTypeFields({
         label="Что с контейнером"
         value={action}
         onChange={e => onAction(e.target.value as ContainerAction | '')}
-        options={CONTAINER_ACTION_OPTIONS}
+        options={containerActionOptions(position, action)}
         placeholder="Не указано"
       />
     </div>
@@ -485,7 +487,6 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
       is_urgent: format === 'urgent',
       vat_type: vatType,
       payment_terms: paymentTerms.trim() || null,
-      agreed_payment_terms: null,
       hide_phone: hidePhone,
       weight_gross: weightGross ? parseInt(weightGross) : null,
       weight_net:   weightNet   ? parseInt(weightNet)   : null,
@@ -674,6 +675,7 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
               />
               <PointTypeFields
                 idPrefix="fromPoint"
+                position="pickup"
                 kind={fromPointKind} action={fromAction}
                 onKind={setFromPointKind} onAction={setFromAction}
               />
@@ -698,6 +700,7 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
               />
               <PointTypeFields
                 idPrefix="viaPoint"
+                position="midpoint"
                 kind={viaPointKind} action={viaAction}
                 onKind={setViaPointKind} onAction={setViaAction}
               />
@@ -722,6 +725,7 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
               />
               <PointTypeFields
                 idPrefix="toPoint"
+                position="dropoff"
                 kind={toPointKind} action={toAction}
                 onKind={setToPointKind} onAction={setToAction}
               />
@@ -771,6 +775,7 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
                       />
                       <PointTypeFields
                         idPrefix={`stop${i}`}
+                        position="midpoint"
                         kind={stop.kind} action={stop.action}
                         onKind={v => setStops(prev => prev.map((s, idx) => idx === i ? { ...s, kind: v } : s))}
                         onAction={v => setStops(prev => prev.map((s, idx) => idx === i ? { ...s, action: v } : s))}
@@ -1208,7 +1213,7 @@ export function OrderForm({ mode }: { mode: 'order' | 'torg' }) {
                 ))}
               </div>
               <p className="text-xs text-ink-4 mt-1.5">
-                Видно перевозчику в заявке. В договор-заявку уйдёт то, о чём договоритесь.
+                Видно перевозчику в заявке и уйдёт в договор-заявку.
               </p>
             </div>
 

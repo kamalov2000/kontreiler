@@ -26,7 +26,7 @@ const s = StyleSheet.create({
     fontFamily: 'Roboto',
     fontSize: 9,
     paddingTop: 30,
-    paddingBottom: 40,
+    paddingBottom: 64,
     paddingHorizontal: 40,
     color: '#1a1a1a',
     lineHeight: 1.5,
@@ -60,6 +60,19 @@ const s = StyleSheet.create({
     marginBottom: 3,
   },
   signLabel: { fontSize: 8, color: '#555' },
+  // Полоса подписей, повторяющаяся на каждом листе
+  pageSign: {
+    position: 'absolute',
+    bottom: 34,
+    left: 40,
+    right: 40,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 0.5,
+    borderTopColor: '#ddd',
+    paddingTop: 6,
+  },
+  pageSignItem: { fontSize: 7.5, color: '#555' },
   footer: {
     position: 'absolute',
     bottom: 20,
@@ -312,8 +325,17 @@ export function ContractDocument({ data }: { data: ContractData }) {
           </View>
         </View>
 
+        {/* Подписи на каждом листе. В бумажном обороте лист без подписи
+            считается неподписанным, поэтому полоса `fixed` — она повторяется
+            на всех страницах. Полные реквизиты, расшифровка и печать остаются
+            один раз, в разделе 6 на последнем листе. */}
+        <View style={s.pageSign} fixed>
+          <Text style={s.pageSignItem}>ЗАКАЗЧИК ________________________</Text>
+          <Text style={s.pageSignItem}>ИСПОЛНИТЕЛЬ ________________________</Text>
+        </View>
+
         {/* Footer */}
-        <Text style={s.footer}>
+        <Text style={s.footer} fixed>
           Сформировано платформой Контрейл · kontreiler.vercel.app · Платформа является информационным посредником
         </Text>
       </Page>

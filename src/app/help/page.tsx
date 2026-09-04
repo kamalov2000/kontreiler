@@ -187,10 +187,11 @@ export default function HelpPage() {
             <Accordion key={s.id} section={s} defaultOpen={i === 0} />
           ))}
         </div>
-        {/* Контакт поддержки. Адрес берём из NEXT_PUBLIC_SUPPORT_EMAIL —
-            если переменная не задана, блока нет вовсе, чтобы не отправлять
-            людей писать в никуда. */}
-        {SUPPORT_EMAIL ? (
+        {/* Контакт поддержки. Адрес берём из NEXT_PUBLIC_SUPPORT_EMAIL. Если
+            переменная не задана — блока нет вовсе: раньше здесь оставался
+            призыв «напишите в поддержку» без адреса и без ссылки, и он читался
+            как сломанная кнопка. Молчание честнее. */}
+        {SUPPORT_EMAIL && (
           <div className="mt-6 rounded-card border border-hairline bg-surface p-5">
             <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-1.5">
               Поддержка
@@ -206,10 +207,6 @@ export default function HelpPage() {
               {SUPPORT_EMAIL}
             </a>
           </div>
-        ) : (
-          <p className="mt-6 text-[13px] text-ink-4">
-            Остались вопросы? Напишите в поддержку — мы поможем разобраться.
-          </p>
         )}
       </div>
     </AppLayout>

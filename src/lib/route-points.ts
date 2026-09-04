@@ -5,8 +5,11 @@ import { ContainerAction, Order, OrderStop, PointKind } from '@/types/database'
  *
  * Зачем: маршрут из трёх городов не говорит, где груз приняли, а где выдали.
  * В контейнерном кругорейсе первая точка — терминал выдачи порожняка (груз там
- * не принимали), последняя — терминал сдачи (груз давно выгружен), и накладная,
- * подставлявшая первую точку в раздел 8, а последнюю в раздел 10, врала.
+ * не принимали), последняя — терминал сдачи порожняка (груз давно выгружен), и
+ * накладная, подставлявшая первую точку в раздел 8, а последнюю в раздел 10,
+ * врала. Считается не по типу места, а по тому, где груз оказался у перевозчика
+ * и где ушёл от него: на терминале это тоже бывает (импорт — взять гружёный,
+ * экспорт — сдать гружёный).
  *
  * Оба поля необязательные. Пока их не заполнили, всё считает и показывает
  * прежняя логика — по первой и последней точке.
@@ -19,6 +22,7 @@ export const POINT_KIND_LABEL: Record<PointKind, string> = {
 
 export const CONTAINER_ACTION_LABEL: Record<ContainerAction, string> = {
   pickup_empty:   'Взять порожний',
+  pickup_loaded:  'Взять гружёный',
   load:           'Погрузка',
   unload:         'Выгрузка',
   dropoff_empty:  'Сдать порожний',
@@ -30,16 +34,42 @@ export const POINT_KIND_OPTIONS: { value: PointKind; label: string }[] = [
   { value: 'warehouse', label: POINT_KIND_LABEL.warehouse },
 ]
 
-export const CONTAINER_ACTION_OPTIONS: { value: ContainerAction; label: string }[] = [
-  { value: 'pickup_empty',   label: CONTAINER_ACTION_LABEL.pickup_empty },
-  { value: 'load',           label: CONTAINER_ACTION_LABEL.load },
-  { value: 'unload',         label: CONTAINER_ACTION_LABEL.unload },
-  { value: 'dropoff_empty',  label: CONTAINER_ACTION_LABEL.dropoff_empty },
-  { value: 'dropoff_loaded', label: CONTAINER_ACTION_LABEL.dropoff_loaded },
-]
+/**
+ * Место точки в маршруте. Набор осмысленных действий у каждого свой: на первой
+ * точке контейнер только берут, на последней — только сдают, между ними грузят и
+ * выгружают. Раньше во всех трёх выпадали все шесть действий, и в заявке легко
+ * оказывалось «сдать гружёный» в графе «откуда».
+ */
+export type RoutePosition = 'pickup' | 'midpoint' | 'dropoff'
 
-/** Действия, при которых груза в контейнере либо ещё, либо уже нет. */
-const TERMINAL_ACTIONS = new Set<ContainerAction>(['pickup_empty', 'dropoff_empty', 'dropoff_loaded'])
+const ACTIONS_BY_POSITION: Record<RoutePosition, ContainerAction[]> = {
+  pickup:   ['pickup_empty', 'pickup_loaded'],
+  midpoint: ['load', 'unload'],
+  dropoff:  ['dropoff_empty', 'dropoff_loaded'],
+}
+
+/**
+ * Действия для точки на своём месте маршрута. `current` — то, что уже записано
+ * в заявке: если значение из старого, неограниченного набора, оно остаётся в
+ * списке, иначе select показал бы пустоту и молча потерял его при сохранении.
+ */
+export function containerActionOptions(
+  position: RoutePosition,
+  current?: ContainerAction | '' | null,
+): { value: ContainerAction; label: string }[] {
+  const values = [...ACTIONS_BY_POSITION[position]]
+  if (current && !values.includes(current)) values.push(current)
+  return values.map(v => ({ value: v, label: CONTAINER_ACTION_LABEL[v] }))
+}
+
+/** Порожний контейнер: груза нет ни до, ни после — в разделы 8 и 10 не идёт. */
+const EMPTY_ACTIONS = new Set<ContainerAction>(['pickup_empty', 'dropoff_empty'])
+
+/** Где груз попадает к перевозчику — раздел 8 «Приём груза». */
+const TAKE_ACTIONS = new Set<ContainerAction>(['load', 'pickup_loaded'])
+
+/** Где груз уходит от перевозчика — раздел 10 «Выдача груза». */
+const GIVE_ACTIONS = new Set<ContainerAction>(['unload', 'dropoff_loaded'])
 
 /** Точка маршрута, приведённая к одному виду: и основная, и дополнительная. */
 export interface RoutePoint {
@@ -121,19 +151,26 @@ export function isRoundTrip(points: RoutePoint[]): boolean {
   return points.slice(1, -1).some(p => p.action === 'load' || p.action === 'unload')
 }
 
-/** Точка приёма груза — раздел 8 накладной. */
+/**
+ * Точка приёма груза — раздел 8 накладной. Это либо погрузка на складе
+ * (экспорт), либо выдача гружёного контейнера на терминале (импорт): в обоих
+ * случаях именно здесь груз оказывается у перевозчика.
+ */
 export function loadPoint(points: RoutePoint[]): RoutePoint | null {
-  return points.find(p => p.action === 'load') ?? null
+  return points.find(p => p.action != null && TAKE_ACTIONS.has(p.action)) ?? null
 }
 
-/** Точка выдачи груза — раздел 10 накладной. */
+/**
+ * Точка выдачи груза — раздел 10 накладной. Выгрузка на складе (импорт) или
+ * сдача гружёного контейнера на терминале (экспорт).
+ */
 export function unloadPoint(points: RoutePoint[]): RoutePoint | null {
-  return points.find(p => p.action === 'unload') ?? null
+  return points.find(p => p.action != null && GIVE_ACTIONS.has(p.action)) ?? null
 }
 
-/** Терминалы: в разделы 8 и 10 не идут, их место — описание маршрута в разделе 5. */
-export function terminalPoints(points: RoutePoint[]): RoutePoint[] {
-  return points.filter(p => p.action != null && TERMINAL_ACTIONS.has(p.action))
+/** Точки с порожним контейнером: груза нет, в разделы 8 и 10 не идут. */
+export function emptyContainerPoints(points: RoutePoint[]): RoutePoint[] {
+  return points.filter(p => p.action != null && EMPTY_ACTIONS.has(p.action))
 }
 
 /** Подпись точки для интерфейса: «Терминал · Взять порожний». */
