@@ -86,6 +86,7 @@ export async function middleware(request: NextRequest) {
     pathname === '/profile' ||
     pathname === '/counterparties' ||
     pathname === '/auctions' ||   // доска торгов — обоим, но не /auctions/new
+    pathname === '/rate-requests' ||  // запросы ставки: клиент спрашивает, перевозчик отвечает
     isChatRoute || isTrackingRoute || isTruckDetail || isOrderDetail
   ) {
     return supabaseResponse

@@ -33,6 +33,7 @@ export function Navbar() {
     ? [
         { href: '/dashboard', label: t.nav.myOrders },
         { href: '/trucks', label: t.nav.findTruck },
+        { href: '/rate-requests', label: 'Запросы ставки' },
         { href: '/auctions', label: 'Торги' },
         { href: '/counterparties', label: 'Контрагенты' },
         { href: '/stats', label: t.nav.stats },
@@ -42,6 +43,7 @@ export function Navbar() {
     ? [
         { href: '/feed', label: t.nav.feed },
         { href: '/my-responses', label: t.nav.myResponses },
+        { href: '/rate-requests', label: 'Запросы ставки' },
         { href: '/auctions', label: 'Торги' },
         { href: '/my-trucks', label: t.nav.myTrucks },
         { href: '/counterparties', label: 'Контрагенты' },

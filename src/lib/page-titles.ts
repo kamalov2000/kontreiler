@@ -13,6 +13,7 @@ const EXACT_TITLES: Record<string, string> = {
   '/dashboard':       'Мои заявки',
   '/feed':            'Лента заявок',
   '/orders/new':      'Новая заявка',
+  '/rate-requests':   'Запросы ставки',
   '/auctions':        'Торги',
   '/auctions/new':    'Новые торги',
   '/my-responses':    'Мои отклики',

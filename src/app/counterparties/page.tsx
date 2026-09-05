@@ -5,14 +5,19 @@ import { AppLayout } from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { useUser } from '@/hooks/useUser'
-import { Counterparty } from '@/types/database'
+import { BlockedCarrier, Counterparty } from '@/types/database'
 import { ContainerMark } from '@/components/ui/ContainerMark'
-import { Plus, Trash2, Search, X, Truck, Package } from 'lucide-react'
+import { Plus, Trash2, Search, X, Truck, Package, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 
 export default function CounterpartiesPage() {
   const { user, loading: userLoading } = useUser()
   const [counterparties, setCounterparties] = useState<Counterparty[]>([])
+  // «Стелс»: перевозчики, от которых клиент прячет свои публикации. Список
+  // ведётся по клиенту и действует на все его заявки и запросы ставки сразу.
+  const [blocked, setBlocked] = useState<BlockedCarrier[]>([])
+  const [tab, setTab] = useState<'counterparties' | 'blocked'>('counterparties')
   const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
   const [searchEmail, setSearchEmail] = useState('')
@@ -36,7 +41,51 @@ export default function CounterpartiesPage() {
       .eq('owner_id', user!.id)
       .order('created_at', { ascending: false })
     setCounterparties((data || []) as Counterparty[])
+
+    // Скрытые — только у клиента: прячут заявки, а они бывают только у него.
+    if (user!.role === 'client') {
+      const { data: blockedRows } = await supabase
+        .from('blocked_carriers')
+        .select('*, blocked:users!blocked_id(id, name, company_name, role, city, inn)')
+        .eq('owner_id', user!.id)
+        .order('created_at', { ascending: false })
+      setBlocked((blockedRows || []) as BlockedCarrier[])
+    }
     setLoading(false)
+  }
+
+  async function addBlocked(carrierId: string) {
+    setAdding(true)
+    const supabase = createClient()
+    const { error } = await supabase.from('blocked_carriers').insert({
+      owner_id: user!.id,
+      blocked_id: carrierId,
+      note: note.trim() || null,
+    })
+    setAdding(false)
+    if (error) {
+      if (error.code === '23505') toast.error('Этот перевозчик уже скрыт')
+      else toast.error('Ошибка при добавлении')
+      return
+    }
+    toast.success('Перевозчик больше не увидит ваши публикации')
+    setAddOpen(false)
+    setSearchEmail('')
+    setSearchResult(null)
+    setNote('')
+    fetchCounterparties()
+  }
+
+  async function removeBlocked(id: string) {
+    setDeletingId(id)
+    const supabase = createClient()
+    const { error } = await supabase.from('blocked_carriers').delete().eq('id', id)
+    setDeletingId(null)
+    if (error) toast.error('Ошибка при удалении')
+    else {
+      toast.success('Перевозчик снова видит ваши публикации')
+      setBlocked(prev => prev.filter(b => b.id !== id))
+    }
   }
 
   async function searchUser() {
@@ -98,26 +147,63 @@ export default function CounterpartiesPage() {
   }
 
   const targetRole = user?.role === 'client' ? 'перевозчиков' : 'клиентов'
+  const isClient = user?.role === 'client'
+  const onBlockedTab = tab === 'blocked'
 
   return (
     <AppLayout>
       <div className="max-w-2xl">
         <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">Контрагенты</h1>
-            <p className="text-[13px] text-ink-3 mt-0.5">Ваши проверенные {targetRole}</p>
+            <h1 className="text-2xl font-bold tracking-[-0.01em] text-ink">
+              {onBlockedTab ? 'Скрытые перевозчики' : 'Контрагенты'}
+            </h1>
+            <p className="text-[13px] text-ink-3 mt-0.5">
+              {onBlockedTab
+                ? 'Не видят ваши заявки и запросы ставки — ни в ленте, ни по прямой ссылке'
+                : `Ваши проверенные ${targetRole}`}
+            </p>
           </div>
           <Button onClick={() => setAddOpen(true)}>
             <Plus size={16} className="mr-1" />
-            Добавить
+            {onBlockedTab ? 'Скрыть' : 'Добавить'}
           </Button>
         </div>
+
+        {/* Вкладки. Чёрный список есть только у клиента: прячут заявки, а они
+            бывают только у него. */}
+        {isClient && (
+          <div className="flex gap-5 border-b border-hairline mb-5">
+            {([
+              ['counterparties', 'Контрагенты', counterparties.length],
+              ['blocked', 'Скрытые', blocked.length],
+            ] as const).map(([key, label, count]) => (
+              <button
+                key={key}
+                onClick={() => { setTab(key); setAddOpen(false); setSearchResult(null) }}
+                className={cn(
+                  'relative inline-flex items-center gap-1.5 pb-2.5 -mb-px text-[13px] font-medium transition-colors',
+                  tab === key ? 'text-accent shadow-[inset_0_-2px_0_#0E6E6E]' : 'text-ink-3 hover:text-ink'
+                )}
+              >
+                {label}
+                {count > 0 && (
+                  <span className={cn('font-mono text-[11px] tabular-nums', tab === key ? 'text-accent' : 'text-ink-3')}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Блок добавления */}
         {addOpen && (
           <div className="bg-surface rounded-card border border-hairline p-5 mb-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-[13px] font-semibold tracking-[0.06em] uppercase text-ink-3">Добавить контрагента</h2>
+              <h2 className="text-[13px] font-semibold tracking-[0.06em] uppercase text-ink-3">
+                {onBlockedTab ? 'Скрыть перевозчика' : 'Добавить контрагента'}
+              </h2>
               <button onClick={() => { setAddOpen(false); setSearchResult(null); setSearchEmail('') }} className="p-1.5 rounded-field text-ink-4 hover:text-ink hover:bg-surface-sunken transition-colors">
                 <X size={16} />
               </button>
@@ -156,9 +242,20 @@ export default function CounterpartiesPage() {
                     className="w-full h-11 px-3 text-sm rounded-field border border-hairline bg-surface text-ink placeholder:text-ink-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent"
                   />
                 </div>
-                <Button size="sm" onClick={() => addCounterparty(searchResult.id)} loading={adding}>
-                  Добавить в контрагенты
-                </Button>
+                {onBlockedTab && searchResult.role !== 'carrier' ? (
+                  <p className="text-[13px] text-ink-3">
+                    Скрывать можно только перевозчиков — заявки видят они.
+                  </p>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant={onBlockedTab ? 'danger' : 'primary'}
+                    onClick={() => onBlockedTab ? addBlocked(searchResult.id) : addCounterparty(searchResult.id)}
+                    loading={adding}
+                  >
+                    {onBlockedTab ? 'Скрыть от него заявки' : 'Добавить в контрагенты'}
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -173,6 +270,60 @@ export default function CounterpartiesPage() {
               </div>
             ))}
           </div>
+        ) : onBlockedTab ? (
+          blocked.length === 0 ? (
+            <div className="border border-hairline rounded-card bg-surface flex flex-col items-center gap-3 text-center py-16 px-6 text-ink-3">
+              <EyeOff size={26} strokeWidth={1.5} className="text-ink-4" />
+              <p className="text-ink-2">Список пуст — заявки видят все перевозчики</p>
+              <p className="text-[13px] max-w-sm">
+                Если от кого-то нужно спрятаться, добавьте его сюда: он перестанет видеть
+                ваши заявки и запросы ставки. Остальным всё видно как обычно.
+              </p>
+              <button onClick={() => setAddOpen(true)} className="inline-flex items-center gap-1 text-[13px] font-medium text-accent hover:text-accent-hover transition-colors">
+                <Plus size={15} />
+                Скрыть перевозчика
+              </button>
+            </div>
+          ) : (
+            <div className="border border-hairline rounded-card bg-surface overflow-hidden">
+              {blocked.map(b => {
+                const partner = b.blocked
+                const partnerInn = (partner as { inn?: string | null })?.inn
+                return (
+                  <div key={b.id} className="flex items-center justify-between gap-3 min-h-[56px] py-3 px-5 border-b border-hairline last:border-0 transition-colors ease-terminal hover:bg-surface-sunken">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <EyeOff size={18} strokeWidth={1.5} className="text-ink-3 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="font-semibold text-ink truncate">
+                          {partner?.company_name || partner?.name || 'Без имени'}
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                          <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3">
+                            <Truck size={12} strokeWidth={1.5} /> Перевозчик
+                          </span>
+                          {(partner as { city?: string | null })?.city && (
+                            <span className="text-[13px] text-ink-3">· {(partner as { city?: string | null }).city}</span>
+                          )}
+                          {partnerInn && (
+                            <span className="font-mono text-[13px] tabular-nums text-ink-3">ИНН {partnerInn}</span>
+                          )}
+                        </div>
+                        {b.note && <div className="text-[13px] text-ink-3 mt-0.5">{b.note}</div>}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeBlocked(b.id)}
+                      disabled={deletingId === b.id}
+                      className="shrink-0 text-[13px] font-medium text-accent hover:text-accent-hover transition-colors disabled:opacity-50"
+                      title="Снова показывать заявки"
+                    >
+                      вернуть
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )
         ) : counterparties.length === 0 ? (
           <div className="border border-hairline rounded-card bg-surface flex flex-col items-center gap-3 text-center py-16 px-6 text-ink-3">
             <ContainerMark size={28} className="text-ink-4" />
@@ -230,7 +381,14 @@ export default function CounterpartiesPage() {
         <div className="mt-6 p-4 rounded-card bg-surface border border-hairline">
           <div className="text-[11.5px] font-semibold tracking-[0.06em] uppercase text-ink-3 mb-2">Как это работает</div>
           <ul className="space-y-1.5 text-[13px] text-ink-2">
-            {user?.role === 'client' ? (
+            {onBlockedTab ? (
+              <>
+                <li className="flex gap-2"><span className="text-accent">—</span> Скрытый перевозчик не видит ваши заявки и запросы ставки — ни в ленте, ни по прямой ссылке</li>
+                <li className="flex gap-2"><span className="text-accent">—</span> Список действует на все ваши публикации сразу, отмечать каждую заявку не нужно</li>
+                <li className="flex gap-2"><span className="text-accent">—</span> Уведомления он не получает — заявки просто перестают ему показываться</li>
+                <li className="flex gap-2"><span className="text-accent">—</span> Уже начатые рейсы это не затрагивает — перевозчик видит сделку, в которой участвует</li>
+              </>
+            ) : user?.role === 'client' ? (
               <>
                 <li className="flex gap-2"><span className="text-accent">—</span> При создании заявки выберите «Только для моих контрагентов»</li>
                 <li className="flex gap-2"><span className="text-accent">—</span> Такие заявки видны только добавленным перевозчикам</li>

@@ -10,7 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatDateTime, vatPercent, vatDocLabel } from '@/lib/utils'
 import { Order, OrderStop, OrderDriverInfo, OrderTnVersion, User } from '@/types/database'
 import {
-  buildRoutePoints, hasContainerActions, loadPoint, unloadPoint, routeDescription,
+  buildRoutePoints, loadPoint, unloadPoint, routeDescription,
 } from '@/lib/route-points'
 
 interface Props {
@@ -95,18 +95,21 @@ export function TnModal({ open, onClose, order, stops, carrier, driverInfo, curr
 
   const orderNumber = order.order_number ?? `КТ-${order.id.slice(0, 6).toUpperCase()}`
 
-  // Разделы 8 «Приём груза» и 10 «Выдача груза». Если действия с контейнером
-  // проставлены — берём адреса точек погрузки и выгрузки: в кругорейсе первая
-  // и последняя точки это терминалы порожняка, груз там не принимают и не
-  // выдают. Не проставлены — прежнее поведение, первая и последняя точки.
-  const typedRoute = useMemo(() => hasContainerActions(points), [points])
+  // Разделы 8 «Приём груза» и 10 «Выдача груза» — точки, где груз попал к
+  // перевозчику и где ушёл от него. В кругорейсе это не первая и последняя
+  // точки: там терминалы порожняка, груз не принимали и не выдавали.
+  //
+  // Если такой точки в маршруте нет — откатываемся на первую и последнюю, как
+  // было до типизации. Так бывает у обычной заявки со складом отправителя в
+  // графе «откуда»: действие там выбирается из «взять порожний / гружёный»,
+  // погрузки среди них нет, и раздел иначе остался бы пустым.
   const pickupAddress = useMemo(
-    () => typedRoute ? (loadPoint(points)?.address ?? '') : points[0].address,
-    [typedRoute, points],
+    () => loadPoint(points)?.address ?? points[0].address,
+    [points],
   )
   const unloadAddress = useMemo(
-    () => typedRoute ? (unloadPoint(points)?.address ?? '') : points[points.length - 1].address,
-    [typedRoute, points],
+    () => unloadPoint(points)?.address ?? points[points.length - 1].address,
+    [points],
   )
   const pickupDatetime = [fmtDate(order.ready_date), order.ready_time].filter(Boolean).join(' ')
 

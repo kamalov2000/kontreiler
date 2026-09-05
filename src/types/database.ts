@@ -366,6 +366,56 @@ export interface Review {
   reviewee?: User
 }
 
+// Запрос ставки: клиент узнаёт цену, когда груза ещё нет — контейнер в пути,
+// дата плавает. Отдельно от заявок: ни даты погрузки, ни статусов рейса, ни
+// документов, в реестр не идёт. В заявку автоматически не превращается.
+export interface RateRequest {
+  id: string
+  client_id: string
+  number: string | null
+  from_city: string
+  from_city_address: string | null
+  via_city: string | null
+  to_city: string
+  to_city_address: string | null
+  container_type: ContainerType
+  weight_gross: number | null
+  requires_genset: boolean
+  /** Всё, чего нет в полях: «готов через неделю, пока контейнер в пути». */
+  comment: string | null
+  status: 'open' | 'closed'
+  created_at: string
+  closed_at: string | null
+  // joined
+  client?: User
+  offers?: RateRequestOffer[]
+  offer_count?: number
+}
+
+// Ставка перевозчика по запросу. Чужие ставки перевозчику не видны — это
+// закрыто политикой RLS, а не только интерфейсом.
+export interface RateRequestOffer {
+  id: string
+  request_id: string
+  carrier_id: string
+  amount: number
+  vat_type: VatType
+  comment: string | null
+  created_at: string
+  carrier?: User
+}
+
+// «Стелс»: перевозчик, которому клиент не показывает свои публикации. Список
+// ведётся по клиенту и действует на все его заявки и запросы ставки сразу.
+export interface BlockedCarrier {
+  id: string
+  owner_id: string
+  blocked_id: string
+  note: string | null
+  created_at: string
+  blocked?: User
+}
+
 export interface Counterparty {
   id: string
   owner_id: string
